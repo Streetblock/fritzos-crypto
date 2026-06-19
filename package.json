@@ -1,0 +1,20 @@
+{
+  "name": "fritzos-crypto",
+  "version": "0.1.0",
+  "description": "Lightweight FritzOS secret decryption for Node.js and browsers",
+  "main": "./FritzOSCrypto.js",
+  "scripts": {
+    "test": "node ./test/fritzoscrypto.test.js"
+  },
+  "keywords": [
+    "fritzos",
+    "fritzbox",
+    "crypto",
+    "decoder"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "crypto-js": "^4.2.0",
+    "pako": "^2.1.0"
+  }
+}
