@@ -6,6 +6,14 @@
   "scripts": {
     "test": "node ./test/fritzoscrypto.test.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/streetblock/fritzos-crypto.git"
+  },
+  "bugs": {
+    "url": "https://github.com/streetblock/fritzos-crypto/issues"
+  },
+  "homepage": "https://github.com/streetblock/fritzos-crypto#readme",
   "keywords": [
     "fritzos",
     "fritzbox",
