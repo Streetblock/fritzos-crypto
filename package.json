@@ -4,7 +4,7 @@
   "description": "Lightweight FritzOS secret decryption for Node.js and browsers",
   "main": "./FritzOSCrypto.js",
   "scripts": {
-    "test": "node ./test/fritzoscrypto.test.js"
+    "test": "node ./test/configstate.test.js && node ./test/fritzoscrypto.test.js"
   },
   "repository": {
     "type": "git",

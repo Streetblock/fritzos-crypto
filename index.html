@@ -14,6 +14,7 @@
     <!-- (Muss im selben Ordner liegen!)            -->
     <!-- ========================================== -->
     <script src="./FritzOSCrypto.js"></script>
+    <script src="./ConfigState.js"></script>
 
     <style>
         .glass-panel {
@@ -38,13 +39,13 @@
             <div>
                 <h1 class="text-2xl font-bold flex items-center gap-2">
                     <i data-lucide="router"></i>
-                    FritzCryptoTool <span class="font-light text-blue-200">v0.1.4</span>
+                    FritzCryptoTool <span class="font-light text-blue-200">v0.1.5</span>
                 </h1>
                 <p class="text-sm text-blue-100 mt-1">Modularisiert: Nutzt externe FritzOSCrypto.js für das 7.50+ Master-Key Verfahren</p>
             </div>
             <div class="hidden md:flex items-center gap-3">
                 <span class="text-xs font-semibold bg-white/15 text-blue-50 px-3 py-1 rounded-full border border-white/25">
-                    v0.1.4 Modular
+                    v0.1.5 Modular
                 </span>
                 <i data-lucide="shield-check" class="w-10 h-10 text-blue-100"></i>
             </div>
@@ -58,12 +59,12 @@
                         <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Sicherheit</h2>
                         <div class="space-y-3">
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Fritz!Box Passwort</label>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Kennwort der Sicherungsdatei</label>
                                 <div class="relative">
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <i data-lucide="key" class="w-4 h-4 text-slate-400"></i>
                                     </div>
-                                    <input type="password" id="passwordInput" placeholder="Fritz!Box Passwort..."
+                                    <input type="password" id="passwordInput" placeholder="Sicherungskennwort..."
                                            class="pl-10 w-full rounded-lg border-slate-300 border px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all">
                                 </div>
                             </div>
@@ -75,9 +76,6 @@
                         <div class="flex flex-col gap-3">
                             <button id="btnDecrypt" class="flex items-center justify-center gap-2 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm">
                                 <i data-lucide="unlock" class="w-4 h-4"></i> Konfig entschlüsseln
-                            </button>
-                            <button id="btnEncrypt" class="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm">
-                                <i data-lucide="lock" class="w-4 h-4"></i> Editor verschlüsseln
                             </button>
                         </div>
                     </div>
@@ -110,7 +108,7 @@
                             <button id="btnClearLog" class="text-xs text-slate-400 hover:text-red-500 transition-colors">Log leeren</button>
                         </div>
                         <div id="statusLog" class="bg-slate-900 rounded-xl p-4 min-h-[200px] max-h-[380px] overflow-y-auto font-mono text-xs text-slate-300 shadow-inner space-y-2 flex-grow">
-                            <div class="log-entry text-green-400">&gt; System bereit. v0.1.4 (Modular) aktiv.</div>
+                            <div class="log-entry text-green-400">&gt; System bereit. v0.1.5 (Modular) aktiv.</div>
                         </div>
                     </div>
                 </aside>
@@ -128,9 +126,11 @@
                             <h3 class="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2 border-b pb-2">
                                 <i data-lucide="shield-alert" class="w-4 h-4 text-orange-500"></i> Gefundene Geheimnisse
                             </h3>
-                            <div class="flex items-center gap-4 mt-3">
-                                <div class="text-3xl font-black text-orange-500" id="secretsCount">0</div>
-                                <div class="text-xs text-slate-500">potenzielle AVM-Strings gefunden.</div>
+                            <div class="grid grid-cols-2 gap-3 mt-3 text-center">
+                                <div><div class="text-2xl font-black text-orange-500" id="secretsCount">0</div><div class="text-[11px] text-slate-500">gefunden</div></div>
+                                <div><div class="text-2xl font-black text-emerald-600" id="decryptedCount">0</div><div class="text-[11px] text-slate-500">entschlüsselt</div></div>
+                                <div><div class="text-2xl font-black text-red-500" id="failedCount">0</div><div class="text-[11px] text-slate-500">fehlgeschlagen</div></div>
+                                <div><div class="text-2xl font-black text-blue-500" id="pendingCount">0</div><div class="text-[11px] text-slate-500">offen</div></div>
                             </div>
                         </div>
                     </div>
@@ -140,7 +140,11 @@
                             <h2 class="text-xl font-bold text-slate-700 flex items-center gap-2">
                                 <i data-lucide="file-code-2" class="text-blue-500"></i>
                                 Konfigurations-Editor
+                                <span id="viewModeBadge" class="text-xs font-medium bg-slate-100 text-slate-500 px-2 py-1 rounded-full">Arbeitskopie</span>
                             </h2>
+                            <button id="btnShowWorking" class="hidden items-center gap-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg border border-slate-200">
+                                <i data-lucide="file-lock-2" class="w-4 h-4"></i> Arbeitskopie anzeigen
+                            </button>
                         </div>
 
                         <div id="editorDropZone" class="relative flex-grow flex flex-col">
@@ -170,318 +174,9 @@
     </div>
 
     <script>
-        class AVMCrypto {
-            static TYPE_LABELS = {
-                1: 'Typ 1 / MD5 + RC4',
-                2: 'Typ 2 / PBKDF2-SHA1 + AES-CBC',
-                3: 'Typ 3 / PBKDF2-SHA256 + AES-CBC',
-                4: 'Typ 4 / PBKDF2-SHA256 + AES-GCM',
-                5: 'Typ 5 / Proprietär Master-Key (CBC)'
-            };
-
-            static stripPrefix(avmString) {
-                return String(avmString || '').toUpperCase().replace(/^\$\$\$\$/, '').replace(/\s+/g, '').replace(/=+$/, '');
-            }
-
-            static readUInt32LE(bytes, offset = 0) {
-                if (!bytes || bytes.length < offset + 4) return -1;
-                return (bytes[offset]) | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24);
-            }
-
-            // Für Typ 1-4 Fallbacks: Eigenes Base32/64 Decoding der Kandidaten
-            static decodeBitsCustom(str, alphabet, bitsPerChar) {
-                let bits = 0;
-                let bitCount = 0;
-                const bytes = [];
-                for (let i = 0; i < str.length; i++) {
-                    const value = alphabet.indexOf(str[i]);
-                    if (value === -1) continue;
-                    bits = (bits << bitsPerChar) | value;
-                    bitCount += bitsPerChar;
-                    while (bitCount >= 8) {
-                        bitCount -= 8;
-                        bytes.push((bits >> bitCount) & 0xFF);
-                    }
-                }
-                return new Uint8Array(bytes);
-            }
-
-            static decodeCandidates(avmString) {
-                const body = this.stripPrefix(avmString);
-                const candidates = [];
-                const seen = new Set();
-
-                const pushCandidate = (bytes, source) => {
-                    if (!(bytes instanceof Uint8Array) || bytes.length < 4) return;
-                    const signature = Array.from(bytes.slice(0, Math.min(bytes.length, 24))).join(',');
-                    if (seen.has(signature)) return;
-                    seen.add(signature);
-                    candidates.push({ bytes, source, type: this.readUInt32LE(bytes) });
-                };
-
-                pushCandidate(this.decodeBitsCustom(body, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ123456', 5), 'Fritz-Base32');
-                pushCandidate(this.decodeBitsCustom(body, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567', 5), 'Standard-Base32');
-
-                const base64Alphabets = [
-                    { alphabet: './0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', label: 'AVM-Base64 (Engelke)' },
-                    { alphabet: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz./', label: 'AVM-Base64 (0.0.8)' },
-                    { alphabet: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', label: 'Standard-Base64' }
-                ];
-
-                for (const entry of base64Alphabets) {
-                    pushCandidate(this.decodeBitsCustom(body, entry.alphabet, 6), entry.label);
-                }
-
-                return candidates;
-            }
-
-            static sanitizeString(text) {
-                return String(text ?? '').replace(/\0+$/g, '');
-            }
-
-            static looksPlausiblePlaintext(text) {
-                if (typeof text !== 'string') return false;
-                if (text.length === 0) return true;
-                const cleaned = this.sanitizeString(text);
-                if (cleaned.length === 0) return true;
-                const replacementCount = (cleaned.match(/\uFFFD/g) || []).length;
-                const controlCount = (cleaned.match(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g) || []).length;
-                const bad = replacementCount + controlCount;
-                const ratio = 1 - (bad / cleaned.length);
-                return ratio >= 0.85;
-            }
-
-            static decodeBufferToText(bufferLike) {
-                const bytes = bufferLike instanceof Uint8Array ? bufferLike : new Uint8Array(bufferLike);
-                const decoder = new TextDecoder();
-                try {
-                    const inflated = pako.inflate(bytes);
-                    const text = this.sanitizeString(decoder.decode(inflated));
-                    if (this.looksPlausiblePlaintext(text)) return text;
-                } catch (error) {}
-
-                const rawText = this.sanitizeString(decoder.decode(bytes));
-                if (!this.looksPlausiblePlaintext(rawText)) throw new Error('BAD_PASSWORD');
-                return rawText;
-            }
-
-            // --- PBKDF2 WebCrypto Methoden für Typ 1 bis 4 ---
-            static async importPBKDF2Password(password) {
-                return crypto.subtle.importKey(
-                    'raw', new TextEncoder().encode(password), { name: 'PBKDF2' }, false, ['deriveKey']
-                );
-            }
-
-            static async deriveKey(password, salt, algorithm, length, iterations, hash) {
-                const keyMaterial = await this.importPBKDF2Password(password);
-                return crypto.subtle.deriveKey(
-                    { name: 'PBKDF2', salt, iterations, hash },
-                    keyMaterial, { name: algorithm, length }, false, ['decrypt']
-                );
-            }
-
-            static async decryptType1(password, salt, cipher) {
-                const passWA = CryptoJS.enc.Utf8.parse(password);
-                const saltWA = CryptoJS.lib.WordArray.create(salt);
-                const key = CryptoJS.MD5(passWA.clone().concat(saltWA));
-                const cipherWA = CryptoJS.lib.WordArray.create(cipher);
-                const decryptedWA = CryptoJS.RC4.decrypt({ ciphertext: cipherWA }, key);
-                const result = CryptoJS.enc.Utf8.stringify(decryptedWA);
-                if (!result && cipherWA.sigBytes > 0) throw new Error('BAD_PASSWORD');
-                return { plaintext: this.sanitizeString(result), saltLen: 8, layout: 'salt8' };
-            }
-
-            static async decryptAESCBC(password, salt, iv, cipher, iterations, hash) {
-                const key = await this.deriveKey(password, salt, 'AES-CBC', 256, iterations, hash);
-                const decrypted = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, cipher);
-                return this.decodeBufferToText(decrypted);
-            }
-
-            static async decryptAESGCM(password, salt, iv, cipherWithTag, iterations, hash) {
-                const key = await this.deriveKey(password, salt, 'AES-GCM', 256, iterations, hash);
-                const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipherWithTag);
-                return this.decodeBufferToText(decrypted);
-            }
-
-            static async tryLayoutSeries(bytes, type, password, layouts) {
-                const errors = [];
-                for (const layout of layouts) {
-                    const { saltLen, ivLen, iterations, hash, algorithm } = layout;
-                    const headerLen = 4 + saltLen + ivLen;
-                    if (bytes.length <= headerLen) continue;
-
-                    const salt = bytes.slice(4, 4 + saltLen);
-                    const iv = bytes.slice(4 + saltLen, 4 + saltLen + ivLen);
-                    const payload = bytes.slice(headerLen);
-
-                    try {
-                        let plaintext;
-                        if (algorithm === 'AES-CBC') {
-                            plaintext = await this.decryptAESCBC(password, salt, iv, payload, iterations, hash);
-                        } else {
-                            plaintext = await this.decryptAESGCM(password, salt, iv, payload, iterations, hash);
-                        }
-                        return { plaintext, saltLen, layout: `salt${saltLen}/iv${ivLen}`, type, algorithm, iterations, hash };
-                    } catch (error) {
-                        errors.push(error);
-                    }
-                }
-                if (errors.length) throw new Error('BAD_PASSWORD');
-                throw new Error('NOT_A_SECRET');
-            }
-
-            static async decryptSecret(avmString, password, activeMasterKeyBytes = null) {
-                let lastBadPassword = null;
-                let lastError = null;
-
-                // 1. Priorität: FritzOSCrypto.js nutzen (Typ 5 - Master Key basiert)
-                if (typeof window.FritzOSCrypto !== 'undefined') {
-                    try {
-                        const keyToUse = activeMasterKeyBytes || password;
-                        const res = window.FritzOSCrypto.decryptSecret(avmString, keyToUse);
-                        return {
-                            plaintext: res.isString ? res.text : '(Binärdaten)',
-                            rawValue: res.rawBytes,
-                            type: 5,
-                            label: this.TYPE_LABELS[5],
-                            source: 'FritzOSCrypto.js',
-                            saltLen: 0,
-                            layout: 'AVM-Proprietary',
-                            algorithm: 'AES-256-CBC-Legacy'
-                        };
-                    } catch (e) {
-                        // FritzOSCrypto wirft FritzOSCryptoError bei falschem Passwort
-                        if (e.message.includes('wrong password') || e.message.includes('digest validation failed')) {
-                            lastBadPassword = e;
-                        }
-                        // Bei anderen Fehlern (z.B. falsche Base32-Länge) fangen wir leise ab
-                        // und probieren unten die PBKDF2-Methoden für Typ 1-4.
-                    }
-                } else {
-                    console.warn("FritzOSCrypto.js nicht geladen! Überspringe Typ 5 Master-Key Check.");
-                }
-
-                // 2. Fallback: Moderne PBKDF2 Entschlüsselung (Typ 1-4)
-                const candidates = this.decodeCandidates(avmString);
-                for (const candidate of candidates) {
-                    const { bytes, source, type } = candidate;
-                    try {
-                        let result;
-                        if (type === 1) {
-                            if (bytes.length < 12) throw new Error('NOT_A_SECRET');
-                            result = await this.decryptType1(password, bytes.slice(4, 12), bytes.slice(12));
-                        } else if (type === 2) {
-                            result = await this.tryLayoutSeries(bytes, type, password, [
-                                { saltLen: 8, ivLen: 16, iterations: 1000, hash: 'SHA-1', algorithm: 'AES-CBC' }
-                            ]);
-                        } else if (type === 3) {
-                            result = await this.tryLayoutSeries(bytes, type, password, [
-                                { saltLen: 16, ivLen: 16, iterations: 100000, hash: 'SHA-256', algorithm: 'AES-CBC' },
-                                { saltLen: 8, ivLen: 16, iterations: 100000, hash: 'SHA-256', algorithm: 'AES-CBC' }
-                            ]);
-                        } else if (type === 4) {
-                            result = await this.tryLayoutSeries(bytes, type, password, [
-                                { saltLen: 16, ivLen: 12, iterations: 100000, hash: 'SHA-256', algorithm: 'AES-GCM' },
-                                { saltLen: 8, ivLen: 12, iterations: 100000, hash: 'SHA-256', algorithm: 'AES-GCM' }
-                            ]);
-                        } else {
-                            throw new Error('NOT_A_SECRET');
-                        }
-
-                        return {
-                            plaintext: result.plaintext,
-                            type,
-                            label: this.TYPE_LABELS[type] || `Typ ${type}`,
-                            source,
-                            saltLen: result.saltLen,
-                            layout: result.layout || '',
-                            algorithm: result.algorithm || (type === 1 ? 'RC4' : 'AES')
-                        };
-                    } catch (error) {
-                        if (error.message === 'BAD_PASSWORD') lastBadPassword = error;
-                        else lastError = error;
-                    }
-                }
-                
-                if (lastBadPassword) throw lastBadPassword;
-                throw lastError || new Error('NOT_A_SECRET');
-            }
-
-            static async encryptSecret(text, password) {
-                // Verschlüsselt als starker Typ 4 (AES-GCM), den moderne FritzBoxen problemlos importieren
-                const salt = crypto.getRandomValues(new Uint8Array(16));
-                const iv = crypto.getRandomValues(new Uint8Array(12));
-                const keyMaterial = await this.importPBKDF2Password(password);
-                const key = await crypto.subtle.deriveKey(
-                    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-                    keyMaterial,
-                    { name: 'AES-GCM', length: 256 },
-                    false,
-                    ['encrypt']
-                );
-
-                const encoded = new TextEncoder().encode(text);
-                const compressed = pako.deflate(encoded);
-                const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, compressed);
-
-                const payload = new Uint8Array(4 + 16 + 12 + encrypted.byteLength);
-                payload.set([0x04, 0x00, 0x00, 0x00], 0);
-                payload.set(salt, 4);
-                payload.set(iv, 20);
-                payload.set(new Uint8Array(encrypted), 32);
-
-                const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ123456';
-                let bits = 0;
-                let bitCount = 0;
-                let output = '';
-
-                for (let i = 0; i < payload.length; i++) {
-                    bits = (bits << 8) | payload[i];
-                    bitCount += 8;
-                    while (bitCount >= 5) {
-                        bitCount -= 5;
-                        output += alphabet[(bits >> bitCount) & 31];
-                    }
-                }
-                if (bitCount > 0) output += alphabet[(bits << (5 - bitCount)) & 31];
-                const padCount = (8 - (output.length % 8)) % 8;
-                if (padCount > 0) output += '='.repeat(padCount);
-
-                return '$$$$' + output;
-            }
-        }
-
-        class FritzBoxParser {
-            static isExportFile(text) {
-                return text.includes('**** FRITZ!Box') && text.includes('CONFIGURATION EXPORT');
-            }
-
-            static parseHeader(headerText) {
-                const meta = {};
-                const lines = headerText.split('\n');
-                const modelMatch = lines[0]?.match(/\*\*\*\*\s+FRITZ!Box\s+(.+?)\s+CONFIG/);
-                if (modelMatch) meta['Modell'] = modelMatch[1].trim();
-
-                for (let i = 1; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    if (!line || line.startsWith('//')) continue;
-                    const eqIndex = line.indexOf('=');
-                    if (eqIndex > 0) {
-                        const key = line.substring(0, eqIndex).trim();
-                        const value = line.substring(eqIndex + 1).trim();
-                        meta[key] = value;
-                    }
-                }
-                return meta;
-            }
-
-            static extractSecrets(text) {
-                const regex = /\$\$\$\$[A-Za-z0-9./+=_-]+/g;
-                const matches = text.match(regex) || [];
-                return [...new Set(matches)];
-            }
-        }
-
+        // Die Oberfläche verwendet ausschließlich die exportierte Bibliothek.
+        const AVMCrypto = window.FritzOSCrypto?.AVMCrypto;
+        const FritzBoxParser = window.FritzOSCrypto?.FritzBoxParser;
         class ConfigToolApp {
             constructor() {
                 this.editor = document.getElementById('editorContent');
@@ -490,9 +185,9 @@
                 this.passwordInput = document.getElementById('passwordInput');
                 this.fileInput = document.getElementById('fileInput');
                 this.btnDecrypt = document.getElementById('btnDecrypt');
-                this.btnEncrypt = document.getElementById('btnEncrypt');
                 this.btnSave = document.getElementById('btnSave');
                 this.btnClear = document.getElementById('btnClear');
+                this.btnShowWorking = document.getElementById('btnShowWorking');
                 this.btnClearLog = document.getElementById('btnClearLog');
                 this.statusAlert = document.getElementById('statusAlert');
                 this.statusIcon = document.getElementById('statusIcon');
@@ -501,29 +196,32 @@
                 this.dashboardSection = document.getElementById('dashboardSection');
                 this.metaList = document.getElementById('metaList');
                 this.secretsCount = document.getElementById('secretsCount');
+                this.decryptedCount = document.getElementById('decryptedCount');
+                this.failedCount = document.getElementById('failedCount');
+                this.pendingCount = document.getElementById('pendingCount');
+                this.viewModeBadge = document.getElementById('viewModeBadge');
                 this.charCount = document.getElementById('charCount');
                 this.fileNameLabel = document.getElementById('fileNameLabel');
 
                 this.dragDepth = 0;
                 this.currentFileName = '';
-                this.foundSecrets = [];
+                this.library = window.FritzOSCrypto;
+                this.parser = FritzBoxParser;
+                this.crypto = AVMCrypto;
+                this.state = new window.FritzConfigState.ConfigState(this.parser);
 
                 this.bindEvents();
                 this.updateCharCount();
+                this.renderState();
 
-                // Check ob Bibliothek geladen ist
-                if (typeof window.FritzOSCrypto === 'undefined') {
-                    this.log('> WARNUNG: FritzOSCrypto.js wurde nicht gefunden! Stelle sicher, dass die Datei im selben Ordner liegt.', 'warning');
-                } else {
-                    this.log('> FritzOSCrypto.js Bibliothek erfolgreich geladen.', 'success');
-                }
+                this.log('> FritzOSCrypto.js Bibliothek erfolgreich geladen.', 'success');
             }
 
             bindEvents() {
                 this.btnDecrypt?.addEventListener('click', () => this.handleDecrypt());
-                this.btnEncrypt?.addEventListener('click', () => this.handleEncrypt());
                 this.btnSave?.addEventListener('click', () => this.saveEditor());
                 this.btnClear?.addEventListener('click', () => this.clearAll());
+                this.btnShowWorking?.addEventListener('click', () => this.showWorkingCopy());
                 this.btnClearLog?.addEventListener('click', () => this.clearLog());
                 this.fileInput?.addEventListener('change', (event) => this.handleFileInput(event));
                 this.editor?.addEventListener('input', () => this.handleEditorInput());
@@ -537,8 +235,10 @@
             }
 
             handleEditorInput() {
+                if (this.state.viewMode === 'preview') return;
+                this.state.setWorkingText(this.editor.value);
                 this.updateCharCount();
-                this.refreshSecretsCounter();
+                this.renderState();
             }
 
             updateCharCount() {
@@ -622,14 +322,16 @@
 
                 reader.onload = (loadEvent) => {
                     const text = String(loadEvent.target?.result || '');
+                    this.state.load(text);
                     this.editor.value = text;
+                    this.editor.readOnly = false;
                     this.editor.classList.remove('bg-slate-900', 'text-green-400');
                     this.editor.classList.add('bg-slate-50', 'text-slate-700');
                     this.updateCharCount();
-                    this.refreshSecretsCounter();
+                    this.renderState();
                     this.updateDashboard(text);
                     this.showStatus(`Datei geladen: ${this.currentFileName || 'Unbekannt'}`, 'success');
-                    this.log(`> Datei erfolgreich geladen. ${this.foundSecrets.length} potenzielle Geheimnisse erkannt.`, 'success');
+                    this.log(`> Datei erfolgreich geladen. ${this.state.secrets.length} potenzielle Geheimnisse erkannt.`, 'success');
                 };
 
                 reader.onerror = () => {
@@ -641,10 +343,10 @@
             }
 
             updateDashboard(text) {
-                if (FritzBoxParser.isExportFile(text)) {
+                if (this.parser.isExportFile(text)) {
                     const headerMatch = text.match(/^([\s\S]*?)(?=\*\*\*\*\s+[A-Z0-9_]+FILE)/);
                     if (headerMatch?.[1]) {
-                        this.displayMetaData(FritzBoxParser.parseHeader(headerMatch[1]));
+                        this.displayMetaData(this.parser.parseHeader(headerMatch[1]));
                     }
                     this.dashboardSection.classList.remove('hidden');
                 } else {
@@ -675,24 +377,57 @@
                 }
             }
 
-            refreshSecretsCounter() {
-                this.foundSecrets = FritzBoxParser.extractSecrets(this.editor.value);
-                this.secretsCount.textContent = this.foundSecrets.length;
+            renderState() {
+                const counts = this.state.getCounts();
+                this.secretsCount.textContent = counts.total;
+                this.decryptedCount.textContent = counts.decrypted;
+                this.failedCount.textContent = counts.failed;
+                this.pendingCount.textContent = counts.pending;
+
+                const isPreview = this.state.viewMode === 'preview';
+                this.viewModeBadge.textContent = isPreview ? 'Entschlüsselte Vorschau' : 'Arbeitskopie';
+                this.btnShowWorking.classList.toggle('hidden', !isPreview);
+                this.btnShowWorking.classList.toggle('flex', isPreview);
+
+                const decryptable = counts.pending + counts.failed;
+                this.btnDecrypt.disabled = decryptable === 0 || !this.state.workingText.trim();
+                this.btnDecrypt.classList.toggle('opacity-50', this.btnDecrypt.disabled);
+                this.btnDecrypt.classList.toggle('cursor-not-allowed', this.btnDecrypt.disabled);
+
+                if (decryptable > 0) {
+                    this.btnDecrypt.innerHTML = `<i data-lucide="unlock" class="w-4 h-4"></i> ${decryptable} Secrets entschlüsseln`;
+                } else if (counts.total > 0) {
+                    this.btnDecrypt.innerHTML = '<i data-lucide="check-circle-2" class="w-4 h-4"></i> Alles entschlüsselt';
+                } else {
+                    this.btnDecrypt.innerHTML = '<i data-lucide="unlock" class="w-4 h-4"></i> Konfig entschlüsseln';
+                }
+                lucide.createIcons();
             }
 
             clearAll() {
                 this.editor.value = '';
+                this.editor.readOnly = false;
                 this.currentFileName = '';
                 this.fileNameLabel.textContent = 'Keine Datei geladen';
                 this.dashboardSection.classList.add('hidden');
                 this.metaList.innerHTML = '';
-                this.foundSecrets = [];
-                this.secretsCount.textContent = '0';
+                this.state.reset();
+                this.renderState();
                 this.editor.classList.remove('bg-slate-900', 'text-green-400');
                 this.editor.classList.add('bg-slate-50', 'text-slate-700');
                 this.updateCharCount();
                 this.hideStatus();
                 this.log('> Editor geleert.', 'muted');
+            }
+
+            showWorkingCopy() {
+                this.editor.value = this.state.showWorkingCopy();
+                this.editor.readOnly = false;
+                this.editor.classList.remove('bg-slate-900', 'text-green-400');
+                this.editor.classList.add('bg-slate-50', 'text-slate-700');
+                this.updateCharCount();
+                this.renderState();
+                this.showStatus('Arbeitskopie angezeigt. Entschlüsselungsergebnisse bleiben erhalten.', 'info');
             }
 
             escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -713,73 +448,67 @@
             }
 
             async handleDecrypt() {
-                this.refreshSecretsCounter();
-
-                if (!this.editor.value.trim()) {
+                if (!this.state.workingText.trim()) {
                     this.showStatus('Editor ist leer.', 'error');
                     this.log('> FEHLER: Editor ist leer.', 'error');
                     return;
                 }
 
-                if (this.foundSecrets.length === 0) {
+                const decryptableSecrets = this.state.getDecryptableSecrets();
+                if (this.state.secrets.length === 0) {
                     this.showStatus('Keine verschlüsselten AVM-Strings ($$$$) gefunden.', 'warning');
                     this.log('> Keine AVM-Strings zum Entschlüsseln gefunden.', 'warning');
+                    return;
+                }
+                if (decryptableSecrets.length === 0) {
+                    this.showStatus('Alle gefundenen Secrets sind bereits entschlüsselt.', 'info');
                     return;
                 }
 
                 const passwordFromInput = this.passwordInput.value;
                 if (!passwordFromInput) {
-                    this.showStatus('Bitte gib das Passwort ein!', 'error');
-                    this.log('> FEHLER: Kein Passwort eingegeben.', 'error');
+                    this.showStatus('Bitte gib das Kennwort der Sicherungsdatei ein!', 'error');
+                    this.log('> FEHLER: Kein Sicherungskennwort eingegeben.', 'error');
                     return;
                 }
 
-                let configText = this.editor.value;
-                let activeMasterKeyBytes = null; // Als Uint8Array aus der FritzOSCrypto.js
+                let activeMasterKeyBytes = null;
                 let successCount = 0;
                 let failCount = 0;
-                let ignoredCount = 0;
 
-                this.editor.classList.remove('bg-slate-50', 'text-slate-700');
-                this.editor.classList.add('bg-slate-900', 'text-green-400');
-
-                // --- STUFE 1: Nach dem Master-Key Header suchen (FRITZ!OS 7.50+) ---
-                const passwordPropertyMatch = configText.match(/^Password=(\$\$\$\$[A-Za-z0-9./+=_-]+)/m);
-                
-                if (passwordPropertyMatch && typeof window.FritzOSCrypto !== 'undefined') {
+                const passwordPropertyMatch = this.state.workingText.match(/^Password=(\$\$\$\$[A-Za-z0-9./+=_-]+)/m);
+                if (passwordPropertyMatch && this.library) {
                     const encryptedMasterKey = passwordPropertyMatch[1];
+                    const masterWasDecrypted = this.state.getSecret(encryptedMasterKey)?.status === 'decrypted';
                     this.log(`> FRITZ!OS 7.50+ erkannt: "Password=" Property gefunden!`, 'accent');
                     this.log(`> Stufe 1: Entschlüssele Datei-Master-Key via FritzOSCrypto.js...`, 'accent');
-                    
+
                     try {
-                        // decryptExportKey nutzt die externe Library!
-                        const mkResult = window.FritzOSCrypto.decryptExportKey(encryptedMasterKey, passwordFromInput);
-                        
-                        // aesKeyBytes ist das normalisierte Array, das wir für den Rest brauchen
-                        activeMasterKeyBytes = mkResult.aesKeyBytes; 
-                        
+                        const mkResult = this.library.decryptExportKey(encryptedMasterKey, passwordFromInput);
+                        activeMasterKeyBytes = mkResult.aesKeyBytes;
+                        this.state.markDecrypted(encryptedMasterKey, {
+                            plaintext: '<Binärer Master-Key (entschlüsselt)>',
+                            label: 'Datei-Master-Key'
+                        });
                         this.log(`> [OK] Master-Key entschlüsselt! (Hex: ${mkResult.exportKeyHex.substring(0,8)}...)`, 'success');
-                        
-                        configText = configText.replace(encryptedMasterKey, '"<Binärer Master-Key (entschlüsselt)>"');
-                        successCount += 1;
-                        this.foundSecrets = this.foundSecrets.filter(s => s !== encryptedMasterKey);
+                        if (!masterWasDecrypted) successCount += 1;
                     } catch (err) {
+                        this.state.markFailed(encryptedMasterKey, err);
+                        this.renderState();
                         this.showStatus('Master-Key Entschlüsselung fehlgeschlagen!', 'error');
                         this.log(`> FEHLER bei Master-Key: ${err.message}. Ist das Passwort korrekt?`, 'error');
-                        this.editor.value = configText;
                         return;
                     }
                 } else if (!passwordPropertyMatch) {
-                    this.log(`> Klassisches Verfahren: Nutze Web-Passwort direkt für alle Secrets.`, 'info');
+                    this.log(`> Klassisches Verfahren: Nutze Sicherungskennwort direkt für alle Secrets.`, 'info');
                 }
 
-                this.log(`> Stufe 2: Entschlüssele restliche ${this.foundSecrets.length} Fundstellen...`, 'accent');
-
-                // --- STUFE 2: Restliche Secrets entschlüsseln ---
-                for (const secret of this.foundSecrets) {
+                const payloadSecrets = decryptableSecrets.filter(secret => secret.value !== passwordPropertyMatch?.[1]);
+                this.log(`> Stufe 2: Entschlüssele ${payloadSecrets.length} offene Fundstellen...`, 'accent');
+                for (const secret of payloadSecrets) {
                     try {
-                        const result = await AVMCrypto.decryptSecret(secret, passwordFromInput, activeMasterKeyBytes);
-                        configText = this.replaceSecretSmart(configText, secret, result.plaintext);
+                        const result = await this.crypto.decryptSecret(secret.value, passwordFromInput, activeMasterKeyBytes);
+                        this.state.markDecrypted(secret.value, result);
                         successCount += 1;
 
                         if (successCount <= (activeMasterKeyBytes ? 6 : 5)) {
@@ -787,61 +516,28 @@
                             this.log(`  [OK] ${result.label} via ${result.source} -> ${preview}`, 'success');
                         }
                     } catch (error) {
-                        if (error.message === 'NOT_A_SECRET') {
-                            ignoredCount += 1;
-                        } else {
-                            failCount += 1;
-                        }
+                        this.state.markFailed(secret.value, error);
+                        failCount += 1;
                     }
                 }
 
-                this.editor.value = configText;
+                this.editor.value = this.state.createPreview((text, secret, plaintext) => this.replaceSecretSmart(text, secret, plaintext));
+                this.editor.readOnly = true;
+                this.editor.classList.remove('bg-slate-50', 'text-slate-700');
+                this.editor.classList.add('bg-slate-900', 'text-green-400');
                 this.updateCharCount();
-                this.refreshSecretsCounter();
+                this.renderState();
 
                 this.log('-----------------------------------', 'muted');
-                
                 if (successCount > 0 && failCount === 0) {
-                    this.showStatus(`Perfekt! ${successCount} Geheimnisse entschlüsselt. (${ignoredCount} ignoriert)`, 'success');
-                    this.log(`> ERFOLG: ${successCount} Strings entschlüsselt. ${ignoredCount} wurden ignoriert.`, 'success');
+                    this.showStatus(`${successCount} Geheimnisse entschlüsselt. Die Arbeitskopie blieb unverändert.`, 'success');
+                    this.log(`> ERFOLG: ${successCount} Strings entschlüsselt.`, 'success');
                 } else if (successCount > 0 && failCount > 0) {
                     this.showStatus(`Teilerfolg: ${successCount} entschlüsselt, ${failCount} fehlgeschlagen.`, 'warning');
-                    this.log(`> TEILERFOLG: ${successCount} entschlüsselt, ${failCount} fehlgeschlagen, ${ignoredCount} ignoriert.`, 'warning');
+                    this.log(`> TEILERFOLG: ${successCount} entschlüsselt, ${failCount} fehlgeschlagen.`, 'warning');
                 } else {
-                    this.showStatus(`Fehler bei allen ${failCount || this.foundSecrets.length} restlichen Passwörtern.`, 'error');
-                    this.log(`> FEHLSCHLAG: Keine Entschlüsselung der Payloads möglich. ${ignoredCount} ignoriert.`, 'error');
-                }
-            }
-
-            async handleEncrypt() {
-                const text = this.editor.value;
-                const password = this.passwordInput.value;
-
-                if (!text.trim()) {
-                    this.showStatus('Editor ist leer.', 'error');
-                    this.log('> FEHLER: Nichts zum Verschlüsseln vorhanden.', 'error');
-                    return;
-                }
-                if (!password) {
-                    this.showStatus('Bitte ein Passwort eingeben.', 'error');
-                    this.log('> FEHLER: Passwort für Verschlüsselung fehlt.', 'error');
-                    return;
-                }
-
-                try {
-                    this.showStatus('Verschlüssele Editor-Inhalt als AVM Typ 4...', 'info');
-                    this.log('> Verschlüsselung gestartet (Typ 4 / AES-GCM / Fritz-Base32).', 'accent');
-                    const encryptedString = await AVMCrypto.encryptSecret(text, password);
-                    this.editor.classList.remove('bg-slate-900', 'text-green-400');
-                    this.editor.classList.add('bg-slate-50', 'text-slate-700');
-                    this.editor.value = encryptedString;
-                    this.updateCharCount();
-                    this.refreshSecretsCounter();
-                    this.showStatus('Erfolgreich verschlüsselt!', 'success');
-                    this.log('> Verschlüsselung erfolgreich abgeschlossen.', 'success');
-                } catch (error) {
-                    this.showStatus(`Fehler: ${error.message}`, 'error');
-                    this.log(`> FEHLER bei Verschlüsselung: ${error.message}`, 'error');
+                    this.showStatus(`Fehler bei allen ${failCount || payloadSecrets.length} offenen Secrets.`, 'error');
+                    this.log('> FEHLSCHLAG: Keine Entschlüsselung der offenen Secrets möglich.', 'error');
                 }
             }
 
@@ -853,9 +549,16 @@
                     return;
                 }
 
+                const isPlaintextPreview = this.state.viewMode === 'preview';
+                if (isPlaintextPreview && !window.confirm('Die entschlüsselte Vorschau enthält sensible Zugangsdaten im Klartext. Trotzdem speichern?')) {
+                    this.showStatus('Speichern der Klartextvorschau abgebrochen.', 'warning');
+                    return;
+                }
+
+                const suffix = isPlaintextPreview ? '-plaintext' : '-working';
                 const suggestedName = this.currentFileName
-                    ? this.currentFileName.replace(/(\.[A-Za-z0-9_-]+)?$/, '-hybrid$1')
-                    : (content.startsWith('$$$$') ? 'fritz-secret-hybrid.txt' : 'fritz-config-hybrid.export');
+                    ? this.currentFileName.replace(/(\.[A-Za-z0-9_-]+)?$/, `${suffix}$1`)
+                    : `fritz-config${suffix}.export`;
 
                 const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
                 const url = URL.createObjectURL(blob);

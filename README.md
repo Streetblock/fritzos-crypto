@@ -4,19 +4,19 @@
 
 🚀 **[Live Demo & Tool im Browser öffnen](https://streetblock.github.io/fritzos-crypto/)**
 
-Ein leichtgewichtiges, zu 100% lokal laufendes Browser-Tool und modular nutzbare Node.js-Bibliothek zum Entschlüsseln und Verschlüsseln von FRITZ!Box Konfigurationen (`.export` Dateien).
+Ein leichtgewichtiges Browser-Tool und eine modular nutzbare Node.js-Bibliothek zum Entschlüsseln von Geheimnissen in FRITZ!Box-Konfigurationen (`.export` Dateien).
 
 Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Master-Key Architektur** (2-Stufen-Entschlüsselung) sowie alle älteren, auf PBKDF2 basierenden Legacy-Typen.
 
 ## ✨ Features
 
-* **Moderne FRITZ!OS Unterstützung:** Knackt das neue Typ 5 / Typ 6 CBC-Master-Key-Verfahren (ab FRITZ!OS 7.50).
+* **Moderne FRITZ!OS Unterstützung:** Unterstützt das Typ-5-CBC-Master-Key-Verfahren (ab FRITZ!OS 7.50).
 
 * **Abwärtskompatibel:** Unterstützt die klassischen AVM Typen 1 bis 4 (MD5+RC4, PBKDF2+AES-CBC, PBKDF2+AES-GCM).
 
-* **100% Offline & Sicher:** Die HTML-Version läuft komplett lokal in deinem Browser. Es werden **keine** Konfigurationsdaten oder Passwörter an einen Server gesendet.
+* **Lokale Verarbeitung:** Konfigurationsdaten und Kennwörter werden im Browser verarbeitet. Die aktuelle HTML-Version lädt ihre JavaScript-Abhängigkeiten allerdings noch von CDNs und benötigt dafür eine Internetverbindung.
 
-* **Verschlüsseln (Re-Encrypt):** Geänderte Klartext-Daten können wieder als Typ 4 (AES-GCM) verpackt werden, sodass die FRITZ!Box sie problemlos wieder importiert.
+* **Einzelne Secrets verschlüsseln:** Die Bibliotheks-API kann einen einzelnen Text als Typ-4-Secret (AES-GCM) verpacken. Sie erzeugt daraus keine vollständig importierbare FRITZ!Box-Sicherungsdatei.
 
 * **Modular:** Die reine Krypto-Logik ist in `FritzOSCrypto.js` ausgelagert und kann nahtlos in eigenen Node.js-Projekten genutzt werden.
 

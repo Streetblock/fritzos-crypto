@@ -12,6 +12,10 @@ yarn-error.log
 *secret*.*
 *config*.*
 
+# Quellcode und Regressionstests mit diesen Begriffen bleiben versioniert.
+!ConfigState.js
+!test/*.test.js
+
 # ------- macOS ------- 
 
 .DS_Store
