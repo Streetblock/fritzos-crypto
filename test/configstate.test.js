@@ -23,6 +23,12 @@ assert.equal(state.workingText.includes(second), true, 'working copy must retain
 assert.deepEqual(state.getCounts(), { total: 2, pending: 0, decrypted: 2, failed: 0 });
 assert.equal(state.getDecryptableSecrets().length, 0, 'already decrypted plaintext must not be decrypted again');
 
+state.setEditedPlaintext(second, 'changed cleartext');
+assert.equal(state.getChangedSecrets().length, 1, 'edited plaintext must be tracked separately');
+assert.match(state.createPreview((text, secret, plaintext) => text.replace(secret, plaintext)), /changed cleartext/);
+state.setEditedPlaintext(second, 'cleartext');
+assert.equal(state.getChangedSecrets().length, 0, 'restoring plaintext must clear the changed state');
+
 state.showWorkingCopy();
 state.setWorkingText(`${state.workingText}\nthird="$$$$CCCC3333"`);
 assert.deepEqual(state.getCounts(), { total: 3, pending: 1, decrypted: 2, failed: 0 });

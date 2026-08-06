@@ -16,7 +16,7 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 
 * **Lokale Verarbeitung:** Konfigurationsdaten und Kennwörter werden im Browser verarbeitet. Die aktuelle HTML-Version lädt ihre JavaScript-Abhängigkeiten allerdings noch von CDNs und benötigt dafür eine Internetverbindung.
 
-* **Einzelne Secrets verschlüsseln:** Die Bibliotheks-API kann einen einzelnen Text als Typ-4-Secret (AES-GCM) verpacken. Sie erzeugt daraus keine vollständig importierbare FRITZ!Box-Sicherungsdatei.
+* **Secrets gezielt bearbeiten:** Entschlüsselte Typ-4- und Typ-5-Werte können einzeln geändert und in der Arbeitskopie neu verschlüsselt werden. Jeder neue Wert wird per Entschlüsselungs-Roundtrip geprüft. Daraus folgt noch keine Garantie, dass eine beliebig strukturell veränderte Sicherungsdatei importierbar ist.
 
 * **Modular:** Die reine Krypto-Logik ist in `FritzOSCrypto.js` ausgelagert und kann nahtlos in eigenen Node.js-Projekten genutzt werden.
 

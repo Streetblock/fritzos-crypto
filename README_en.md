@@ -16,7 +16,7 @@ The absolute highlight: This tool supports the modern **FRITZ!OS 7.50+ Master-Ke
 
 * **Local processing:** Configuration data and passwords are processed in the browser. The current HTML version still loads its JavaScript dependencies from CDNs and therefore requires an internet connection.
 
-* **Encrypt individual secrets:** The library API can package one text value as a Type 4 secret (AES-GCM). It does not turn that value into a complete importable FRITZ!Box backup.
+* **Edit secrets selectively:** Decrypted Type 4 and Type 5 values can be changed individually and re-encrypted in the working copy. Every new value is verified through a decryption roundtrip. This does not guarantee that an arbitrarily restructured backup file is importable.
 
 * **Modular:** The core cryptography logic is extracted into `FritzOSCrypto.js` and can be seamlessly integrated into your own Node.js backend projects.
 

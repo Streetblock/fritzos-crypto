@@ -467,6 +467,13 @@
     ) >>> 0;
   }
 
+  function writeUint32BE(bytes, offset, value) {
+    bytes[offset] = (value >>> 24) & 0xff;
+    bytes[offset + 1] = (value >>> 16) & 0xff;
+    bytes[offset + 2] = (value >>> 8) & 0xff;
+    bytes[offset + 3] = value & 0xff;
+  }
+
   function validateAndExtractValue(plaintext) {
     if (plaintext.length < 8) {
       fail("decrypted payload is too short");
@@ -520,6 +527,63 @@
       isString: parsed.isString,
       text: parsed.isString ? utf8String(parsed.value) : null
     };
+  }
+
+  async function encryptSecretWithKey(value, key) {
+    if (typeof value !== "string") {
+      fail("value must be a string");
+    }
+
+    var cryptoApi = getCrypto();
+    if (!cryptoApi || !cryptoApi.subtle || !cryptoApi.getRandomValues) {
+      fail("WebCrypto API is required for encryption");
+    }
+
+    var normalizedKey = normalizeAes256Key(key);
+    var valueBytes = utf8Bytes(value);
+    var rawValue = new Uint8Array(valueBytes.length + 1);
+    rawValue.set(valueBytes);
+
+    // AVM Base32 requires the complete IV+ciphertext payload to be divisible
+    // by five bytes. A ciphertext length of 64 + n*80 satisfies that rule.
+    var ciphertextLength = 64;
+    while (ciphertextLength < 8 + rawValue.length + 1) {
+      ciphertextLength += 80;
+    }
+
+    // WebCrypto appends one PKCS#7 byte because this input is one byte short
+    // of a block boundary. The legacy digest covers that final padding byte.
+    var plaintext = new Uint8Array(ciphertextLength - 1);
+    writeUint32BE(plaintext, 4, rawValue.length);
+    plaintext.set(rawValue, 8);
+
+    var digestInput = new Uint8Array(ciphertextLength - 4);
+    digestInput.set(plaintext.subarray(4));
+    digestInput[digestInput.length - 1] = 1;
+    plaintext.set(md5(digestInput).subarray(0, 4), 0);
+
+    var iv = cryptoApi.getRandomValues(new Uint8Array(BLOCK_SIZE));
+    var cryptoKey = await cryptoApi.subtle.importKey(
+      "raw",
+      normalizedKey,
+      { name: "AES-CBC" },
+      false,
+      ["encrypt"]
+    );
+    var encrypted = new Uint8Array(await cryptoApi.subtle.encrypt(
+      { name: "AES-CBC", iv: iv },
+      cryptoKey,
+      plaintext
+    ));
+
+    if (encrypted.length !== ciphertextLength) {
+      fail("unexpected AES-CBC ciphertext length");
+    }
+
+    var secretBytes = new Uint8Array(iv.length + encrypted.length);
+    secretBytes.set(iv);
+    secretBytes.set(encrypted, iv.length);
+    return "$$$$" + encodeAvmBase32(secretBytes);
   }
 
   function derivePasswordKey(password) {
@@ -913,6 +977,7 @@
     normalizeAes256Key: normalizeAes256Key,
     derivePasswordKey: derivePasswordKey,
     decryptSecretWithKey: decryptSecretWithKey,
+    encryptSecretWithKey: encryptSecretWithKey,
     decryptExportKey: decryptExportKey,
     decryptSecret: decryptSecret,
     // Neue asynchrone High-Level Interfaces:

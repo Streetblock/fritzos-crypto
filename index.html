@@ -135,6 +135,21 @@
                         </div>
                     </div>
 
+                    <div id="secretEditorSection" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-4 border-b border-slate-200 flex items-center justify-between gap-4 flex-wrap">
+                            <div>
+                                <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                                    <i data-lucide="key-round" class="w-4 h-4 text-emerald-600"></i> Entschlüsselte Secrets bearbeiten
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-1">Nur geänderte Werte werden einzeln neu verschlüsselt.</p>
+                            </div>
+                            <button id="btnReencryptChanged" disabled class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Keine Änderungen
+                            </button>
+                        </div>
+                        <div id="secretEditorList" class="divide-y divide-slate-100"></div>
+                    </div>
+
                     <div class="glass-panel rounded-2xl p-5 flex flex-col flex-grow min-h-[70vh]">
                         <div class="flex justify-between items-center mb-4 gap-4 flex-wrap">
                             <h2 class="text-xl font-bold text-slate-700 flex items-center gap-2">
@@ -142,8 +157,8 @@
                                 Konfigurations-Editor
                                 <span id="viewModeBadge" class="text-xs font-medium bg-slate-100 text-slate-500 px-2 py-1 rounded-full">Arbeitskopie</span>
                             </h2>
-                            <button id="btnShowWorking" class="hidden items-center gap-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg border border-slate-200">
-                                <i data-lucide="file-lock-2" class="w-4 h-4"></i> Arbeitskopie anzeigen
+                            <button id="btnToggleView" class="hidden items-center gap-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg border border-slate-200">
+                                <i data-lucide="eye" class="w-4 h-4"></i> Entschlüsselte Vorschau anzeigen
                             </button>
                         </div>
 
@@ -187,13 +202,16 @@
                 this.btnDecrypt = document.getElementById('btnDecrypt');
                 this.btnSave = document.getElementById('btnSave');
                 this.btnClear = document.getElementById('btnClear');
-                this.btnShowWorking = document.getElementById('btnShowWorking');
+                this.btnToggleView = document.getElementById('btnToggleView');
+                this.btnReencryptChanged = document.getElementById('btnReencryptChanged');
                 this.btnClearLog = document.getElementById('btnClearLog');
                 this.statusAlert = document.getElementById('statusAlert');
                 this.statusIcon = document.getElementById('statusIcon');
                 this.statusMessage = document.getElementById('statusMessage');
                 this.logBox = document.getElementById('statusLog');
                 this.dashboardSection = document.getElementById('dashboardSection');
+                this.secretEditorSection = document.getElementById('secretEditorSection');
+                this.secretEditorList = document.getElementById('secretEditorList');
                 this.metaList = document.getElementById('metaList');
                 this.secretsCount = document.getElementById('secretsCount');
                 this.decryptedCount = document.getElementById('decryptedCount');
@@ -221,7 +239,8 @@
                 this.btnDecrypt?.addEventListener('click', () => this.handleDecrypt());
                 this.btnSave?.addEventListener('click', () => this.saveEditor());
                 this.btnClear?.addEventListener('click', () => this.clearAll());
-                this.btnShowWorking?.addEventListener('click', () => this.showWorkingCopy());
+                this.btnToggleView?.addEventListener('click', () => this.toggleView());
+                this.btnReencryptChanged?.addEventListener('click', () => this.reencryptChangedSecrets());
                 this.btnClearLog?.addEventListener('click', () => this.clearLog());
                 this.fileInput?.addEventListener('change', (event) => this.handleFileInput(event));
                 this.editor?.addEventListener('input', () => this.handleEditorInput());
@@ -386,8 +405,12 @@
 
                 const isPreview = this.state.viewMode === 'preview';
                 this.viewModeBadge.textContent = isPreview ? 'Entschlüsselte Vorschau' : 'Arbeitskopie';
-                this.btnShowWorking.classList.toggle('hidden', !isPreview);
-                this.btnShowWorking.classList.toggle('flex', isPreview);
+                const hasDecryptedResults = counts.decrypted > 0;
+                this.btnToggleView.classList.toggle('hidden', !hasDecryptedResults);
+                this.btnToggleView.classList.toggle('flex', hasDecryptedResults);
+                this.btnToggleView.innerHTML = isPreview
+                    ? '<i data-lucide="file-lock-2" class="w-4 h-4"></i> Arbeitskopie anzeigen'
+                    : '<i data-lucide="eye" class="w-4 h-4"></i> Entschlüsselte Vorschau anzeigen';
 
                 const decryptable = counts.pending + counts.failed;
                 this.btnDecrypt.disabled = decryptable === 0 || !this.state.workingText.trim();
@@ -401,6 +424,66 @@
                 } else {
                     this.btnDecrypt.innerHTML = '<i data-lucide="unlock" class="w-4 h-4"></i> Konfig entschlüsseln';
                 }
+                this.renderSecretEditor();
+                lucide.createIcons();
+            }
+
+            renderSecretEditor() {
+                this.secretEditorList.innerHTML = '';
+                const masterMatch = this.state.workingText.match(/^Password=(\$\$\$\$[A-Za-z0-9./+=_-]+)/m);
+                const masterValue = masterMatch?.[1] || null;
+                const decryptedSecrets = this.state.secrets.filter(secret =>
+                    secret.status === 'decrypted' && secret.value !== masterValue
+                );
+
+                this.secretEditorSection.classList.toggle('hidden', decryptedSecrets.length === 0);
+                for (const secret of decryptedSecrets) {
+                    const supported = secret.type === 4 || secret.type === 5;
+                    const row = document.createElement('div');
+                    row.className = 'p-4 grid grid-cols-1 md:grid-cols-[minmax(150px,0.7fr)_minmax(220px,1.3fr)] gap-3 items-center';
+
+                    const description = document.createElement('div');
+                    const title = document.createElement('div');
+                    title.className = 'text-sm font-semibold text-slate-700';
+                    title.textContent = secret.label || `Typ ${secret.type || '?'}`;
+                    const fingerprint = document.createElement('div');
+                    fingerprint.className = 'text-[11px] text-slate-400 font-mono mt-1';
+                    fingerprint.textContent = `${secret.value.slice(0, 16)}…`;
+                    description.append(title, fingerprint);
+
+                    const fieldWrap = document.createElement('div');
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = secret.editedPlaintext;
+                    input.disabled = !supported;
+                    input.className = 'w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-400';
+                    input.setAttribute('aria-label', `${title.textContent} bearbeiten`);
+                    input.addEventListener('input', () => {
+                        this.state.setEditedPlaintext(secret.value, input.value);
+                        this.updateChangedButton();
+                        if (this.state.viewMode === 'preview') this.renderPreviewText();
+                    });
+                    fieldWrap.appendChild(input);
+
+                    if (!supported) {
+                        const hint = document.createElement('p');
+                        hint.className = 'text-[11px] text-amber-600 mt-1';
+                        hint.textContent = 'Neuverschlüsselung ist derzeit nur für Typ 4 und Typ 5 verfügbar.';
+                        fieldWrap.appendChild(hint);
+                    }
+
+                    row.append(description, fieldWrap);
+                    this.secretEditorList.appendChild(row);
+                }
+                this.updateChangedButton();
+            }
+
+            updateChangedButton() {
+                const changedCount = this.state.getChangedSecrets().filter(secret => secret.type === 4 || secret.type === 5).length;
+                this.btnReencryptChanged.disabled = changedCount === 0;
+                this.btnReencryptChanged.innerHTML = changedCount > 0
+                    ? `<i data-lucide="refresh-cw" class="w-4 h-4"></i> ${changedCount} Änderungen neu verschlüsseln`
+                    : '<i data-lucide="refresh-cw" class="w-4 h-4"></i> Keine Änderungen';
                 lucide.createIcons();
             }
 
@@ -420,6 +503,25 @@
                 this.log('> Editor geleert.', 'muted');
             }
 
+            toggleView() {
+                if (this.state.viewMode === 'preview') this.showWorkingCopy();
+                else this.showDecryptedPreview();
+            }
+
+            renderPreviewText() {
+                this.editor.value = this.state.createPreview((text, secret, plaintext) => this.replaceSecretSmart(text, secret, plaintext));
+                this.updateCharCount();
+            }
+
+            showDecryptedPreview() {
+                this.renderPreviewText();
+                this.editor.readOnly = true;
+                this.editor.classList.remove('bg-slate-50', 'text-slate-700');
+                this.editor.classList.add('bg-slate-900', 'text-green-400');
+                this.renderState();
+                this.showStatus('Entschlüsselte Vorschau angezeigt. Änderungen erfolgen im Secret-Editor.', 'info');
+            }
+
             showWorkingCopy() {
                 this.editor.value = this.state.showWorkingCopy();
                 this.editor.readOnly = false;
@@ -427,7 +529,7 @@
                 this.editor.classList.add('bg-slate-50', 'text-slate-700');
                 this.updateCharCount();
                 this.renderState();
-                this.showStatus('Arbeitskopie angezeigt. Entschlüsselungsergebnisse bleiben erhalten.', 'info');
+                this.showStatus('Verschlüsselte Arbeitskopie angezeigt. Die Vorschau bleibt verfügbar.', 'info');
             }
 
             escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -445,6 +547,76 @@
                     if (alreadySingleQuoted) return String(plaintext).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                     return `"${this.escapeForDoubleQuotedString(plaintext)}"`;
                 });
+            }
+
+            async reencryptChangedSecrets() {
+                const changedSecrets = this.state.getChangedSecrets().filter(secret => secret.type === 4 || secret.type === 5);
+                if (changedSecrets.length === 0) return;
+
+                const password = this.passwordInput.value;
+                if (!password) {
+                    this.showStatus('Zum Neuverschlüsseln wird das Kennwort der Sicherungsdatei benötigt.', 'error');
+                    return;
+                }
+
+                const needsMasterKey = changedSecrets.some(secret => secret.type === 5);
+                let masterKeyBytes = null;
+                if (needsMasterKey) {
+                    const masterMatch = this.state.workingText.match(/^Password=(\$\$\$\$[A-Za-z0-9./+=_-]+)/m);
+                    if (!masterMatch) {
+                        this.showStatus('Der Datei-Master-Key wurde nicht gefunden.', 'error');
+                        return;
+                    }
+
+                    try {
+                        masterKeyBytes = this.library.decryptExportKey(masterMatch[1], password).aesKeyBytes;
+                    } catch (error) {
+                        this.showStatus('Der Datei-Master-Key konnte mit diesem Kennwort nicht geöffnet werden.', 'error');
+                        return;
+                    }
+                }
+
+                this.btnReencryptChanged.disabled = true;
+                this.btnReencryptChanged.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Verschlüssele…';
+                lucide.createIcons();
+
+                try {
+                    let updatedText = this.state.workingText;
+                    const replacements = [];
+
+                    for (const secret of changedSecrets) {
+                        const newValue = secret.type === 5
+                            ? await this.library.encryptSecretWithKey(secret.editedPlaintext, masterKeyBytes)
+                            : await this.crypto.encryptSecret(secret.editedPlaintext, password);
+                        const verification = await this.crypto.decryptSecret(
+                            newValue,
+                            password,
+                            secret.type === 5 ? masterKeyBytes : null
+                        );
+
+                        if (verification.plaintext !== secret.editedPlaintext) {
+                            throw new Error('ROUNDTRIP_MISMATCH');
+                        }
+
+                        updatedText = updatedText.replace(new RegExp(this.escapeRegExp(secret.value), 'g'), newValue);
+                        replacements.push({ newValue, verification });
+                    }
+
+                    const keepPreviewVisible = this.state.viewMode === 'preview';
+                    this.state.setWorkingText(updatedText);
+                    for (const replacement of replacements) {
+                        this.state.markDecrypted(replacement.newValue, replacement.verification);
+                    }
+
+                    if (keepPreviewVisible) this.showDecryptedPreview();
+                    else this.showWorkingCopy();
+                    this.showStatus(`${replacements.length} geänderte Secrets wurden neu verschlüsselt und per Roundtrip geprüft.`, 'success');
+                    this.log(`> ${replacements.length} geänderte Secrets feldweise neu verschlüsselt.`, 'success');
+                } catch (error) {
+                    this.showStatus(`Neuverschlüsselung fehlgeschlagen: ${error.message}`, 'error');
+                    this.log(`> FEHLER bei der feldweisen Neuverschlüsselung: ${error.message}`, 'error');
+                    this.updateChangedButton();
+                }
             }
 
             async handleDecrypt() {

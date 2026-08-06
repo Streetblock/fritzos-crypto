@@ -136,6 +136,24 @@ FirmwareVersion=154.07.57
         failed++;
     }
 
+    // --- TEST 6: Moderne feldweise Master-Key-Verschlüsselung ---
+    try {
+        console.log("\n▶ TEST 6: Typ-5-Secret mit Master-Key neu verschlüsseln");
+        const masterKey = Uint8Array.from({ length: 16 }, (_, index) => index + 1);
+        const changedPlaintext = 'Neues WLAN-Passwort; mit Umlaut ä und "Zitat"';
+        const encryptedWithKey = await FritzOSCrypto.encryptSecretWithKey(changedPlaintext, masterKey);
+        const decryptedWithKey = FritzOSCrypto.decryptSecretWithKey(encryptedWithKey, masterKey);
+
+        assert(encryptedWithKey.startsWith('$$$$'), 'Typ-5-Secret muss mit $$$$ beginnen');
+        assert(decryptedWithKey.text === changedPlaintext, 'Master-Key-Roundtrip muss den geänderten Text erhalten');
+
+        console.log('  ✅ OK (feldweiser Master-Key-Roundtrip erfolgreich)');
+        passed++;
+    } catch (e) {
+        console.error('  ❌ Exception:', e.message);
+        failed++;
+    }
+
     // --- Zusammenfassung ---
     console.log("\n==================================================");
     if (failed === 0) {

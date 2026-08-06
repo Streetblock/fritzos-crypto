@@ -54,8 +54,11 @@
         value: value,
         status: "pending",
         plaintext: null,
+        editedPlaintext: null,
         error: null,
-        label: null
+        label: null,
+        type: null,
+        source: null
       };
     });
   };
@@ -69,7 +72,10 @@
     if (!secret) return;
     secret.status = "decrypted";
     secret.plaintext = String(result.plaintext == null ? "" : result.plaintext);
+    secret.editedPlaintext = secret.plaintext;
     secret.label = result.label || null;
+    secret.type = result.type || null;
+    secret.source = result.source || null;
     secret.error = null;
   };
 
@@ -86,6 +92,20 @@
     });
   };
 
+  ConfigState.prototype.setEditedPlaintext = function (value, plaintext) {
+    var secret = this.getSecret(value);
+    if (!secret || secret.status !== "decrypted") return;
+    secret.editedPlaintext = String(plaintext);
+  };
+
+  ConfigState.prototype.getChangedSecrets = function () {
+    return this.secrets.filter(function (secret) {
+      return secret.status === "decrypted" &&
+        secret.editedPlaintext !== null &&
+        secret.editedPlaintext !== secret.plaintext;
+    });
+  };
+
   ConfigState.prototype.getCounts = function () {
     return this.secrets.reduce(function (counts, secret) {
       counts.total += 1;
@@ -98,7 +118,7 @@
     var preview = this.workingText;
     this.secrets.forEach(function (secret) {
       if (secret.status === "decrypted" && secret.plaintext !== null) {
-        preview = replaceSecret(preview, secret.value, secret.plaintext);
+        preview = replaceSecret(preview, secret.value, secret.editedPlaintext);
       }
     });
     this.viewMode = "preview";
