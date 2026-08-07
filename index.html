@@ -8,6 +8,8 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+    <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode_UTF8.js"></script>
     
     <!-- ========================================== -->
     <!-- Externe FritzOSCrypto.js Bibliothek        -->
@@ -173,6 +175,22 @@
                         <div class="flex items-end justify-between gap-4 flex-wrap">
                             <div><p class="text-xs font-semibold uppercase tracking-wider text-blue-600">Gefundene Zugangsdaten</p><h2 class="text-2xl font-bold text-slate-900 mt-1">Secrets</h2></div>
                         </div>
+                        <div id="credentialCards" class="hidden space-y-5">
+                            <section id="wifiCardsSection" class="hidden">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <i data-lucide="wifi" class="w-5 h-5 text-blue-600"></i>
+                                    <h3 class="font-bold text-slate-800">WLAN-Zugänge</h3>
+                                </div>
+                                <div id="wifiCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+                            </section>
+                            <section id="sipCardsSection" class="hidden">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <i data-lucide="phone" class="w-5 h-5 text-violet-600"></i>
+                                    <h3 class="font-bold text-slate-800">Telefonie-Konten</h3>
+                                </div>
+                                <div id="sipCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+                            </section>
+                        </div>
                         <div id="secretEmptyState" class="bg-white border border-slate-200 rounded-2xl p-10 text-center">
                             <div class="w-12 h-12 mx-auto rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center"><i data-lucide="key-square" class="w-6 h-6"></i></div>
                             <h3 class="font-semibold text-slate-700 mt-4">Keine Secret-Felder gefunden</h3>
@@ -288,6 +306,11 @@
                 this.logBox = document.getElementById('statusLog');
                 this.dashboardSection = document.getElementById('dashboardSection');
                 this.secretEditorSection = document.getElementById('secretEditorSection');
+                this.credentialCards = document.getElementById('credentialCards');
+                this.wifiCardsSection = document.getElementById('wifiCardsSection');
+                this.wifiCards = document.getElementById('wifiCards');
+                this.sipCardsSection = document.getElementById('sipCardsSection');
+                this.sipCards = document.getElementById('sipCards');
                 this.secretEditorList = document.getElementById('secretEditorList');
                 this.secretEmptyState = document.getElementById('secretEmptyState');
                 this.secretSearch = document.getElementById('secretSearch');
@@ -605,9 +628,7 @@
                 ].filter(Boolean).join(' ').toLocaleLowerCase('de');
             }
 
-            async copySecretPlaintext(secret) {
-                if (secret.status !== 'decrypted') return;
-                const value = secret.editedPlaintext ?? secret.plaintext ?? '';
+            async copyText(value, successMessage) {
                 try {
                     await navigator.clipboard.writeText(value);
                 } catch (_) {
@@ -620,7 +641,190 @@
                     document.execCommand('copy');
                     temporary.remove();
                 }
-                this.showStatus(`${secret.displayLabel} wurde kopiert.`, 'success');
+                this.showStatus(successMessage, 'success');
+            }
+
+            async copySecretPlaintext(secret) {
+                if (secret.status !== 'decrypted') return;
+                const value = secret.editedPlaintext ?? secret.plaintext ?? '';
+                await this.copyText(value, `${secret.displayLabel} wurde kopiert.`);
+            }
+
+            createCredentialAction(label, icon, handler, disabled) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.disabled = Boolean(disabled);
+                button.className = 'inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed';
+                button.innerHTML = `<i data-lucide="${icon}" class="w-3.5 h-3.5"></i><span>${label}</span>`;
+                if (handler) button.addEventListener('click', handler);
+                return button;
+            }
+
+            createMaskedCredential(secret) {
+                const wrap = document.createElement('div');
+                wrap.className = 'flex items-center gap-2';
+                const value = document.createElement('input');
+                value.type = this.revealedSecrets.has(secret.stableKey) ? 'text' : 'password';
+                value.value = secret.status === 'decrypted' ? (secret.editedPlaintext ?? '') : '';
+                value.placeholder = secret.status === 'failed' ? 'Fehlgeschlagen' : 'Noch verschlüsselt';
+                value.readOnly = true;
+                value.disabled = secret.status !== 'decrypted';
+                value.className = 'min-w-0 flex-1 rounded-lg border border-slate-200 bg-white/90 px-3 py-2 font-mono text-sm disabled:bg-slate-100 disabled:text-slate-400';
+                const toggle = this.createCredentialAction(
+                    '',
+                    this.revealedSecrets.has(secret.stableKey) ? 'eye-off' : 'eye',
+                    () => {
+                        if (this.revealedSecrets.has(secret.stableKey)) this.revealedSecrets.delete(secret.stableKey);
+                        else this.revealedSecrets.add(secret.stableKey);
+                        this.renderSecretEditor();
+                    },
+                    secret.status !== 'decrypted'
+                );
+                toggle.classList.add('px-2.5');
+                toggle.setAttribute('aria-label', `${secret.displayLabel} anzeigen oder verbergen`);
+                wrap.append(value, toggle);
+                return wrap;
+            }
+
+            renderWifiCards(wifiSecrets) {
+                this.wifiCards.innerHTML = '';
+                const preferred = new Map();
+                wifiSecrets.forEach(secret => {
+                    const kind = secret.category === 'guest-wlan' ? 'guest' : 'main';
+                    if (!preferred.has(kind)) preferred.set(kind, secret);
+                });
+
+                for (const kind of ['main', 'guest']) {
+                    const secret = preferred.get(kind);
+                    if (!secret) continue;
+                    const isGuest = kind === 'guest';
+                    const card = document.createElement('article');
+                    card.className = isGuest
+                        ? 'rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-5 shadow-sm'
+                        : 'rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm';
+
+                    const layout = document.createElement('div');
+                    layout.className = 'grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-5 items-start';
+                    const details = document.createElement('div');
+                    const eyebrow = document.createElement('p');
+                    eyebrow.className = `text-xs font-bold uppercase tracking-wider ${isGuest ? 'text-violet-600' : 'text-blue-600'}`;
+                    eyebrow.textContent = isGuest ? 'Gast-WLAN' : 'Haupt-WLAN';
+                    const ssid = document.createElement('h4');
+                    ssid.className = 'text-xl font-black text-slate-900 mt-1 break-words';
+                    ssid.textContent = secret.network?.ssid || 'SSID nicht erkannt';
+                    const passwordLabel = document.createElement('p');
+                    passwordLabel.className = 'text-xs font-semibold text-slate-500 mt-4 mb-1.5';
+                    passwordLabel.textContent = 'WLAN-Passwort';
+                    details.append(eyebrow, ssid, passwordLabel, this.createMaskedCredential(secret));
+
+                    const actions = document.createElement('div');
+                    actions.className = 'flex flex-wrap gap-2 mt-3';
+                    actions.appendChild(this.createCredentialAction(
+                        'Passwort kopieren',
+                        'copy',
+                        () => this.copySecretPlaintext(secret),
+                        secret.status !== 'decrypted'
+                    ));
+                    details.appendChild(actions);
+                    layout.appendChild(details);
+
+                    if (secret.status === 'decrypted' && secret.network?.ssid) {
+                        const qrArea = document.createElement('div');
+                        qrArea.className = 'w-40 rounded-xl border border-slate-200 bg-white p-2 text-center';
+                        try {
+                            if (typeof window.qrcode !== 'function') throw new Error('QR_LIBRARY_UNAVAILABLE');
+                            const payload = this.parser.buildWifiQrPayload(secret.network, secret.editedPlaintext);
+                            const qr = window.qrcode(0, 'M');
+                            qr.addData(payload, 'Byte');
+                            qr.make();
+                            qrArea.innerHTML = qr.createSvgTag(3, 2);
+                            const svg = qrArea.querySelector('svg');
+                            if (svg) svg.setAttribute('class', 'w-full h-auto');
+                            const caption = document.createElement('p');
+                            caption.className = 'text-[10px] text-slate-500 mt-1';
+                            caption.textContent = 'Mit Kamera verbinden';
+                            qrArea.appendChild(caption);
+                        } catch (_) {
+                            qrArea.className += ' flex items-center justify-center text-xs text-slate-400 min-h-40';
+                            qrArea.textContent = 'QR-Code konnte nicht erzeugt werden.';
+                        }
+                        layout.appendChild(qrArea);
+                    }
+                    card.appendChild(layout);
+                    this.wifiCards.appendChild(card);
+                }
+            }
+
+            getSipAccountValue(group, fieldPattern) {
+                const secret = group.secrets.find(item => fieldPattern.test(String(item.field).toLowerCase()));
+                return secret?.status === 'decrypted' ? (secret.editedPlaintext ?? secret.plaintext) : null;
+            }
+
+            renderSipCards(sipSecrets) {
+                this.sipCards.innerHTML = '';
+                const groups = new Map();
+                sipSecrets.forEach(secret => {
+                    const key = secret.account?.id || secret.stableKey;
+                    if (!groups.has(key)) groups.set(key, { account: secret.account || {}, secrets: [] });
+                    groups.get(key).secrets.push(secret);
+                });
+
+                for (const group of groups.values()) {
+                    const decryptedUsername = this.getSipAccountValue(group, /^(?:username|user)$/);
+                    const decryptedRegistrar = this.getSipAccountValue(group, /registrar/);
+                    const username = group.account.username || decryptedUsername;
+                    const registrar = group.account.registrar || decryptedRegistrar;
+                    const card = document.createElement('article');
+                    card.className = 'rounded-2xl border border-violet-200 bg-white p-5 shadow-sm';
+                    const eyebrow = document.createElement('p');
+                    eyebrow.className = 'text-xs font-bold uppercase tracking-wider text-violet-600';
+                    eyebrow.textContent = 'SIP-Konto';
+                    const title = document.createElement('h4');
+                    title.className = 'text-lg font-black text-slate-900 mt-1 break-words';
+                    title.textContent = username || group.account.name || 'Unbekanntes Konto';
+                    const subtitle = document.createElement('p');
+                    subtitle.className = 'text-sm text-slate-500 mt-1 break-words';
+                    subtitle.textContent = registrar || 'Registrar noch nicht verfügbar';
+                    card.append(eyebrow, title, subtitle);
+
+                    const fields = document.createElement('div');
+                    fields.className = 'space-y-3 mt-4';
+                    group.secrets.forEach(secret => {
+                        const field = document.createElement('div');
+                        const label = document.createElement('p');
+                        label.className = 'text-xs font-semibold text-slate-500 mb-1';
+                        label.textContent = secret.displayLabel;
+                        field.append(label, this.createMaskedCredential(secret));
+                        fields.appendChild(field);
+                    });
+                    card.appendChild(fields);
+
+                    const complete = group.secrets.every(secret => secret.status === 'decrypted');
+                    const copyButton = this.createCredentialAction('In Zwischenablage kopieren', 'clipboard-copy', async () => {
+                        const currentUsername = group.account.username || this.getSipAccountValue(group, /^(?:username|user)$/) || '';
+                        const currentRegistrar = group.account.registrar || this.getSipAccountValue(group, /registrar/) || '';
+                        const password = this.getSipAccountValue(group, /pass|secret/) || '';
+                        const lines = [
+                            `SIP-Benutzername: ${currentUsername}`,
+                            `SIP-Passwort: ${password}`,
+                            `Registrar: ${currentRegistrar}`
+                        ];
+                        await this.copyText(lines.join('\n'), 'SIP-Kontodaten wurden in die Zwischenablage kopiert.');
+                    }, !complete);
+                    copyButton.classList.add('w-full', 'mt-4');
+                    card.appendChild(copyButton);
+                    this.sipCards.appendChild(card);
+                }
+            }
+
+            renderCredentialCards() {
+                const wifiSecrets = this.state.secrets.filter(secret => secret.category === 'wlan' || secret.category === 'guest-wlan');
+                const sipSecrets = this.state.secrets.filter(secret => secret.category === 'sip');
+                this.wifiCardsSection.classList.toggle('hidden', wifiSecrets.length === 0);
+                this.sipCardsSection.classList.toggle('hidden', sipSecrets.length === 0);
+                this.credentialCards.classList.toggle('hidden', wifiSecrets.length === 0 && sipSecrets.length === 0);
+                this.renderWifiCards(wifiSecrets);
+                this.renderSipCards(sipSecrets);
             }
 
             toggleAllSecrets() {
@@ -636,6 +840,7 @@
 
             renderSecretEditor() {
                 this.secretEditorList.innerHTML = '';
+                this.renderCredentialCards();
                 const allSecrets = this.state.secrets;
                 const query = (this.secretSearch?.value || '').trim().toLocaleLowerCase('de');
                 const category = this.secretCategoryFilter?.value || 'all';
@@ -770,6 +975,8 @@
                         statusBadge.textContent = statusStyles[currentStatus][0];
                         resetButton.classList.toggle('hidden', currentStatus !== 'changed');
                         this.updateChangedButton();
+                        this.renderCredentialCards();
+                        lucide.createIcons();
                         if (this.state.viewMode === 'preview') this.renderPreviewText();
                     });
                     valueArea.append(input, actions);

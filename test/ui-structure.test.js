@@ -14,6 +14,11 @@ for (const id of [
   'viewOverview',
   'viewSecrets',
   'viewEditor',
+  'credentialCards',
+  'wifiCardsSection',
+  'wifiCards',
+  'sipCardsSection',
+  'sipCards',
   'secretEditorSection',
   'btnToggleAllSecrets',
   'secretSearch',
@@ -47,6 +52,9 @@ for (const action of ['Anzeigen', 'Kopieren', 'Bearbeiten', 'Zurücksetzen']) {
 }
 assert.equal(html.includes('Alle anzeigen'), true, 'global reveal action is missing');
 assert.equal(html.includes('Alle verbergen'), true, 'global hide action is missing');
+assert.equal(html.includes('In Zwischenablage kopieren'), true, 'SIP clipboard action is missing');
+assert.equal(/href\s*=\s*["']sip:/i.test(html), false, 'SIP cards must not launch a softphone');
+assert.equal(html.includes('qrcode_UTF8.js'), true, 'UTF-8 QR encoding support is missing');
 for (const status of ['pending', 'decrypted', 'changed', 'failed']) {
   assert.equal(html.includes(`<option value="${status}">`), true, `secret status filter ${status} is missing`);
 }
