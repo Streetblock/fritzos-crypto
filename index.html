@@ -184,9 +184,14 @@
                                     <h3 class="font-bold text-slate-800 flex items-center gap-2"><i data-lucide="list-filter" class="w-4 h-4 text-emerald-600"></i> Erkannte Secret-Felder</h3>
                                     <p class="text-xs text-slate-500 mt-1">Klartexte bleiben maskiert. Nur geänderte Werte werden neu verschlüsselt.</p>
                                 </div>
-                                <button id="btnReencryptChanged" disabled class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <i data-lucide="refresh-cw" class="w-4 h-4"></i> Keine Änderungen
-                                </button>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <button id="btnToggleAllSecrets" disabled class="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium px-4 py-2 rounded-xl border border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <i data-lucide="eye" class="w-4 h-4"></i> Alle anzeigen
+                                    </button>
+                                    <button id="btnReencryptChanged" disabled class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Keine Änderungen
+                                    </button>
+                                </div>
                             </div>
                             <div class="p-4 border-b border-slate-200 bg-slate-50/70 grid grid-cols-1 md:grid-cols-[minmax(220px,1fr)_180px_170px] gap-3">
                                 <label class="relative">
@@ -274,6 +279,7 @@
                 this.btnClear = document.getElementById('btnClear');
                 this.btnChangeFile = document.getElementById('btnChangeFile');
                 this.btnToggleView = document.getElementById('btnToggleView');
+                this.btnToggleAllSecrets = document.getElementById('btnToggleAllSecrets');
                 this.btnReencryptChanged = document.getElementById('btnReencryptChanged');
                 this.btnClearLog = document.getElementById('btnClearLog');
                 this.statusAlert = document.getElementById('statusAlert');
@@ -323,6 +329,7 @@
                 this.btnClear?.addEventListener('click', () => this.clearAll());
                 this.btnChangeFile?.addEventListener('click', () => this.fileInput.click());
                 this.btnToggleView?.addEventListener('click', () => this.toggleView());
+                this.btnToggleAllSecrets?.addEventListener('click', () => this.toggleAllSecrets());
                 this.btnReencryptChanged?.addEventListener('click', () => this.reencryptChangedSecrets());
                 this.btnClearLog?.addEventListener('click', () => this.clearLog());
                 this.fileInput?.addEventListener('change', (event) => this.handleFileInput(event));
@@ -616,6 +623,17 @@
                 this.showStatus(`${secret.displayLabel} wurde kopiert.`, 'success');
             }
 
+            toggleAllSecrets() {
+                const decryptedSecrets = this.state.secrets.filter(secret => secret.status === 'decrypted');
+                const allRevealed = decryptedSecrets.length > 0 &&
+                    decryptedSecrets.every(secret => this.revealedSecrets.has(secret.stableKey));
+                decryptedSecrets.forEach(secret => {
+                    if (allRevealed) this.revealedSecrets.delete(secret.stableKey);
+                    else this.revealedSecrets.add(secret.stableKey);
+                });
+                this.renderSecretEditor();
+            }
+
             renderSecretEditor() {
                 this.secretEditorList.innerHTML = '';
                 const allSecrets = this.state.secrets;
@@ -631,6 +649,13 @@
                 this.secretEditorSection.classList.toggle('hidden', allSecrets.length === 0);
                 this.secretEmptyState.classList.toggle('hidden', allSecrets.length > 0);
                 this.secretResultsSummary.textContent = `${visibleSecrets.length} von ${allSecrets.length} Fundstellen angezeigt`;
+                const decryptedSecrets = allSecrets.filter(secret => secret.status === 'decrypted');
+                const allRevealed = decryptedSecrets.length > 0 &&
+                    decryptedSecrets.every(secret => this.revealedSecrets.has(secret.stableKey));
+                this.btnToggleAllSecrets.disabled = decryptedSecrets.length === 0;
+                this.btnToggleAllSecrets.innerHTML = allRevealed
+                    ? '<i data-lucide="eye-off" class="w-4 h-4"></i> Alle verbergen'
+                    : '<i data-lucide="eye" class="w-4 h-4"></i> Alle anzeigen';
 
                 const categoryNames = {
                     wlan: 'WLAN',

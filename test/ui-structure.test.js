@@ -15,6 +15,7 @@ for (const id of [
   'viewSecrets',
   'viewEditor',
   'secretEditorSection',
+  'btnToggleAllSecrets',
   'secretSearch',
   'secretCategoryFilter',
   'secretStatusFilter',
@@ -44,6 +45,8 @@ assert.match(html, /input\.type\s*=\s*this\.revealedSecrets\.has\(secret\.stable
 for (const action of ['Anzeigen', 'Kopieren', 'Bearbeiten', 'Zurücksetzen']) {
   assert.equal(html.includes(`'${action}'`), true, `secret action ${action} is missing`);
 }
+assert.equal(html.includes('Alle anzeigen'), true, 'global reveal action is missing');
+assert.equal(html.includes('Alle verbergen'), true, 'global hide action is missing');
 for (const status of ['pending', 'decrypted', 'changed', 'failed']) {
   assert.equal(html.includes(`<option value="${status}">`), true, `secret status filter ${status} is missing`);
 }
