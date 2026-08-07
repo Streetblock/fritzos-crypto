@@ -695,14 +695,20 @@
             }
 
             showReencryptSummary() {
-                const changedSecrets = this.state.getChangedSecrets().filter(secret => secret.type === 4 || secret.type === 5);
-                if (changedSecrets.length === 0) {
+                const modifiedSecrets = this.state.getModifiedSecrets().filter(secret => secret.type === 4 || secret.type === 5);
+                const pendingCount = modifiedSecrets.filter(secret => secret.editedPlaintext !== secret.plaintext).length;
+                if (modifiedSecrets.length === 0) {
                     this.reencryptSummary.classList.add('hidden');
                     return;
                 }
                 this.reencryptSummaryList.innerHTML = '';
-                this.reencryptSummaryTitle.textContent = `${changedSecrets.length} ungespeicherte ${changedSecrets.length === 1 ? 'Änderung' : 'Änderungen'}`;
-                changedSecrets.forEach(secret => {
+                this.reencryptSummaryTitle.textContent = pendingCount > 0
+                    ? `${pendingCount} offene ${pendingCount === 1 ? 'Änderung' : 'Änderungen'}`
+                    : `${modifiedSecrets.length} validierte ${modifiedSecrets.length === 1 ? 'Änderung' : 'Änderungen'}`;
+                modifiedSecrets.forEach(secret => {
+                    const pending = secret.editedPlaintext !== secret.plaintext;
+                    const previousValue = pending ? secret.plaintext : secret.previousPlaintext;
+                    const currentValue = pending ? secret.editedPlaintext : secret.plaintext;
                     const item = document.createElement('li');
                     item.className = 'rounded-xl border border-amber-200 bg-white/80 px-4 py-3 flex items-start justify-between gap-4';
                     const details = document.createElement('div');
@@ -715,7 +721,7 @@
                     details.append(title, location);
                     const length = document.createElement('span');
                     length.className = 'text-[11px] font-medium text-amber-700 whitespace-nowrap';
-                    length.textContent = `${secret.plaintext.length} → ${secret.editedPlaintext.length} Zeichen`;
+                    length.textContent = `${previousValue?.length ?? '?'} → ${currentValue?.length ?? '?'} Zeichen · ${pending ? 'ausstehend' : 'validiert'}`;
                     item.append(details, length);
                     this.reencryptSummaryList.appendChild(item);
                 });
@@ -846,8 +852,15 @@
             }
 
             getSecretDisplayStatus(secret) {
-                if (secret.status === 'decrypted' && secret.editedPlaintext !== secret.plaintext) return 'changed';
+                if (secret.status === 'decrypted' &&
+                    (secret.validatedChange || secret.editedPlaintext !== secret.plaintext)) return 'changed';
                 return secret.status;
+            }
+
+            getSecretStatusLabel(secret) {
+                if (secret.status === 'decrypted' && secret.editedPlaintext !== secret.plaintext) return 'Geändert';
+                if (secret.validatedChange) return 'Geändert · validiert';
+                return null;
             }
 
             getSecretSearchText(secret) {
@@ -1166,13 +1179,23 @@
                     categoryBadge.textContent = categoryNames[secret.category] || categoryNames.other;
                     const statusBadge = document.createElement('span');
                     statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[displayStatus][1]}`;
-                    statusBadge.textContent = statusStyles[displayStatus][0];
+                    statusBadge.textContent = this.getSecretStatusLabel(secret) || statusStyles[displayStatus][0];
                     headingLine.append(title, categoryBadge, statusBadge);
 
                     const location = document.createElement('p');
                     location.className = 'text-xs text-slate-500 mt-1.5';
                     location.textContent = `${secret.section} · ${secret.field} · Zeile ${secret.line}`;
                     description.append(headingLine, location);
+
+                    if (secret.validatedChange && secret.editedPlaintext === secret.plaintext) {
+                        const validationNote = document.createElement('p');
+                        validationNote.className = 'text-[11px] font-medium text-emerald-700 mt-1.5';
+                        const previousLength = secret.previousPlaintext == null ? null : secret.previousPlaintext.length;
+                        validationNote.textContent = previousLength === null
+                            ? 'Änderung durch Roundtrip und CRC32 validiert'
+                            : `Validierte Änderung: ${previousLength} → ${secret.plaintext.length} Zeichen`;
+                        description.appendChild(validationNote);
+                    }
 
                     if (secret.account) {
                         const account = document.createElement('p');
@@ -1226,7 +1249,7 @@
                         this.state.setEditedPlaintext(secret.id, input.value);
                         const currentStatus = this.getSecretDisplayStatus(secret);
                         statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[currentStatus][1]}`;
-                        statusBadge.textContent = statusStyles[currentStatus][0];
+                        statusBadge.textContent = this.getSecretStatusLabel(secret) || statusStyles[currentStatus][0];
                         resetButton.classList.toggle('hidden', currentStatus !== 'changed');
                         this.updateChangedButton();
                         this.scheduleAutoValidation();
@@ -1257,11 +1280,14 @@
 
             updateChangedButton() {
                 const changedCount = this.state.getChangedSecrets().filter(secret => secret.type === 4 || secret.type === 5).length;
-                if (changedCount > 0) {
+                const modifiedCount = this.state.getModifiedSecrets().filter(secret => secret.type === 4 || secret.type === 5).length;
+                if (modifiedCount > 0) {
                     this.showReencryptSummary();
                 } else {
-                    this.clearAutoValidationTimer();
                     this.hideReencryptSummary();
+                }
+                if (changedCount === 0) {
+                    this.clearAutoValidationTimer();
                     if (!this.autoValidationRunning) {
                         this.setAutoValidationStatus(
                             this.state.isDownloadReady() ? 'Automatisch geprüft' : 'Automatische Prüfung bereit',
@@ -1437,7 +1463,11 @@
                     const keepPreviewVisible = this.state.viewMode === 'preview';
                     this.state.setWorkingText(updatedText);
                     for (const replacement of replacements) {
-                        this.state.markDecrypted(replacement.id, replacement.verification);
+                        this.state.markReencrypted(
+                            replacement.id,
+                            replacement.verification,
+                            replacement.secret.plaintext
+                        );
                     }
                     this.state.setVerificationStep('roundtrip', 'success', `${replacements.length} Secrets erfolgreich zurückentschlüsselt`);
                     this.state.setVerificationStep('checksum', 'success', `CRC32 ${checksumResult.newCrc} ist gültig`);

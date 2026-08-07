@@ -105,7 +105,9 @@
         error: null,
         label: null,
         type: null,
-        source: null
+        source: null,
+        validatedChange: false,
+        previousPlaintext: null
       });
     });
   };
@@ -126,6 +128,14 @@
     secret.type = result.type || null;
     secret.source = result.source || null;
     secret.error = null;
+  };
+
+  ConfigState.prototype.markReencrypted = function (identifier, result, previousPlaintext) {
+    this.markDecrypted(identifier, result);
+    var secret = this.getSecret(identifier);
+    if (!secret) return;
+    secret.validatedChange = true;
+    secret.previousPlaintext = String(previousPlaintext == null ? "" : previousPlaintext);
   };
 
   ConfigState.prototype.markFailed = function (identifier, error) {
@@ -184,11 +194,20 @@
     });
   };
 
+  ConfigState.prototype.getModifiedSecrets = function () {
+    return this.secrets.filter(function (secret) {
+      return secret.status === "decrypted" &&
+        (secret.validatedChange ||
+          (secret.editedPlaintext !== null && secret.editedPlaintext !== secret.plaintext));
+    });
+  };
+
   ConfigState.prototype.getCounts = function () {
     return this.secrets.reduce(function (counts, secret) {
       counts.total += 1;
       counts[secret.status] += 1;
-      if (secret.status === "decrypted" && secret.editedPlaintext !== secret.plaintext) counts.changed += 1;
+      if (secret.status === "decrypted" &&
+        (secret.validatedChange || secret.editedPlaintext !== secret.plaintext)) counts.changed += 1;
       return counts;
     }, { total: 0, pending: 0, decrypted: 0, failed: 0, changed: 0 });
   };

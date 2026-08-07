@@ -78,6 +78,8 @@ assert.match(html, /this\.autoValidationDelay\s*=\s*15000/, 'automatic validatio
 assert.match(html, /setTimeout\(\(\)\s*=>[\s\S]*this\.reencryptChangedSecrets\(generation\)/, 'debounced validation trigger is missing');
 assert.equal(html.includes('Jetzt neu verschlüsseln und prüfen'), false, 'manual double-confirmation must not return');
 assert.match(html, /<details id="reencryptSummary"/, 'change overview must be collapsible');
+assert.match(html, /markReencrypted\(/, 'validated changes must retain their audit state');
+assert.equal(html.includes('Geändert · validiert'), true, 'validated change label is missing');
 for (const status of ['pending', 'decrypted', 'changed', 'failed']) {
   assert.equal(html.includes(`<option value="${status}">`), true, `secret status filter ${status} is missing`);
 }
