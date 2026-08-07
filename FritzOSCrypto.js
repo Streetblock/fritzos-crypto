@@ -957,9 +957,183 @@
       }
 
       static extractSecrets(text) {
-          const regex = /\$\$\$\$[A-Za-z0-9./+=_-]+/g;
-          const matches = text.match(regex) || [];
-          return [...new Set(matches)];
+          return [...new Set(this.extractSecretInventory(text).map(secret => secret.value))];
+      }
+
+      static humanizeField(field) {
+          if (!field) return 'Unbekanntes Secret';
+          return field
+              .replace(/[_-]+/g, ' ')
+              .replace(/([a-z])([A-Z])/g, '$1 $2')
+              .replace(/\b\w/g, character => character.toUpperCase());
+      }
+
+      static classifySecret(section, field) {
+          const normalizedSection = String(section || '').toLowerCase();
+          const normalizedField = String(field || '').toLowerCase();
+
+          if (section === 'Header' && normalizedField === 'password') {
+              return { category: 'system', label: 'System-Master-Key' };
+          }
+          if (normalizedSection.includes('wlan') || normalizedField.includes('psk')) {
+              const guest = normalizedField.includes('guest') || normalizedField.includes('gast');
+              return { category: guest ? 'guest-wlan' : 'wlan', label: guest ? 'Gast-WLAN-Schlüssel' : 'WLAN-Schlüssel' };
+          }
+          if (normalizedSection.includes('voip')) {
+              if (normalizedField.includes('username') || normalizedField === 'user') return { category: 'sip', label: 'SIP-Benutzername' };
+              if (normalizedField.includes('registrar')) return { category: 'sip', label: 'SIP-Registrar' };
+              return { category: 'sip', label: 'SIP-Passwort' };
+          }
+          if (normalizedSection.includes('vpn')) return { category: 'vpn', label: 'VPN-Schlüssel' };
+          if (normalizedSection.includes('ar7') || normalizedField.includes('provider')) return { category: 'provider', label: 'Provider-Zugangsdaten' };
+          if (normalizedField.includes('pass') || normalizedField.includes('secret') || normalizedField.includes('key')) {
+              return { category: 'system', label: this.humanizeField(field) };
+          }
+          return { category: 'other', label: this.humanizeField(field) };
+      }
+
+      static extractSecretInventory(text) {
+          const source = String(text || '');
+          const inventory = [];
+          const occurrenceCounts = new Map();
+          const linePattern = /[^\r\n]*(?:\r\n|\n|$)/g;
+          let section = 'Header';
+          let absoluteOffset = 0;
+          let lineNumber = 0;
+          let sipAccountCounter = 0;
+          let sipBlocks = [];
+          let fallbackSipBlock = null;
+
+          const finalizeSipBlock = block => {
+              if (!block) return;
+              const account = {
+                  id: block.id,
+                  name: block.name || `SIP-Konto ${block.ordinal}`,
+                  username: block.username || null,
+                  registrar: block.registrar || null,
+                  usernameSecretId: block.usernameSecretId || null,
+                  registrarSecretId: block.registrarSecretId || null
+              };
+              block.secrets.forEach(secret => { secret.account = account; });
+          };
+
+          const finalizeSipContext = () => {
+              while (sipBlocks.length) finalizeSipBlock(sipBlocks.pop());
+              finalizeSipBlock(fallbackSipBlock);
+              fallbackSipBlock = null;
+          };
+
+          const createSipBlock = name => {
+              sipAccountCounter += 1;
+              return {
+                  id: `sip-account-${sipAccountCounter}`,
+                  ordinal: sipAccountCounter,
+                  name: name || null,
+                  username: null,
+                  registrar: null,
+                  usernameSecretId: null,
+                  registrarSecretId: null,
+                  secrets: []
+              };
+          };
+
+          let lineMatch;
+          while ((lineMatch = linePattern.exec(source)) !== null) {
+              const originalLine = lineMatch[0];
+              if (!originalLine && absoluteOffset >= source.length) break;
+              lineNumber += 1;
+              const line = originalLine.replace(/\r?\n$/, '');
+              const sectionMatch = line.match(/^\*+\s+(?:CFGFILE|(?:CRYPTED)?BINFILE|(?:CRYPTED)?B64FILE):\s*([^\s]+)/i);
+              if (sectionMatch) {
+                  finalizeSipContext();
+                  section = sectionMatch[1];
+                  absoluteOffset += originalLine.length;
+                  continue;
+              }
+              if (/^\*+\s+END OF FILE\s+\*+/i.test(line)) {
+                  finalizeSipContext();
+                  section = 'Header';
+                  absoluteOffset += originalLine.length;
+                  continue;
+              }
+
+              const inSipSection = section.toLowerCase().includes('voip');
+              if (inSipSection) {
+                  const blockStart = line.match(/^\s*([A-Za-z0-9_-]+)(?:\s+\d+)?\s*\{/);
+                  if (blockStart) {
+                      const block = createSipBlock(blockStart[1]);
+                      sipBlocks.push(block);
+                  }
+              }
+
+              const assignment = line.match(/^\s*([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^;\s]+))/);
+              const assignmentField = assignment?.[1] || null;
+              const assignmentValue = assignment ? (assignment[2] ?? assignment[3] ?? assignment[4] ?? '') : null;
+
+              let activeSipBlock = null;
+              if (inSipSection) {
+                  activeSipBlock = sipBlocks[sipBlocks.length - 1] || fallbackSipBlock;
+                  if (!activeSipBlock && (assignmentField || line.includes('$$$$'))) {
+                      fallbackSipBlock = createSipBlock(null);
+                      activeSipBlock = fallbackSipBlock;
+                  }
+                  if (!sipBlocks.length && activeSipBlock && assignmentField?.toLowerCase() === 'username' &&
+                      (activeSipBlock.username || activeSipBlock.usernameSecretId)) {
+                      finalizeSipBlock(activeSipBlock);
+                      fallbackSipBlock = createSipBlock(null);
+                      activeSipBlock = fallbackSipBlock;
+                  }
+              }
+
+              const secretPattern = /\$\$\$\$[A-Za-z0-9./+=_-]+/g;
+              let secretMatch;
+              while ((secretMatch = secretPattern.exec(line)) !== null) {
+                  const beforeSecret = line.slice(0, secretMatch.index);
+                  const fieldMatches = [...beforeSecret.matchAll(/([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*["']?/g)];
+                  const field = fieldMatches.length ? fieldMatches[fieldMatches.length - 1][1] : (section === 'Header' ? 'Password' : 'unknown');
+                  const classification = this.classifySecret(section, field);
+                  const occurrenceBase = `${section.toLowerCase()}|${field.toLowerCase()}`;
+                  const occurrence = (occurrenceCounts.get(occurrenceBase) || 0) + 1;
+                  occurrenceCounts.set(occurrenceBase, occurrence);
+                  const stableKey = `${occurrenceBase}|${occurrence}`;
+                  const item = {
+                      id: `secret-${inventory.length + 1}`,
+                      stableKey,
+                      value: secretMatch[0],
+                      start: absoluteOffset + secretMatch.index,
+                      end: absoluteOffset + secretMatch.index + secretMatch[0].length,
+                      line: lineNumber,
+                      section,
+                      field,
+                      occurrence,
+                      category: classification.category,
+                      displayLabel: classification.label,
+                      account: null
+                  };
+                  inventory.push(item);
+
+                  if (activeSipBlock) {
+                      activeSipBlock.secrets.push(item);
+                      if (field.toLowerCase() === 'username') activeSipBlock.usernameSecretId = item.id;
+                      if (field.toLowerCase().includes('registrar')) activeSipBlock.registrarSecretId = item.id;
+                  }
+              }
+
+              if (activeSipBlock && assignmentField && assignmentValue && !assignmentValue.startsWith('$$$$')) {
+                  const normalizedField = assignmentField.toLowerCase();
+                  if (normalizedField === 'username' || normalizedField === 'user') activeSipBlock.username = assignmentValue;
+                  if (normalizedField.includes('registrar')) activeSipBlock.registrar = assignmentValue;
+              }
+
+              if (inSipSection && /^\s*}/.test(line)) {
+                  finalizeSipBlock(sipBlocks.pop());
+              }
+
+              absoluteOffset += originalLine.length;
+          }
+
+          finalizeSipContext();
+          return inventory;
       }
   }
 

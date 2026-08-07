@@ -573,7 +573,7 @@
                     input.className = 'w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-400';
                     input.setAttribute('aria-label', `${title.textContent} bearbeiten`);
                     input.addEventListener('input', () => {
-                        this.state.setEditedPlaintext(secret.value, input.value);
+                        this.state.setEditedPlaintext(secret.id, input.value);
                         this.updateChangedButton();
                         if (this.state.viewMode === 'preview') this.renderPreviewText();
                     });
@@ -625,7 +625,7 @@
             }
 
             renderPreviewText() {
-                this.editor.value = this.state.createPreview((text, secret, plaintext) => this.replaceSecretSmart(text, secret, plaintext));
+                this.editor.value = this.state.createPreview((text, secret, plaintext) => this.replaceSecretAt(text, secret, plaintext));
                 this.updateCharCount();
             }
 
@@ -651,18 +651,18 @@
             escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
             escapeForDoubleQuotedString(value) { return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"'); }
 
-            replaceSecretSmart(text, secret, plaintext) {
-                const pattern = new RegExp(this.escapeRegExp(secret), 'g');
-                return text.replace(pattern, (match, offset, fullText) => {
-                    const prev = fullText[offset - 1];
-                    const next = fullText[offset + match.length];
-                    const alreadySingleQuoted = prev === "'" && next === "'";
-                    const alreadyDoubleQuoted = prev === '"' && next === '"';
-
-                    if (alreadyDoubleQuoted) return this.escapeForDoubleQuotedString(plaintext);
-                    if (alreadySingleQuoted) return String(plaintext).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                    return `"${this.escapeForDoubleQuotedString(plaintext)}"`;
-                });
+            replaceSecretAt(text, secret, plaintext) {
+                const previous = text[secret.start - 1];
+                const next = text[secret.end];
+                let replacement;
+                if (previous === '"' && next === '"') {
+                    replacement = this.escapeForDoubleQuotedString(plaintext);
+                } else if (previous === "'" && next === "'") {
+                    replacement = String(plaintext).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                } else {
+                    replacement = `"${this.escapeForDoubleQuotedString(plaintext)}"`;
+                }
+                return text.slice(0, secret.start) + replacement + text.slice(secret.end);
             }
 
             async reencryptChangedSecrets() {
@@ -697,7 +697,6 @@
                 lucide.createIcons();
 
                 try {
-                    let updatedText = this.state.workingText;
                     const replacements = [];
 
                     for (const secret of changedSecrets) {
@@ -714,9 +713,18 @@
                             throw new Error('ROUNDTRIP_MISMATCH');
                         }
 
-                        updatedText = updatedText.replace(new RegExp(this.escapeRegExp(secret.value), 'g'), newValue);
-                        replacements.push({ newValue, verification });
+                        replacements.push({ id: secret.id, secret, newValue, verification });
                     }
+
+                    let updatedText = this.state.workingText;
+                    replacements
+                        .slice()
+                        .sort((left, right) => right.secret.start - left.secret.start)
+                        .forEach(replacement => {
+                            const { start, end, value } = replacement.secret;
+                            if (updatedText.slice(start, end) !== value) throw new Error('SECRET_POSITION_MISMATCH');
+                            updatedText = updatedText.slice(0, start) + replacement.newValue + updatedText.slice(end);
+                        });
 
                     const checksumResult = this.checksum.fromText(updatedText).replaceChecksum();
                     updatedText = checksumResult.updatedText;
@@ -728,7 +736,7 @@
                     const keepPreviewVisible = this.state.viewMode === 'preview';
                     this.state.setWorkingText(updatedText);
                     for (const replacement of replacements) {
-                        this.state.markDecrypted(replacement.newValue, replacement.verification);
+                        this.state.markDecrypted(replacement.id, replacement.verification);
                     }
 
                     if (keepPreviewVisible) this.showDecryptedPreview();
@@ -774,21 +782,25 @@
                 const passwordPropertyMatch = this.state.workingText.match(/^Password=(\$\$\$\$[A-Za-z0-9./+=_-]+)/m);
                 if (passwordPropertyMatch && this.library) {
                     const encryptedMasterKey = passwordPropertyMatch[1];
-                    const masterWasDecrypted = this.state.getSecret(encryptedMasterKey)?.status === 'decrypted';
+                    const masterSecret = this.state.secrets.find(secret =>
+                        secret.value === encryptedMasterKey && secret.section === 'Header' && secret.field.toLowerCase() === 'password'
+                    );
+                    const masterIdentifier = masterSecret?.id || encryptedMasterKey;
+                    const masterWasDecrypted = this.state.getSecret(masterIdentifier)?.status === 'decrypted';
                     this.log(`> FRITZ!OS 7.50+ erkannt: "Password=" Property gefunden!`, 'accent');
                     this.log(`> Stufe 1: Entschlüssele Datei-Master-Key via FritzOSCrypto.js...`, 'accent');
 
                     try {
                         const mkResult = this.library.decryptExportKey(encryptedMasterKey, passwordFromInput);
                         activeMasterKeyBytes = mkResult.aesKeyBytes;
-                        this.state.markDecrypted(encryptedMasterKey, {
+                        this.state.markDecrypted(masterIdentifier, {
                             plaintext: '<Binärer Master-Key (entschlüsselt)>',
                             label: 'Datei-Master-Key'
                         });
                         this.log(`> [OK] Master-Key entschlüsselt! (Hex: ${mkResult.exportKeyHex.substring(0,8)}...)`, 'success');
                         if (!masterWasDecrypted) successCount += 1;
                     } catch (err) {
-                        this.state.markFailed(encryptedMasterKey, err);
+                        this.state.markFailed(masterIdentifier, err);
                         this.renderState();
                         this.showStatus('Master-Key Entschlüsselung fehlgeschlagen!', 'error');
                         this.log(`> FEHLER bei Master-Key: ${err.message}. Ist das Passwort korrekt?`, 'error');
@@ -803,7 +815,7 @@
                 for (const secret of payloadSecrets) {
                     try {
                         const result = await this.crypto.decryptSecret(secret.value, passwordFromInput, activeMasterKeyBytes);
-                        this.state.markDecrypted(secret.value, result);
+                        this.state.markDecrypted(secret.id, result);
                         successCount += 1;
 
                         if (successCount <= (activeMasterKeyBytes ? 6 : 5)) {
@@ -811,12 +823,12 @@
                             this.log(`  [OK] ${result.label} via ${result.source} -> ${preview}`, 'success');
                         }
                     } catch (error) {
-                        this.state.markFailed(secret.value, error);
+                        this.state.markFailed(secret.id, error);
                         failCount += 1;
                     }
                 }
 
-                this.editor.value = this.state.createPreview((text, secret, plaintext) => this.replaceSecretSmart(text, secret, plaintext));
+                this.editor.value = this.state.createPreview((text, secret, plaintext) => this.replaceSecretAt(text, secret, plaintext));
                 this.editor.readOnly = true;
                 this.editor.classList.remove('bg-slate-50', 'text-slate-700');
                 this.editor.classList.add('bg-slate-900', 'text-green-400');

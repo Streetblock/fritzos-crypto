@@ -44,14 +44,39 @@
     var previous = new Map();
     if (preserveResults) {
       this.secrets.forEach(function (secret) {
-        previous.set(secret.value, secret);
+        previous.set(secret.stableKey, secret);
       });
     }
 
-    this.secrets = this.parser.extractSecrets(this.workingText).map(function (value) {
-      var known = previous.get(value);
-      return known || {
-        value: value,
+    var inventory;
+    if (typeof this.parser.extractSecretInventory === "function") {
+      inventory = this.parser.extractSecretInventory(this.workingText);
+    } else {
+      var searchOffset = 0;
+      inventory = this.parser.extractSecrets(this.workingText).map(function (value, index) {
+        var start = this.workingText.indexOf(value, searchOffset);
+        searchOffset = start + value.length;
+        return {
+          id: "secret-" + (index + 1),
+          stableKey: "legacy|" + (index + 1),
+          value: value,
+          start: start,
+          end: start + value.length,
+          section: "Unknown",
+          field: "unknown",
+          category: "other",
+          displayLabel: "Unbekanntes Secret"
+        };
+      }, this);
+    }
+
+    this.secrets = inventory.map(function (item) {
+      var known = previous.get(item.stableKey);
+      if (known) {
+        Object.assign(known, item);
+        return known;
+      }
+      return Object.assign({}, item, {
         status: "pending",
         plaintext: null,
         editedPlaintext: null,
@@ -59,16 +84,18 @@
         label: null,
         type: null,
         source: null
-      };
+      });
     });
   };
 
-  ConfigState.prototype.getSecret = function (value) {
-    return this.secrets.find(function (secret) { return secret.value === value; }) || null;
+  ConfigState.prototype.getSecret = function (identifier) {
+    return this.secrets.find(function (secret) {
+      return secret.id === identifier || secret.stableKey === identifier || secret.value === identifier;
+    }) || null;
   };
 
-  ConfigState.prototype.markDecrypted = function (value, result) {
-    var secret = this.getSecret(value);
+  ConfigState.prototype.markDecrypted = function (identifier, result) {
+    var secret = this.getSecret(identifier);
     if (!secret) return;
     secret.status = "decrypted";
     secret.plaintext = String(result.plaintext == null ? "" : result.plaintext);
@@ -79,8 +106,8 @@
     secret.error = null;
   };
 
-  ConfigState.prototype.markFailed = function (value, error) {
-    var secret = this.getSecret(value);
+  ConfigState.prototype.markFailed = function (identifier, error) {
+    var secret = this.getSecret(identifier);
     if (!secret || secret.status === "decrypted") return;
     secret.status = "failed";
     secret.error = error && error.message ? error.message : String(error || "UNKNOWN_ERROR");
@@ -92,8 +119,8 @@
     });
   };
 
-  ConfigState.prototype.setEditedPlaintext = function (value, plaintext) {
-    var secret = this.getSecret(value);
+  ConfigState.prototype.setEditedPlaintext = function (identifier, plaintext) {
+    var secret = this.getSecret(identifier);
     if (!secret || secret.status !== "decrypted") return;
     secret.editedPlaintext = String(plaintext);
   };
@@ -110,15 +137,16 @@
     return this.secrets.reduce(function (counts, secret) {
       counts.total += 1;
       counts[secret.status] += 1;
+      if (secret.status === "decrypted" && secret.editedPlaintext !== secret.plaintext) counts.changed += 1;
       return counts;
-    }, { total: 0, pending: 0, decrypted: 0, failed: 0 });
+    }, { total: 0, pending: 0, decrypted: 0, failed: 0, changed: 0 });
   };
 
   ConfigState.prototype.createPreview = function (replaceSecret) {
     var preview = this.workingText;
-    this.secrets.forEach(function (secret) {
+    this.secrets.slice().sort(function (left, right) { return right.start - left.start; }).forEach(function (secret) {
       if (secret.status === "decrypted" && secret.plaintext !== null) {
-        preview = replaceSecret(preview, secret.value, secret.editedPlaintext);
+        preview = replaceSecret(preview, secret, secret.editedPlaintext);
       }
     });
     this.viewMode = "preview";
