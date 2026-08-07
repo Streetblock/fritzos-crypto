@@ -15,9 +15,9 @@
     <!-- Externe FritzOSCrypto.js Bibliothek        -->
     <!-- (Muss im selben Ordner liegen!)            -->
     <!-- ========================================== -->
-    <script src="./FritzOSCrypto.js"></script>
-    <script src="./ConfigState.js"></script>
-    <script src="./FritzExportChecksum.js"></script>
+    <script src="./FritzOSCrypto.js?v=20260807-3"></script>
+    <script src="./ConfigState.js?v=20260807-3"></script>
+    <script src="./FritzExportChecksum.js?v=20260807-3"></script>
 
     <style>
         .glass-panel {
@@ -1646,8 +1646,39 @@
             }
         }
 
+        function showStartupCompatibilityError(missingCapabilities) {
+            const message = document.createElement('div');
+            message.className = 'fixed inset-x-4 top-4 z-50 max-w-3xl mx-auto rounded-2xl border border-red-200 bg-red-50 text-red-800 p-5 shadow-xl';
+            const title = document.createElement('div');
+            title.className = 'font-bold';
+            title.textContent = 'Die Programmdateien wurden nicht gemeinsam aktualisiert.';
+            const details = document.createElement('p');
+            details.className = 'text-sm mt-1';
+            details.textContent = 'Bitte lade die Seite einmal vollständig neu. Falls der Hinweis bleibt, ist das GitHub-Pages-Deployment noch nicht abgeschlossen.';
+            const technical = document.createElement('p');
+            technical.className = 'text-xs font-mono mt-3 text-red-600';
+            technical.textContent = `Fehlende Funktionen: ${missingCapabilities.join(', ')}`;
+            message.append(title, details, technical);
+            document.body.appendChild(message);
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
+            const requiredStateMethods = [
+                'hasUnsavedChanges',
+                'isDownloadReady',
+                'getModifiedSecrets',
+                'markReencrypted',
+                'restoreOriginal'
+            ];
+            const statePrototype = window.FritzConfigState?.ConfigState?.prototype;
+            const missingCapabilities = requiredStateMethods.filter(method => typeof statePrototype?.[method] !== 'function');
+            if (window.FritzConfigState?.API_VERSION !== '2') missingCapabilities.unshift('ConfigState API v2');
+            if (missingCapabilities.length > 0) {
+                console.error('Inkompatible ConfigState.js geladen:', missingCapabilities);
+                showStartupCompatibilityError(missingCapabilities);
+                return;
+            }
             new ConfigToolApp();
         });
     </script>

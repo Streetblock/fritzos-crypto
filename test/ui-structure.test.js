@@ -80,6 +80,9 @@ assert.equal(html.includes('Jetzt neu verschlüsseln und prüfen'), false, 'manu
 assert.match(html, /<details id="reencryptSummary"/, 'change overview must be collapsible');
 assert.match(html, /markReencrypted\(/, 'validated changes must retain their audit state');
 assert.equal(html.includes('Geändert · validiert'), true, 'validated change label is missing');
+assert.match(html, /ConfigState\.js\?v=\d{8}-\d+/, 'local state script needs a deployment cache key');
+assert.equal(html.includes("ConfigState API v2"), true, 'state compatibility guard is missing');
+assert.equal(html.includes('Die Programmdateien wurden nicht gemeinsam aktualisiert.'), true, 'partial deployment must fail with a useful message');
 for (const status of ['pending', 'decrypted', 'changed', 'failed']) {
   assert.equal(html.includes(`<option value="${status}">`), true, `secret status filter ${status} is missing`);
 }

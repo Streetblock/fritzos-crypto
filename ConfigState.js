@@ -7,6 +7,8 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
+  var API_VERSION = "2";
+
   function ConfigState(parser) {
     if (!parser || typeof parser.extractSecrets !== "function") {
       throw new Error("A parser with extractSecrets(text) is required");
@@ -228,5 +230,5 @@
     return this.workingText;
   };
 
-  return { ConfigState: ConfigState };
+  return { ConfigState: ConfigState, API_VERSION: API_VERSION };
 });
