@@ -43,6 +43,7 @@ assert.equal(state.isDownloadReady(), true, 'both successful checks must unlock 
 state.showWorkingCopy();
 state.setWorkingText(`${state.workingText}\nthird="$$$$CCCC3333"`);
 assert.equal(state.isDownloadReady(), false, 'working-copy edits must invalidate prior checks');
+assert.equal(state.hasUnsavedChanges(), true);
 assert.deepEqual(state.getCounts(), { total: 3, pending: 1, decrypted: 2, failed: 0, changed: 0 });
 
 state.markFailed('$$$$CCCC3333', new Error('BAD_PASSWORD'));
@@ -53,8 +54,13 @@ assert.equal(state.getDecryptableSecrets().length, 1, 'failed secrets must be re
 state.markDecrypted('$$$$CCCC3333', { plaintext: 'retried' });
 assert.deepEqual(state.getCounts(), { total: 3, pending: 0, decrypted: 3, failed: 0, changed: 0 });
 
+state.setVerificationStep('roundtrip', 'success');
+state.setVerificationStep('checksum', 'success');
+assert.equal(state.markDownloaded(), true);
+assert.equal(state.hasUnsavedChanges(), false, 'successful download must clear the unsaved indicator');
+
 assert.equal(state.restoreOriginal(), `Password=${first}\nsecret="${second}"`);
-assert.equal(state.hasUnsavedChanges(), false, 'restoring must return to the immutable original');
+assert.equal(state.hasUnsavedChanges(), true, 'restoring after a modified download creates a new unsaved state');
 assert.equal(state.getCounts().total, 2);
 assert.equal(state.isDownloadReady(), false, 'restored originals require fresh validation before download');
 

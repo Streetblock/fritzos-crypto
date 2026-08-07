@@ -19,6 +19,7 @@
   ConfigState.prototype.reset = function () {
     this.originalText = "";
     this.workingText = "";
+    this.savedText = "";
     this.fileStatus = "empty";
     this.viewMode = "working";
     this.secrets = [];
@@ -45,6 +46,7 @@
     var normalized = String(text || "");
     this.originalText = normalized;
     this.workingText = normalized;
+    this.savedText = normalized;
     this.fileStatus = normalized ? "loaded" : "empty";
     this.viewMode = "working";
     this.resetVerification();
@@ -148,7 +150,14 @@
   };
 
   ConfigState.prototype.hasUnsavedChanges = function () {
-    return this.workingText !== this.originalText || this.getChangedSecrets().length > 0;
+    return this.workingText !== this.savedText || this.getChangedSecrets().length > 0;
+  };
+
+  ConfigState.prototype.markDownloaded = function () {
+    if (!this.isDownloadReady()) return false;
+    this.savedText = this.workingText;
+    this.fileStatus = "saved";
+    return true;
   };
 
   ConfigState.prototype.isDownloadReady = function () {
@@ -160,7 +169,7 @@
 
   ConfigState.prototype.restoreOriginal = function () {
     this.workingText = this.originalText;
-    this.fileStatus = this.originalText ? "loaded" : "empty";
+    this.fileStatus = !this.originalText ? "empty" : this.originalText === this.savedText ? "loaded" : "modified";
     this.viewMode = "working";
     this.resetVerification();
     this.syncSecrets(false);

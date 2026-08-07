@@ -11,8 +11,20 @@ for (const id of [
   'welcomeSection',
   'welcomeDropZone',
   'workspaceSection',
+  'unsavedChangesBadge',
+  'btnRestoreOriginal',
+  'btnSave',
   'viewOverview',
   'viewSecrets',
+  'exportSafetyPanel',
+  'downloadGateStatus',
+  'roundtripCheck',
+  'roundtripCheckMessage',
+  'checksumCheck',
+  'checksumCheckMessage',
+  'reencryptSummary',
+  'reencryptSummaryList',
+  'btnConfirmReencrypt',
   'viewEditor',
   'credentialCards',
   'wifiCardsSection',
@@ -55,6 +67,12 @@ assert.equal(html.includes('Alle verbergen'), true, 'global hide action is missi
 assert.equal(html.includes('In Zwischenablage kopieren'), true, 'SIP clipboard action is missing');
 assert.equal(/href\s*=\s*["']sip:/i.test(html), false, 'SIP cards must not launch a softphone');
 assert.equal(html.includes('qrcode_UTF8.js'), true, 'UTF-8 QR encoding support is missing');
+assert.match(html, /this\.btnSave\.disabled\s*=\s*!ready/, 'download button must follow the verification gate');
+assert.match(html, /this\.state\.isDownloadReady\(\)/, 'download handler must verify both safety checks');
+assert.equal(html.includes('1. Secret-Roundtrip'), true, 'roundtrip verification step is missing');
+assert.equal(html.includes('2. CRC32-Prüfung'), true, 'checksum verification step is missing');
+assert.equal(html.includes('Ungespeicherte Änderungen'), true, 'unsaved changes indicator is missing');
+assert.equal(html.includes('Originaldatei wiederherstellen?'), true, 'original restore flow is missing');
 for (const status of ['pending', 'decrypted', 'changed', 'failed']) {
   assert.equal(html.includes(`<option value="${status}">`), true, `secret status filter ${status} is missing`);
 }

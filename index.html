@@ -84,15 +84,23 @@
                     <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0"><i data-lucide="file-check-2" class="w-5 h-5"></i></div>
                     <div class="min-w-0">
                         <div id="fileNameLabel" class="font-semibold text-slate-800 truncate">Keine Datei geladen</div>
-                        <div id="charCount" class="text-xs text-slate-500">0 Zeichen</div>
+                        <div class="flex items-center gap-2 flex-wrap mt-0.5">
+                            <div id="charCount" class="text-xs text-slate-500">0 Zeichen</div>
+                            <span id="unsavedChangesBadge" class="hidden items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                <i data-lucide="circle" class="w-2.5 h-2.5 fill-current"></i> Ungespeicherte Änderungen
+                            </span>
+                        </div>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
                     <button id="btnChangeFile" class="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg">
                         <i data-lucide="replace" class="w-4 h-4"></i><span class="hidden sm:inline">Andere Datei</span>
                     </button>
-                    <button id="btnSave" class="inline-flex items-center gap-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg shadow-sm">
-                        <i data-lucide="download" class="w-4 h-4"></i> Speichern
+                    <button id="btnRestoreOriginal" disabled class="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i data-lucide="history" class="w-4 h-4"></i><span class="hidden md:inline">Original wiederherstellen</span>
+                    </button>
+                    <button id="btnSave" disabled class="inline-flex items-center gap-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg shadow-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i data-lucide="lock-keyhole" class="w-4 h-4"></i> Download gesperrt
                     </button>
                     <button id="btnClear" class="inline-flex items-center justify-center text-slate-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50" aria-label="Datei schließen">
                         <i data-lucide="x" class="w-5 h-5"></i>
@@ -175,6 +183,36 @@
                         <div class="flex items-end justify-between gap-4 flex-wrap">
                             <div><p class="text-xs font-semibold uppercase tracking-wider text-blue-600">Gefundene Zugangsdaten</p><h2 class="text-2xl font-bold text-slate-900 mt-1">Secrets</h2></div>
                         </div>
+                        <section id="exportSafetyPanel" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                            <div class="flex items-center justify-between gap-3 flex-wrap">
+                                <div>
+                                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Export-Sicherheit</p>
+                                    <h3 class="font-bold text-slate-800 mt-1">Prüfung vor dem Download</h3>
+                                </div>
+                                <span id="downloadGateStatus" class="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-full">Download gesperrt</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                                <div id="roundtripCheck" data-status="idle" class="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-start gap-3">
+                                    <span class="w-8 h-8 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center flex-shrink-0"><i data-lucide="rotate-cw" class="w-4 h-4"></i></span>
+                                    <div><div class="text-sm font-bold text-slate-700">1. Secret-Roundtrip</div><div id="roundtripCheckMessage" class="text-xs text-slate-500 mt-0.5">Ausstehend</div></div>
+                                </div>
+                                <div id="checksumCheck" data-status="idle" class="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-start gap-3">
+                                    <span class="w-8 h-8 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center flex-shrink-0"><i data-lucide="shield-check" class="w-4 h-4"></i></span>
+                                    <div><div class="text-sm font-bold text-slate-700">2. CRC32-Prüfung</div><div id="checksumCheckMessage" class="text-xs text-slate-500 mt-0.5">Ausstehend</div></div>
+                                </div>
+                            </div>
+                        </section>
+                        <section id="reencryptSummary" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm">
+                            <div class="flex items-start justify-between gap-4">
+                                <div><p class="text-xs font-semibold uppercase tracking-wider text-amber-700">Vor Neuverschlüsselung prüfen</p><h3 id="reencryptSummaryTitle" class="font-bold text-slate-900 mt-1">Änderungen zusammenfassen</h3></div>
+                                <button id="btnCancelReencrypt" class="text-slate-400 hover:text-slate-700 p-1" aria-label="Zusammenfassung schließen"><i data-lucide="x" class="w-5 h-5"></i></button>
+                            </div>
+                            <ul id="reencryptSummaryList" class="mt-4 space-y-2"></ul>
+                            <div class="flex items-center justify-end gap-2 mt-5 flex-wrap">
+                                <button id="btnCancelReencryptSecondary" class="px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50">Abbrechen</button>
+                                <button id="btnConfirmReencrypt" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"><i data-lucide="lock-keyhole" class="w-4 h-4"></i> Jetzt neu verschlüsseln und prüfen</button>
+                            </div>
+                        </section>
                         <div id="credentialCards" class="hidden space-y-5">
                             <section id="wifiCardsSection" class="hidden">
                                 <div class="flex items-center gap-2 mb-3">
@@ -294,6 +332,7 @@
                 this.fileInput = document.getElementById('fileInput');
                 this.btnDecrypt = document.getElementById('btnDecrypt');
                 this.btnSave = document.getElementById('btnSave');
+                this.btnRestoreOriginal = document.getElementById('btnRestoreOriginal');
                 this.btnClear = document.getElementById('btnClear');
                 this.btnChangeFile = document.getElementById('btnChangeFile');
                 this.btnToggleView = document.getElementById('btnToggleView');
@@ -303,6 +342,18 @@
                 this.statusAlert = document.getElementById('statusAlert');
                 this.statusIcon = document.getElementById('statusIcon');
                 this.statusMessage = document.getElementById('statusMessage');
+                this.unsavedChangesBadge = document.getElementById('unsavedChangesBadge');
+                this.downloadGateStatus = document.getElementById('downloadGateStatus');
+                this.roundtripCheck = document.getElementById('roundtripCheck');
+                this.roundtripCheckMessage = document.getElementById('roundtripCheckMessage');
+                this.checksumCheck = document.getElementById('checksumCheck');
+                this.checksumCheckMessage = document.getElementById('checksumCheckMessage');
+                this.reencryptSummary = document.getElementById('reencryptSummary');
+                this.reencryptSummaryTitle = document.getElementById('reencryptSummaryTitle');
+                this.reencryptSummaryList = document.getElementById('reencryptSummaryList');
+                this.btnConfirmReencrypt = document.getElementById('btnConfirmReencrypt');
+                this.btnCancelReencrypt = document.getElementById('btnCancelReencrypt');
+                this.btnCancelReencryptSecondary = document.getElementById('btnCancelReencryptSecondary');
                 this.logBox = document.getElementById('statusLog');
                 this.dashboardSection = document.getElementById('dashboardSection');
                 this.secretEditorSection = document.getElementById('secretEditorSection');
@@ -349,11 +400,15 @@
             bindEvents() {
                 this.btnDecrypt?.addEventListener('click', () => this.handleDecrypt());
                 this.btnSave?.addEventListener('click', () => this.saveEditor());
+                this.btnRestoreOriginal?.addEventListener('click', () => this.restoreOriginalFile());
                 this.btnClear?.addEventListener('click', () => this.clearAll());
                 this.btnChangeFile?.addEventListener('click', () => this.fileInput.click());
                 this.btnToggleView?.addEventListener('click', () => this.toggleView());
                 this.btnToggleAllSecrets?.addEventListener('click', () => this.toggleAllSecrets());
-                this.btnReencryptChanged?.addEventListener('click', () => this.reencryptChangedSecrets());
+                this.btnReencryptChanged?.addEventListener('click', () => this.showReencryptSummary());
+                this.btnConfirmReencrypt?.addEventListener('click', () => this.reencryptChangedSecrets());
+                this.btnCancelReencrypt?.addEventListener('click', () => this.hideReencryptSummary());
+                this.btnCancelReencryptSecondary?.addEventListener('click', () => this.hideReencryptSummary());
                 this.btnClearLog?.addEventListener('click', () => this.clearLog());
                 this.fileInput?.addEventListener('change', (event) => this.handleFileInput(event));
                 this.editor?.addEventListener('input', () => this.handleEditorInput());
@@ -391,6 +446,7 @@
 
             handleEditorInput() {
                 if (this.state.viewMode === 'preview') return;
+                this.hideReencryptSummary();
                 this.state.setWorkingText(this.editor.value);
                 this.updateCharCount();
                 this.renderState();
@@ -501,6 +557,8 @@
                 reader.onload = (loadEvent) => {
                     const text = String(loadEvent.target?.result || '');
                     this.state.load(text);
+                    this.revealedSecrets.clear();
+                    this.hideReencryptSummary();
                     this.editor.value = text;
                     this.editor.readOnly = false;
                     this.editor.classList.remove('bg-slate-900', 'text-green-400');
@@ -578,6 +636,106 @@
                 }
             }
 
+            renderVerificationStep(element, messageElement, step, icon) {
+                const styles = {
+                    idle: {
+                        card: 'border-slate-200 bg-slate-50',
+                        icon: 'bg-slate-200 text-slate-500',
+                        message: step.message || 'Ausstehend'
+                    },
+                    running: {
+                        card: 'border-blue-200 bg-blue-50',
+                        icon: 'bg-blue-100 text-blue-600',
+                        message: step.message || 'Wird geprüft…'
+                    },
+                    success: {
+                        card: 'border-emerald-200 bg-emerald-50',
+                        icon: 'bg-emerald-100 text-emerald-700',
+                        message: step.message || 'Erfolgreich geprüft'
+                    },
+                    failed: {
+                        card: 'border-red-200 bg-red-50',
+                        icon: 'bg-red-100 text-red-700',
+                        message: step.message || 'Prüfung fehlgeschlagen'
+                    }
+                }[step.status] || null;
+                element.dataset.status = step.status;
+                element.className = `rounded-xl border p-3 flex items-start gap-3 ${styles.card}`;
+                const iconWrap = element.querySelector('span');
+                iconWrap.className = `w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${styles.icon}`;
+                iconWrap.innerHTML = `<i data-lucide="${step.status === 'success' ? 'check' : step.status === 'failed' ? 'x' : icon}" class="w-4 h-4${step.status === 'running' ? ' animate-spin' : ''}"></i>`;
+                messageElement.textContent = styles.message;
+            }
+
+            renderSafetyState() {
+                const unsaved = this.state.hasUnsavedChanges();
+                const ready = this.state.isDownloadReady();
+                this.unsavedChangesBadge.classList.toggle('hidden', !unsaved);
+                this.unsavedChangesBadge.classList.toggle('inline-flex', unsaved);
+                this.btnRestoreOriginal.disabled = !this.state.originalText;
+                this.btnSave.disabled = !ready;
+                this.btnSave.innerHTML = ready
+                    ? '<i data-lucide="download" class="w-4 h-4"></i> Geprüften Export herunterladen'
+                    : '<i data-lucide="lock-keyhole" class="w-4 h-4"></i> Download gesperrt';
+                this.downloadGateStatus.textContent = ready ? 'Download freigegeben' : 'Download gesperrt';
+                this.downloadGateStatus.className = ready
+                    ? 'text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full'
+                    : 'text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-full';
+                this.renderVerificationStep(this.roundtripCheck, this.roundtripCheckMessage, this.state.verification.roundtrip, 'rotate-cw');
+                this.renderVerificationStep(this.checksumCheck, this.checksumCheckMessage, this.state.verification.checksum, 'shield-check');
+            }
+
+            showReencryptSummary() {
+                const changedSecrets = this.state.getChangedSecrets().filter(secret => secret.type === 4 || secret.type === 5);
+                if (changedSecrets.length === 0) return;
+                this.reencryptSummaryList.innerHTML = '';
+                this.reencryptSummaryTitle.textContent = `${changedSecrets.length} ${changedSecrets.length === 1 ? 'Änderung' : 'Änderungen'} neu verschlüsseln`;
+                changedSecrets.forEach(secret => {
+                    const item = document.createElement('li');
+                    item.className = 'rounded-xl border border-amber-200 bg-white/80 px-4 py-3 flex items-start justify-between gap-4';
+                    const details = document.createElement('div');
+                    const title = document.createElement('div');
+                    title.className = 'text-sm font-bold text-slate-800';
+                    title.textContent = secret.displayLabel;
+                    const location = document.createElement('div');
+                    location.className = 'text-xs text-slate-500 mt-0.5';
+                    location.textContent = `${secret.section} · ${secret.field} · Zeile ${secret.line}`;
+                    details.append(title, location);
+                    const length = document.createElement('span');
+                    length.className = 'text-[11px] font-medium text-amber-700 whitespace-nowrap';
+                    length.textContent = `${secret.plaintext.length} → ${secret.editedPlaintext.length} Zeichen`;
+                    item.append(details, length);
+                    this.reencryptSummaryList.appendChild(item);
+                });
+                this.reencryptSummary.classList.remove('hidden');
+                this.reencryptSummary.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                lucide.createIcons();
+            }
+
+            hideReencryptSummary() {
+                this.reencryptSummary?.classList.add('hidden');
+            }
+
+            restoreOriginalFile() {
+                if (!this.state.originalText) return;
+                const losesResults = this.state.getCounts().decrypted > 0;
+                if ((this.state.hasUnsavedChanges() || losesResults) &&
+                    !window.confirm('Originaldatei wiederherstellen? Alle Änderungen und Entschlüsselungsergebnisse werden verworfen.')) return;
+                const original = this.state.restoreOriginal();
+                this.editor.value = original;
+                this.editor.readOnly = false;
+                this.editor.classList.remove('bg-slate-900', 'text-green-400');
+                this.editor.classList.add('bg-slate-50', 'text-slate-700');
+                this.revealedSecrets.clear();
+                this.hideReencryptSummary();
+                this.updateCharCount();
+                this.updateDashboard(original);
+                this.inspectChecksum(original);
+                this.renderState();
+                this.showStatus('Die unveränderte Originaldatei wurde wiederhergestellt.', 'success');
+                this.log('> Originaldatei wiederhergestellt; Änderungen und Prüfergebnisse verworfen.', 'success');
+            }
+
             renderState() {
                 const counts = this.state.getCounts();
                 this.secretsCount.textContent = counts.total;
@@ -607,6 +765,7 @@
                 } else {
                     this.btnDecrypt.innerHTML = '<i data-lucide="unlock" class="w-4 h-4"></i> Konfig entschlüsseln';
                 }
+                this.renderSafetyState();
                 this.renderSecretEditor();
                 lucide.createIcons();
             }
@@ -961,6 +1120,7 @@
                     }, !supported);
                     let resetButton;
                     resetButton = makeAction('Zurücksetzen', 'undo-2', () => {
+                        this.hideReencryptSummary();
                         this.state.setEditedPlaintext(secret.id, secret.plaintext);
                         if (this.state.viewMode === 'preview') this.renderPreviewText();
                         this.renderSecretEditor();
@@ -969,6 +1129,7 @@
                     actions.append(revealButton, copyButton, editButton, resetButton);
 
                     input.addEventListener('input', () => {
+                        this.hideReencryptSummary();
                         this.state.setEditedPlaintext(secret.id, input.value);
                         const currentStatus = this.getSecretDisplayStatus(secret);
                         statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[currentStatus][1]}`;
@@ -1006,6 +1167,7 @@
                 this.btnReencryptChanged.innerHTML = changedCount > 0
                     ? `<i data-lucide="refresh-cw" class="w-4 h-4"></i> ${changedCount} Änderungen neu verschlüsseln`
                     : '<i data-lucide="refresh-cw" class="w-4 h-4"></i> Keine Änderungen';
+                this.renderSafetyState();
                 lucide.createIcons();
             }
 
@@ -1080,6 +1242,7 @@
             async reencryptChangedSecrets() {
                 const changedSecrets = this.state.getChangedSecrets().filter(secret => secret.type === 4 || secret.type === 5);
                 if (changedSecrets.length === 0) return;
+                this.hideReencryptSummary();
 
                 const password = this.passwordInput.value;
                 if (!password) {
@@ -1106,6 +1269,9 @@
 
                 this.btnReencryptChanged.disabled = true;
                 this.btnReencryptChanged.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Verschlüssele…';
+                this.state.invalidateVerification();
+                this.state.setVerificationStep('roundtrip', 'running', `${changedSecrets.length} Secrets werden kontrolliert…`);
+                this.renderSafetyState();
                 lucide.createIcons();
 
                 try {
@@ -1127,6 +1293,12 @@
 
                         replacements.push({ id: secret.id, secret, newValue, verification });
                     }
+
+                    this.state.setVerificationStep('roundtrip', 'success', `${replacements.length} Secrets erfolgreich zurückentschlüsselt`);
+                    this.state.setVerificationStep('checksum', 'running', 'CRC32 wird aktualisiert und geprüft…');
+                    this.renderSafetyState();
+                    this.log(`> Prüfschritt 1/2 erfolgreich: ${replacements.length} Secret-Roundtrips stimmen überein.`, 'success');
+                    await new Promise(resolve => requestAnimationFrame(resolve));
 
                     let updatedText = this.state.workingText;
                     replacements
@@ -1150,15 +1322,22 @@
                     for (const replacement of replacements) {
                         this.state.markDecrypted(replacement.id, replacement.verification);
                     }
+                    this.state.setVerificationStep('roundtrip', 'success', `${replacements.length} Secrets erfolgreich zurückentschlüsselt`);
+                    this.state.setVerificationStep('checksum', 'success', `CRC32 ${checksumResult.newCrc} ist gültig`);
 
                     if (keepPreviewVisible) this.showDecryptedPreview();
                     else this.showWorkingCopy();
-                    this.showStatus(`${replacements.length} Secrets neu verschlüsselt; Prüfsumme auf ${checksumResult.newCrc} aktualisiert.`, 'success');
-                    this.log(`> ${replacements.length} Secrets neu verschlüsselt; CRC32 ${checksumResult.oldCrc} → ${checksumResult.newCrc}.`, 'success');
+                    this.showStatus('Beide Prüfungen waren erfolgreich. Der geprüfte Export kann jetzt heruntergeladen werden.', 'success');
+                    this.log(`> Prüfschritt 2/2 erfolgreich: CRC32 ${checksumResult.oldCrc} → ${checksumResult.newCrc}.`, 'success');
                 } catch (error) {
+                    if (this.state.verification.roundtrip.status === 'running') {
+                        this.state.setVerificationStep('roundtrip', 'failed', `Roundtrip fehlgeschlagen: ${error.message}`);
+                    } else if (this.state.verification.checksum.status === 'running') {
+                        this.state.setVerificationStep('checksum', 'failed', `CRC32-Prüfung fehlgeschlagen: ${error.message}`);
+                    }
                     this.showStatus(`Neuverschlüsselung fehlgeschlagen: ${error.message}`, 'error');
                     this.log(`> FEHLER bei der feldweisen Neuverschlüsselung: ${error.message}`, 'error');
-                    this.updateChangedButton();
+                    this.renderState();
                 }
             }
 
@@ -1262,47 +1441,37 @@
             }
 
             saveEditor() {
-                const isPlaintextPreview = this.activeView === 'editor' && this.state.viewMode === 'preview';
-                let content = isPlaintextPreview ? this.editor.value : this.state.workingText;
+                const content = this.state.workingText;
                 if (!content) {
                     this.showStatus('Nichts zum Speichern vorhanden.', 'warning');
                     this.log('> Speichern abgebrochen: Editor leer.', 'warning');
                     return;
                 }
 
-                if (!isPlaintextPreview && this.state.getChangedSecrets().length > 0) {
-                    this.showStatus('Vor dem Speichern müssen die geänderten Secrets neu verschlüsselt werden.', 'warning');
+                if (!this.state.isDownloadReady()) {
+                    this.showStatus('Download gesperrt: Secret-Roundtrip und CRC32-Prüfung müssen beide erfolgreich sein.', 'warning');
                     this.switchView('secrets');
                     return;
                 }
-                if (isPlaintextPreview && !window.confirm('Die entschlüsselte Vorschau enthält sensible Zugangsdaten im Klartext. Trotzdem speichern?')) {
-                    this.showStatus('Speichern der Klartextvorschau abgebrochen.', 'warning');
-                    return;
-                }
 
-                if (!isPlaintextPreview && this.parser.isExportFile(content)) {
+                if (this.parser.isExportFile(content)) {
                     try {
-                        const checksumResult = this.checksum.fromText(content).replaceChecksum();
-                        const verificationResult = this.checksum.fromText(checksumResult.updatedText).calculate();
+                        const verificationResult = this.checksum.fromText(content).calculate();
                         if (verificationResult.oldCrc !== verificationResult.newCrc) {
                             throw new Error('CHECKSUM_ROUNDTRIP_MISMATCH');
                         }
-                        content = checksumResult.updatedText;
-                        this.state.setWorkingText(content);
-                        this.editor.value = content;
-                        this.updateCharCount();
-                        this.renderState();
-                        this.log(`> CRC32 vor dem Speichern geprüft: ${checksumResult.oldCrc} → ${checksumResult.newCrc}.`, 'success');
+                        this.log(`> CRC32 unmittelbar vor dem Download erneut bestätigt: ${verificationResult.newCrc}.`, 'success');
                     } catch (error) {
-                        this.showStatus(`Speichern abgebrochen: Prüfsumme konnte nicht aktualisiert werden (${error.message}).`, 'error');
+                        this.state.setVerificationStep('checksum', 'failed', `Letzte Prüfung fehlgeschlagen: ${error.message}`);
+                        this.renderState();
+                        this.showStatus(`Download abgebrochen: CRC32 ist nicht mehr gültig (${error.message}).`, 'error');
                         return;
                     }
                 }
 
-                const suffix = isPlaintextPreview ? '-plaintext' : '-working';
                 const suggestedName = this.currentFileName
-                    ? this.currentFileName.replace(/(\.[A-Za-z0-9_-]+)?$/, `${suffix}$1`)
-                    : `fritz-config${suffix}.export`;
+                    ? this.currentFileName.replace(/(\.[A-Za-z0-9_-]+)?$/, '-verified$1')
+                    : 'fritz-config-verified.export';
 
                 const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
@@ -1314,8 +1483,10 @@
                 link.remove();
                 URL.revokeObjectURL(url);
 
-                this.showStatus(`Gespeichert als ${suggestedName}`, 'success');
-                this.log(`> Datei gespeichert: ${suggestedName}`, 'success');
+                this.state.markDownloaded();
+                this.renderSafetyState();
+                this.showStatus(`Geprüfter Export heruntergeladen als ${suggestedName}`, 'success');
+                this.log(`> Geprüfter Export heruntergeladen: ${suggestedName}`, 'success');
             }
         }
 
