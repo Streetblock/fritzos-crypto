@@ -18,6 +18,8 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 
 * **Secrets gezielt bearbeiten:** Entschlüsselte Typ-4- und Typ-5-Werte können einzeln geändert und in der Arbeitskopie neu verschlüsselt werden. Jeder neue Wert wird per Entschlüsselungs-Roundtrip geprüft. Daraus folgt noch keine Garantie, dass eine beliebig strukturell veränderte Sicherungsdatei importierbar ist.
 
+* **AVM-Prüfsumme:** Nach der Neuverschlüsselung und vor dem Speichern einer Exportdatei wird die CRC32-Prüfsumme am `END OF EXPORT` nach dem AVM-Sektionsverfahren aktualisiert und erneut geprüft.
+
 * **Modular:** Die reine Krypto-Logik ist in `FritzOSCrypto.js` ausgelagert und kann nahtlos in eigenen Node.js-Projekten genutzt werden.
 
 ## 🚀 Nutzung im Browser (UI)

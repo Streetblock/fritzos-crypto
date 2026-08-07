@@ -18,6 +18,8 @@ The absolute highlight: This tool supports the modern **FRITZ!OS 7.50+ Master-Ke
 
 * **Edit secrets selectively:** Decrypted Type 4 and Type 5 values can be changed individually and re-encrypted in the working copy. Every new value is verified through a decryption roundtrip. This does not guarantee that an arbitrarily restructured backup file is importable.
 
+* **AVM checksum:** After re-encryption and before saving an export, the CRC32 value at `END OF EXPORT` is updated using AVM's section-aware procedure and verified again.
+
 * **Modular:** The core cryptography logic is extracted into `FritzOSCrypto.js` and can be seamlessly integrated into your own Node.js backend projects.
 
 ## 🚀 Usage in Browser (UI)

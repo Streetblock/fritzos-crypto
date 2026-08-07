@@ -15,6 +15,7 @@
     <!-- ========================================== -->
     <script src="./FritzOSCrypto.js"></script>
     <script src="./ConfigState.js"></script>
+    <script src="./FritzExportChecksum.js"></script>
 
     <style>
         .glass-panel {
@@ -226,6 +227,7 @@
                 this.library = window.FritzOSCrypto;
                 this.parser = FritzBoxParser;
                 this.crypto = AVMCrypto;
+                this.checksum = window.FritzExportChecksum;
                 this.state = new window.FritzConfigState.ConfigState(this.parser);
 
                 this.bindEvents();
@@ -349,6 +351,7 @@
                     this.updateCharCount();
                     this.renderState();
                     this.updateDashboard(text);
+                    this.inspectChecksum(text);
                     this.showStatus(`Datei geladen: ${this.currentFileName || 'Unbekannt'}`, 'success');
                     this.log(`> Datei erfolgreich geladen. ${this.state.secrets.length} potenzielle Geheimnisse erkannt.`, 'success');
                 };
@@ -359,6 +362,20 @@
                 };
 
                 reader.readAsText(file);
+            }
+
+            inspectChecksum(text) {
+                if (!this.parser.isExportFile(text) || !/END OF EXPORT\s+[0-9A-Fa-f]{8}/.test(text)) return;
+                try {
+                    const result = this.checksum.fromText(text).calculate();
+                    if (result.oldCrc === result.newCrc) {
+                        this.log(`> Prüfsumme gültig: ${result.oldCrc}.`, 'success');
+                    } else {
+                        this.log(`> WARNUNG: Prüfsumme ${result.oldCrc} ist ungültig; erwartet wird ${result.newCrc}.`, 'warning');
+                    }
+                } catch (error) {
+                    this.log(`> Prüfsumme konnte nicht geprüft werden: ${error.message}`, 'warning');
+                }
             }
 
             updateDashboard(text) {
@@ -602,6 +619,13 @@
                         replacements.push({ newValue, verification });
                     }
 
+                    const checksumResult = this.checksum.fromText(updatedText).replaceChecksum();
+                    updatedText = checksumResult.updatedText;
+                    const verificationResult = this.checksum.fromText(updatedText).calculate();
+                    if (verificationResult.oldCrc !== verificationResult.newCrc) {
+                        throw new Error('CHECKSUM_ROUNDTRIP_MISMATCH');
+                    }
+
                     const keepPreviewVisible = this.state.viewMode === 'preview';
                     this.state.setWorkingText(updatedText);
                     for (const replacement of replacements) {
@@ -610,8 +634,8 @@
 
                     if (keepPreviewVisible) this.showDecryptedPreview();
                     else this.showWorkingCopy();
-                    this.showStatus(`${replacements.length} geänderte Secrets wurden neu verschlüsselt und per Roundtrip geprüft.`, 'success');
-                    this.log(`> ${replacements.length} geänderte Secrets feldweise neu verschlüsselt.`, 'success');
+                    this.showStatus(`${replacements.length} Secrets neu verschlüsselt; Prüfsumme auf ${checksumResult.newCrc} aktualisiert.`, 'success');
+                    this.log(`> ${replacements.length} Secrets neu verschlüsselt; CRC32 ${checksumResult.oldCrc} → ${checksumResult.newCrc}.`, 'success');
                 } catch (error) {
                     this.showStatus(`Neuverschlüsselung fehlgeschlagen: ${error.message}`, 'error');
                     this.log(`> FEHLER bei der feldweisen Neuverschlüsselung: ${error.message}`, 'error');
@@ -714,7 +738,7 @@
             }
 
             saveEditor() {
-                const content = this.editor.value;
+                let content = this.editor.value;
                 if (!content) {
                     this.showStatus('Nichts zum Speichern vorhanden.', 'warning');
                     this.log('> Speichern abgebrochen: Editor leer.', 'warning');
@@ -725,6 +749,25 @@
                 if (isPlaintextPreview && !window.confirm('Die entschlüsselte Vorschau enthält sensible Zugangsdaten im Klartext. Trotzdem speichern?')) {
                     this.showStatus('Speichern der Klartextvorschau abgebrochen.', 'warning');
                     return;
+                }
+
+                if (!isPlaintextPreview && this.parser.isExportFile(content)) {
+                    try {
+                        const checksumResult = this.checksum.fromText(content).replaceChecksum();
+                        const verificationResult = this.checksum.fromText(checksumResult.updatedText).calculate();
+                        if (verificationResult.oldCrc !== verificationResult.newCrc) {
+                            throw new Error('CHECKSUM_ROUNDTRIP_MISMATCH');
+                        }
+                        content = checksumResult.updatedText;
+                        this.state.setWorkingText(content);
+                        this.editor.value = content;
+                        this.updateCharCount();
+                        this.renderState();
+                        this.log(`> CRC32 vor dem Speichern geprüft: ${checksumResult.oldCrc} → ${checksumResult.newCrc}.`, 'success');
+                    } catch (error) {
+                        this.showStatus(`Speichern abgebrochen: Prüfsumme konnte nicht aktualisiert werden (${error.message}).`, 'error');
+                        return;
+                    }
                 }
 
                 const suffix = isPlaintextPreview ? '-plaintext' : '-working';
