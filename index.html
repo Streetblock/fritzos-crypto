@@ -202,17 +202,21 @@
                                 </div>
                             </div>
                         </section>
-                        <section id="reencryptSummary" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm">
-                            <div class="flex items-start justify-between gap-4">
-                                <div><p class="text-xs font-semibold uppercase tracking-wider text-amber-700">Vor Neuverschlüsselung prüfen</p><h3 id="reencryptSummaryTitle" class="font-bold text-slate-900 mt-1">Änderungen zusammenfassen</h3></div>
-                                <button id="btnCancelReencrypt" class="text-slate-400 hover:text-slate-700 p-1" aria-label="Zusammenfassung schließen"><i data-lucide="x" class="w-5 h-5"></i></button>
+                        <details id="reencryptSummary" class="hidden group bg-amber-50 border border-amber-200 rounded-2xl shadow-sm overflow-hidden">
+                            <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-4">
+                                <div class="min-w-0">
+                                    <p class="text-xs font-semibold uppercase tracking-wider text-amber-700">Änderungsübersicht</p>
+                                    <h3 id="reencryptSummaryTitle" class="font-bold text-slate-900 mt-1">Ungespeicherte Änderungen</h3>
+                                </div>
+                                <div class="flex items-center gap-3 flex-shrink-0">
+                                    <span id="autoValidationStatus" class="text-xs font-semibold text-amber-700">Automatische Prüfung wartet</span>
+                                    <i data-lucide="chevron-down" class="w-5 h-5 text-amber-700 transition-transform group-open:rotate-180"></i>
+                                </div>
+                            </summary>
+                            <div class="border-t border-amber-200 px-5 pb-5">
+                                <ul id="reencryptSummaryList" class="mt-4 space-y-2"></ul>
                             </div>
-                            <ul id="reencryptSummaryList" class="mt-4 space-y-2"></ul>
-                            <div class="flex items-center justify-end gap-2 mt-5 flex-wrap">
-                                <button id="btnCancelReencryptSecondary" class="px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50">Abbrechen</button>
-                                <button id="btnConfirmReencrypt" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"><i data-lucide="lock-keyhole" class="w-4 h-4"></i> Jetzt neu verschlüsseln und prüfen</button>
-                            </div>
-                        </section>
+                        </details>
                         <div id="credentialCards" class="hidden space-y-5">
                             <section id="wifiCardsSection" class="hidden">
                                 <div class="flex items-center gap-2 mb-3">
@@ -244,9 +248,9 @@
                                     <button id="btnToggleAllSecrets" disabled class="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium px-4 py-2 rounded-xl border border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed">
                                         <i data-lucide="eye" class="w-4 h-4"></i> Alle anzeigen
                                     </button>
-                                    <button id="btnReencryptChanged" disabled class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed">
-                                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Keine Änderungen
-                                    </button>
+                                    <span id="autoValidationBadge" class="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-3 py-2 rounded-xl">
+                                        <i data-lucide="timer" class="w-4 h-4"></i> Automatische Prüfung bereit
+                                    </span>
                                 </div>
                             </div>
                             <div class="p-4 border-b border-slate-200 bg-slate-50/70 grid grid-cols-1 md:grid-cols-[minmax(220px,1fr)_180px_170px] gap-3">
@@ -337,7 +341,7 @@
                 this.btnChangeFile = document.getElementById('btnChangeFile');
                 this.btnToggleView = document.getElementById('btnToggleView');
                 this.btnToggleAllSecrets = document.getElementById('btnToggleAllSecrets');
-                this.btnReencryptChanged = document.getElementById('btnReencryptChanged');
+                this.autoValidationBadge = document.getElementById('autoValidationBadge');
                 this.btnClearLog = document.getElementById('btnClearLog');
                 this.statusAlert = document.getElementById('statusAlert');
                 this.statusIcon = document.getElementById('statusIcon');
@@ -351,9 +355,7 @@
                 this.reencryptSummary = document.getElementById('reencryptSummary');
                 this.reencryptSummaryTitle = document.getElementById('reencryptSummaryTitle');
                 this.reencryptSummaryList = document.getElementById('reencryptSummaryList');
-                this.btnConfirmReencrypt = document.getElementById('btnConfirmReencrypt');
-                this.btnCancelReencrypt = document.getElementById('btnCancelReencrypt');
-                this.btnCancelReencryptSecondary = document.getElementById('btnCancelReencryptSecondary');
+                this.autoValidationStatus = document.getElementById('autoValidationStatus');
                 this.logBox = document.getElementById('statusLog');
                 this.dashboardSection = document.getElementById('dashboardSection');
                 this.secretEditorSection = document.getElementById('secretEditorSection');
@@ -384,6 +386,12 @@
                 this.activeView = 'overview';
                 this.currentFileName = '';
                 this.revealedSecrets = new Set();
+                this.autoValidationDelay = 15000;
+                this.autoValidationTimer = null;
+                this.autoValidationTicker = null;
+                this.autoValidationDeadline = 0;
+                this.autoValidationGeneration = 0;
+                this.autoValidationRunning = false;
                 this.library = window.FritzOSCrypto;
                 this.parser = FritzBoxParser;
                 this.crypto = AVMCrypto;
@@ -405,16 +413,15 @@
                 this.btnChangeFile?.addEventListener('click', () => this.fileInput.click());
                 this.btnToggleView?.addEventListener('click', () => this.toggleView());
                 this.btnToggleAllSecrets?.addEventListener('click', () => this.toggleAllSecrets());
-                this.btnReencryptChanged?.addEventListener('click', () => this.showReencryptSummary());
-                this.btnConfirmReencrypt?.addEventListener('click', () => this.reencryptChangedSecrets());
-                this.btnCancelReencrypt?.addEventListener('click', () => this.hideReencryptSummary());
-                this.btnCancelReencryptSecondary?.addEventListener('click', () => this.hideReencryptSummary());
                 this.btnClearLog?.addEventListener('click', () => this.clearLog());
                 this.fileInput?.addEventListener('change', (event) => this.handleFileInput(event));
                 this.editor?.addEventListener('input', () => this.handleEditorInput());
                 this.navButtons.forEach(button => button.addEventListener('click', () => this.switchView(button.dataset.view)));
                 this.passwordInput?.addEventListener('keydown', event => {
                     if (event.key === 'Enter' && !this.btnDecrypt.disabled) this.handleDecrypt();
+                });
+                this.passwordInput?.addEventListener('input', () => {
+                    if (this.state.getChangedSecrets().length > 0) this.scheduleAutoValidation();
                 });
                 this.secretSearch?.addEventListener('input', () => this.renderSecretEditor());
                 this.secretCategoryFilter?.addEventListener('change', () => this.renderSecretEditor());
@@ -446,6 +453,7 @@
 
             handleEditorInput() {
                 if (this.state.viewMode === 'preview') return;
+                this.cancelAutoValidation();
                 this.hideReencryptSummary();
                 this.state.setWorkingText(this.editor.value);
                 this.updateCharCount();
@@ -558,6 +566,7 @@
                     const text = String(loadEvent.target?.result || '');
                     this.state.load(text);
                     this.revealedSecrets.clear();
+                    this.cancelAutoValidation();
                     this.hideReencryptSummary();
                     this.editor.value = text;
                     this.editor.readOnly = false;
@@ -687,9 +696,12 @@
 
             showReencryptSummary() {
                 const changedSecrets = this.state.getChangedSecrets().filter(secret => secret.type === 4 || secret.type === 5);
-                if (changedSecrets.length === 0) return;
+                if (changedSecrets.length === 0) {
+                    this.reencryptSummary.classList.add('hidden');
+                    return;
+                }
                 this.reencryptSummaryList.innerHTML = '';
-                this.reencryptSummaryTitle.textContent = `${changedSecrets.length} ${changedSecrets.length === 1 ? 'Änderung' : 'Änderungen'} neu verschlüsseln`;
+                this.reencryptSummaryTitle.textContent = `${changedSecrets.length} ungespeicherte ${changedSecrets.length === 1 ? 'Änderung' : 'Änderungen'}`;
                 changedSecrets.forEach(secret => {
                     const item = document.createElement('li');
                     item.className = 'rounded-xl border border-amber-200 bg-white/80 px-4 py-3 flex items-start justify-between gap-4';
@@ -708,12 +720,74 @@
                     this.reencryptSummaryList.appendChild(item);
                 });
                 this.reencryptSummary.classList.remove('hidden');
-                this.reencryptSummary.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 lucide.createIcons();
             }
 
             hideReencryptSummary() {
                 this.reencryptSummary?.classList.add('hidden');
+            }
+
+            setAutoValidationStatus(message, tone = 'idle') {
+                const styles = {
+                    idle: 'text-slate-500 bg-slate-100 border-slate-200',
+                    waiting: 'text-amber-700 bg-amber-50 border-amber-200',
+                    running: 'text-blue-700 bg-blue-50 border-blue-200',
+                    success: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+                    error: 'text-red-700 bg-red-50 border-red-200'
+                };
+                this.autoValidationBadge.className = `inline-flex items-center gap-2 text-xs font-semibold border px-3 py-2 rounded-xl ${styles[tone]}`;
+                const icon = tone === 'running' ? 'loader-2' : tone === 'success' ? 'check-circle-2' : tone === 'error' ? 'circle-alert' : 'timer';
+                this.autoValidationBadge.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4${tone === 'running' ? ' animate-spin' : ''}"></i> ${message}`;
+                this.autoValidationStatus.textContent = message;
+                lucide.createIcons();
+            }
+
+            clearAutoValidationTimer() {
+                if (this.autoValidationTimer) clearTimeout(this.autoValidationTimer);
+                if (this.autoValidationTicker) clearInterval(this.autoValidationTicker);
+                this.autoValidationTimer = null;
+                this.autoValidationTicker = null;
+                this.autoValidationDeadline = 0;
+            }
+
+            cancelAutoValidation() {
+                this.clearAutoValidationTimer();
+                this.autoValidationGeneration += 1;
+                this.autoValidationRunning = false;
+            }
+
+            updateAutoValidationCountdown() {
+                if (!this.autoValidationDeadline) return;
+                const seconds = Math.max(1, Math.ceil((this.autoValidationDeadline - Date.now()) / 1000));
+                this.setAutoValidationStatus(`Automatische Prüfung in ${seconds} s`, 'waiting');
+            }
+
+            scheduleAutoValidation() {
+                this.clearAutoValidationTimer();
+                this.autoValidationGeneration += 1;
+                const generation = this.autoValidationGeneration;
+                const changedSecrets = this.state.getChangedSecrets().filter(secret => secret.type === 4 || secret.type === 5);
+                this.showReencryptSummary();
+                if (changedSecrets.length === 0) {
+                    this.setAutoValidationStatus(
+                        this.state.isDownloadReady() ? 'Automatisch geprüft' : 'Automatische Prüfung bereit',
+                        this.state.isDownloadReady() ? 'success' : 'idle'
+                    );
+                    return;
+                }
+                if (!this.passwordInput.value) {
+                    this.setAutoValidationStatus('Wartet auf Sicherungskennwort', 'waiting');
+                    return;
+                }
+                this.autoValidationDeadline = Date.now() + this.autoValidationDelay;
+                this.updateAutoValidationCountdown();
+                this.autoValidationTicker = setInterval(() => this.updateAutoValidationCountdown(), 1000);
+                this.autoValidationTimer = setTimeout(() => {
+                    this.clearAutoValidationTimer();
+                    this.autoValidationRunning = true;
+                    this.setAutoValidationStatus('Neuverschlüsselung und Prüfung laufen…', 'running');
+                    this.reencryptChangedSecrets(generation);
+                }, this.autoValidationDelay);
             }
 
             restoreOriginalFile() {
@@ -727,6 +801,7 @@
                 this.editor.classList.remove('bg-slate-900', 'text-green-400');
                 this.editor.classList.add('bg-slate-50', 'text-slate-700');
                 this.revealedSecrets.clear();
+                this.cancelAutoValidation();
                 this.hideReencryptSummary();
                 this.updateCharCount();
                 this.updateDashboard(original);
@@ -1139,8 +1214,8 @@
                     }, !supported);
                     let resetButton;
                     resetButton = makeAction('Zurücksetzen', 'undo-2', () => {
-                        this.hideReencryptSummary();
                         this.state.setEditedPlaintext(secret.id, secret.plaintext);
+                        this.scheduleAutoValidation();
                         if (this.state.viewMode === 'preview') this.renderPreviewText();
                         this.renderSecretEditor();
                     }, false);
@@ -1148,13 +1223,13 @@
                     actions.append(revealButton, copyButton, editButton, resetButton);
 
                     input.addEventListener('input', () => {
-                        this.hideReencryptSummary();
                         this.state.setEditedPlaintext(secret.id, input.value);
                         const currentStatus = this.getSecretDisplayStatus(secret);
                         statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[currentStatus][1]}`;
                         statusBadge.textContent = statusStyles[currentStatus][0];
                         resetButton.classList.toggle('hidden', currentStatus !== 'changed');
                         this.updateChangedButton();
+                        this.scheduleAutoValidation();
                         this.renderCredentialCards();
                         lucide.createIcons();
                         if (this.state.viewMode === 'preview') this.renderPreviewText();
@@ -1182,15 +1257,24 @@
 
             updateChangedButton() {
                 const changedCount = this.state.getChangedSecrets().filter(secret => secret.type === 4 || secret.type === 5).length;
-                this.btnReencryptChanged.disabled = changedCount === 0;
-                this.btnReencryptChanged.innerHTML = changedCount > 0
-                    ? `<i data-lucide="refresh-cw" class="w-4 h-4"></i> ${changedCount} Änderungen neu verschlüsseln`
-                    : '<i data-lucide="refresh-cw" class="w-4 h-4"></i> Keine Änderungen';
+                if (changedCount > 0) {
+                    this.showReencryptSummary();
+                } else {
+                    this.clearAutoValidationTimer();
+                    this.hideReencryptSummary();
+                    if (!this.autoValidationRunning) {
+                        this.setAutoValidationStatus(
+                            this.state.isDownloadReady() ? 'Automatisch geprüft' : 'Automatische Prüfung bereit',
+                            this.state.isDownloadReady() ? 'success' : 'idle'
+                        );
+                    }
+                }
                 this.renderSafetyState();
                 lucide.createIcons();
             }
 
             clearAll() {
+                this.cancelAutoValidation();
                 this.editor.value = '';
                 this.editor.readOnly = false;
                 this.currentFileName = '';
@@ -1258,14 +1342,22 @@
                 return text.slice(0, secret.start) + replacement + text.slice(secret.end);
             }
 
-            async reencryptChangedSecrets() {
-                const changedSecrets = this.state.getChangedSecrets().filter(secret => secret.type === 4 || secret.type === 5);
-                if (changedSecrets.length === 0) return;
-                this.hideReencryptSummary();
+            async reencryptChangedSecrets(expectedGeneration = this.autoValidationGeneration) {
+                const changedSecrets = this.state.getChangedSecrets()
+                    .filter(secret => secret.type === 4 || secret.type === 5)
+                    .map(secret => Object.assign({}, secret));
+                if (changedSecrets.length === 0 || expectedGeneration !== this.autoValidationGeneration) {
+                    this.autoValidationRunning = false;
+                    return;
+                }
+                const ensureFresh = () => {
+                    if (expectedGeneration !== this.autoValidationGeneration) throw new Error('AUTO_VALIDATION_STALE');
+                };
 
                 const password = this.passwordInput.value;
                 if (!password) {
-                    this.showStatus('Zum Neuverschlüsseln wird das Kennwort der Sicherungsdatei benötigt.', 'error');
+                    this.autoValidationRunning = false;
+                    this.setAutoValidationStatus('Wartet auf Sicherungskennwort', 'waiting');
                     return;
                 }
 
@@ -1274,6 +1366,8 @@
                 if (needsMasterKey) {
                     const masterMatch = this.state.workingText.match(/^Password=(\$\$\$\$[A-Za-z0-9./+=_-]+)/m);
                     if (!masterMatch) {
+                        this.autoValidationRunning = false;
+                        this.setAutoValidationStatus('Master-Key fehlt', 'error');
                         this.showStatus('Der Datei-Master-Key wurde nicht gefunden.', 'error');
                         return;
                     }
@@ -1281,13 +1375,13 @@
                     try {
                         masterKeyBytes = this.library.decryptExportKey(masterMatch[1], password).aesKeyBytes;
                     } catch (error) {
+                        this.autoValidationRunning = false;
+                        this.setAutoValidationStatus('Sicherungskennwort prüfen', 'error');
                         this.showStatus('Der Datei-Master-Key konnte mit diesem Kennwort nicht geöffnet werden.', 'error');
                         return;
                     }
                 }
 
-                this.btnReencryptChanged.disabled = true;
-                this.btnReencryptChanged.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Verschlüssele…';
                 this.state.invalidateVerification();
                 this.state.setVerificationStep('roundtrip', 'running', `${changedSecrets.length} Secrets werden kontrolliert…`);
                 this.renderSafetyState();
@@ -1300,11 +1394,13 @@
                         const newValue = secret.type === 5
                             ? await this.library.encryptSecretWithKey(secret.editedPlaintext, masterKeyBytes)
                             : await this.crypto.encryptSecret(secret.editedPlaintext, password);
+                        ensureFresh();
                         const verification = await this.crypto.decryptSecret(
                             newValue,
                             password,
                             secret.type === 5 ? masterKeyBytes : null
                         );
+                        ensureFresh();
 
                         if (verification.plaintext !== secret.editedPlaintext) {
                             throw new Error('ROUNDTRIP_MISMATCH');
@@ -1328,6 +1424,7 @@
                             if (updatedText.slice(start, end) !== value) throw new Error('SECRET_POSITION_MISMATCH');
                             updatedText = updatedText.slice(0, start) + replacement.newValue + updatedText.slice(end);
                         });
+                    ensureFresh();
 
                     const checksumResult = this.checksum.fromText(updatedText).replaceChecksum();
                     updatedText = checksumResult.updatedText;
@@ -1335,6 +1432,7 @@
                     if (verificationResult.oldCrc !== verificationResult.newCrc) {
                         throw new Error('CHECKSUM_ROUNDTRIP_MISMATCH');
                     }
+                    ensureFresh();
 
                     const keepPreviewVisible = this.state.viewMode === 'preview';
                     this.state.setWorkingText(updatedText);
@@ -1343,17 +1441,26 @@
                     }
                     this.state.setVerificationStep('roundtrip', 'success', `${replacements.length} Secrets erfolgreich zurückentschlüsselt`);
                     this.state.setVerificationStep('checksum', 'success', `CRC32 ${checksumResult.newCrc} ist gültig`);
+                    this.autoValidationRunning = false;
+                    this.setAutoValidationStatus('Automatisch geprüft', 'success');
 
                     if (keepPreviewVisible) this.showDecryptedPreview();
                     else this.showWorkingCopy();
                     this.showStatus('Beide Prüfungen waren erfolgreich. Der geprüfte Export kann jetzt heruntergeladen werden.', 'success');
                     this.log(`> Prüfschritt 2/2 erfolgreich: CRC32 ${checksumResult.oldCrc} → ${checksumResult.newCrc}.`, 'success');
                 } catch (error) {
+                    if (error.message === 'AUTO_VALIDATION_STALE') {
+                        this.autoValidationRunning = false;
+                        this.log('> Automatische Prüfung verworfen: Währenddessen wurde weiter bearbeitet.', 'muted');
+                        return;
+                    }
+                    this.autoValidationRunning = false;
                     if (this.state.verification.roundtrip.status === 'running') {
                         this.state.setVerificationStep('roundtrip', 'failed', `Roundtrip fehlgeschlagen: ${error.message}`);
                     } else if (this.state.verification.checksum.status === 'running') {
                         this.state.setVerificationStep('checksum', 'failed', `CRC32-Prüfung fehlgeschlagen: ${error.message}`);
                     }
+                    this.setAutoValidationStatus('Automatische Prüfung fehlgeschlagen', 'error');
                     this.showStatus(`Neuverschlüsselung fehlgeschlagen: ${error.message}`, 'error');
                     this.log(`> FEHLER bei der feldweisen Neuverschlüsselung: ${error.message}`, 'error');
                     this.renderState();

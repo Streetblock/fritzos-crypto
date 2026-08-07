@@ -24,7 +24,8 @@ for (const id of [
   'checksumCheckMessage',
   'reencryptSummary',
   'reencryptSummaryList',
-  'btnConfirmReencrypt',
+  'autoValidationStatus',
+  'autoValidationBadge',
   'viewEditor',
   'credentialCards',
   'wifiCardsSection',
@@ -73,6 +74,10 @@ assert.equal(html.includes('1. Secret-Roundtrip'), true, 'roundtrip verification
 assert.equal(html.includes('2. CRC32-Prüfung'), true, 'checksum verification step is missing');
 assert.equal(html.includes('Ungespeicherte Änderungen'), true, 'unsaved changes indicator is missing');
 assert.equal(html.includes('Originaldatei wiederherstellen?'), true, 'original restore flow is missing');
+assert.match(html, /this\.autoValidationDelay\s*=\s*15000/, 'automatic validation must wait for a typing pause');
+assert.match(html, /setTimeout\(\(\)\s*=>[\s\S]*this\.reencryptChangedSecrets\(generation\)/, 'debounced validation trigger is missing');
+assert.equal(html.includes('Jetzt neu verschlüsseln und prüfen'), false, 'manual double-confirmation must not return');
+assert.match(html, /<details id="reencryptSummary"/, 'change overview must be collapsible');
 for (const status of ['pending', 'decrypted', 'changed', 'failed']) {
   assert.equal(html.includes(`<option value="${status}">`), true, `secret status filter ${status} is missing`);
 }
