@@ -441,7 +441,7 @@
                     this.inspectChecksum(text);
                     this.passwordInput.value = '';
                     this.showWorkspace(this.parser.isExportFile(text) ? 'overview' : 'editor');
-                    this.showStatus(`Datei geladen: ${this.currentFileName || 'Unbekannt'}`, 'success');
+                    this.hideStatus();
                     this.log(`> Datei erfolgreich geladen. ${this.state.secrets.length} potenzielle Geheimnisse erkannt.`, 'success');
                 };
 
