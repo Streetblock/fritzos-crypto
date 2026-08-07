@@ -81,6 +81,19 @@
       });
     }
 
+    static verifyExportChecksum(text) {
+      this.assertDependencies();
+      const result = FritzExportChecksum.fromText(String(text || "")).calculate();
+      if (result.oldCrc !== result.newCrc) {
+        throw new FritzExportEditorError(
+          "CHECKSUM_ROUNDTRIP_MISMATCH",
+          "checksum",
+          "Die CRC32 des Exports ist ungültig"
+        );
+      }
+      return { valid: true, oldCrc: result.oldCrc, newCrc: result.newCrc };
+    }
+
     static async applySecretChanges(options) {
       this.assertDependencies();
       const settings = options || {};
@@ -102,6 +115,19 @@
       try {
         for (const change of changes) {
           assertFresh();
+          const sourceVerification = await FritzOSCrypto.AVMCrypto.decryptSecret(
+            change.value,
+            password,
+            change.type === 5 ? masterKeyBytes : null
+          );
+          assertFresh();
+          if (sourceVerification.plaintext !== String(change.plaintext ?? "")) {
+            throw new FritzExportEditorError(
+              "SOURCE_SECRET_MISMATCH",
+              "roundtrip",
+              `Ausgangswert für ${change.id || change.stableKey || "Secret"} stimmt nicht überein`
+            );
+          }
           const newValue = change.type === 5
             ? await FritzOSCrypto.encryptSecretWithKey(change.editedPlaintext, masterKeyBytes)
             : await FritzOSCrypto.AVMCrypto.encryptSecret(change.editedPlaintext, password);
@@ -155,14 +181,7 @@
         activeStage = "checksum";
         this.emit(onStep, "checksum", "running", "CRC32 wird aktualisiert und geprüft");
         const checksumResult = FritzExportChecksum.fromText(updatedText).replaceChecksum();
-        const checksumVerification = FritzExportChecksum.fromText(checksumResult.updatedText).calculate();
-        if (checksumVerification.oldCrc !== checksumVerification.newCrc) {
-          throw new FritzExportEditorError(
-            "CHECKSUM_ROUNDTRIP_MISMATCH",
-            "checksum",
-            "Die aktualisierte CRC32 konnte nicht bestätigt werden"
-          );
-        }
+        this.verifyExportChecksum(checksumResult.updatedText);
         assertFresh();
         this.emit(onStep, "checksum", "success", `CRC32 ${checksumResult.newCrc} ist gültig`, checksumResult);
 

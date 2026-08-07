@@ -15,9 +15,10 @@
     <!-- Externe FritzOSCrypto.js Bibliothek        -->
     <!-- (Muss im selben Ordner liegen!)            -->
     <!-- ========================================== -->
-    <script src="./FritzOSCrypto.js?v=20260807-3"></script>
-    <script src="./ConfigState.js?v=20260807-3"></script>
-    <script src="./FritzExportChecksum.js?v=20260807-3"></script>
+    <script src="./FritzOSCrypto.js?v=20260807-4"></script>
+    <script src="./ConfigState.js?v=20260807-4"></script>
+    <script src="./FritzExportChecksum.js?v=20260807-4"></script>
+    <script src="./FritzExportEditor.js?v=20260807-4"></script>
 
     <style>
         .glass-panel {
@@ -396,6 +397,7 @@
                 this.parser = FritzBoxParser;
                 this.crypto = AVMCrypto;
                 this.checksum = window.FritzExportChecksum;
+                this.exportEditor = window.FritzExportEditor.FritzExportEditor;
                 this.state = new window.FritzConfigState.ConfigState(this.parser);
 
                 this.bindEvents();
@@ -1387,97 +1389,43 @@
                     return;
                 }
 
-                const needsMasterKey = changedSecrets.some(secret => secret.type === 5);
-                let masterKeyBytes = null;
-                if (needsMasterKey) {
-                    const masterMatch = this.state.workingText.match(/^Password=(\$\$\$\$[A-Za-z0-9./+=_-]+)/m);
-                    if (!masterMatch) {
-                        this.autoValidationRunning = false;
-                        this.setAutoValidationStatus('Master-Key fehlt', 'error');
-                        this.showStatus('Der Datei-Master-Key wurde nicht gefunden.', 'error');
-                        return;
-                    }
-
-                    try {
-                        masterKeyBytes = this.library.decryptExportKey(masterMatch[1], password).aesKeyBytes;
-                    } catch (error) {
-                        this.autoValidationRunning = false;
-                        this.setAutoValidationStatus('Sicherungskennwort prüfen', 'error');
-                        this.showStatus('Der Datei-Master-Key konnte mit diesem Kennwort nicht geöffnet werden.', 'error');
-                        return;
-                    }
-                }
-
                 this.state.invalidateVerification();
-                this.state.setVerificationStep('roundtrip', 'running', `${changedSecrets.length} Secrets werden kontrolliert…`);
-                this.renderSafetyState();
-                lucide.createIcons();
 
                 try {
-                    const replacements = [];
-
-                    for (const secret of changedSecrets) {
-                        const newValue = secret.type === 5
-                            ? await this.library.encryptSecretWithKey(secret.editedPlaintext, masterKeyBytes)
-                            : await this.crypto.encryptSecret(secret.editedPlaintext, password);
-                        ensureFresh();
-                        const verification = await this.crypto.decryptSecret(
-                            newValue,
-                            password,
-                            secret.type === 5 ? masterKeyBytes : null
-                        );
-                        ensureFresh();
-
-                        if (verification.plaintext !== secret.editedPlaintext) {
-                            throw new Error('ROUNDTRIP_MISMATCH');
+                    const result = await this.exportEditor.applySecretChanges({
+                        text: this.state.workingText,
+                        changes: changedSecrets,
+                        password,
+                        assertFresh: ensureFresh,
+                        onStep: event => {
+                            if (expectedGeneration !== this.autoValidationGeneration) return;
+                            this.state.setVerificationStep(event.step, event.status, event.message);
+                            this.renderSafetyState();
+                            if (event.step === 'roundtrip' && event.status === 'success') {
+                                this.log(`> Prüfschritt 1/2 erfolgreich: ${event.details.count} Secret-Roundtrips stimmen überein.`, 'success');
+                            }
                         }
-
-                        replacements.push({ id: secret.id, secret, newValue, verification });
-                    }
-
-                    this.state.setVerificationStep('roundtrip', 'success', `${replacements.length} Secrets erfolgreich zurückentschlüsselt`);
-                    this.state.setVerificationStep('checksum', 'running', 'CRC32 wird aktualisiert und geprüft…');
-                    this.renderSafetyState();
-                    this.log(`> Prüfschritt 1/2 erfolgreich: ${replacements.length} Secret-Roundtrips stimmen überein.`, 'success');
-                    await new Promise(resolve => requestAnimationFrame(resolve));
-
-                    let updatedText = this.state.workingText;
-                    replacements
-                        .slice()
-                        .sort((left, right) => right.secret.start - left.secret.start)
-                        .forEach(replacement => {
-                            const { start, end, value } = replacement.secret;
-                            if (updatedText.slice(start, end) !== value) throw new Error('SECRET_POSITION_MISMATCH');
-                            updatedText = updatedText.slice(0, start) + replacement.newValue + updatedText.slice(end);
-                        });
-                    ensureFresh();
-
-                    const checksumResult = this.checksum.fromText(updatedText).replaceChecksum();
-                    updatedText = checksumResult.updatedText;
-                    const verificationResult = this.checksum.fromText(updatedText).calculate();
-                    if (verificationResult.oldCrc !== verificationResult.newCrc) {
-                        throw new Error('CHECKSUM_ROUNDTRIP_MISMATCH');
-                    }
+                    });
                     ensureFresh();
 
                     const keepPreviewVisible = this.state.viewMode === 'preview';
-                    this.state.setWorkingText(updatedText);
-                    for (const replacement of replacements) {
+                    this.state.setWorkingText(result.updatedText);
+                    for (const replacement of result.replacements) {
                         this.state.markReencrypted(
                             replacement.id,
                             replacement.verification,
-                            replacement.secret.plaintext
+                            replacement.previousPlaintext
                         );
                     }
-                    this.state.setVerificationStep('roundtrip', 'success', `${replacements.length} Secrets erfolgreich zurückentschlüsselt`);
-                    this.state.setVerificationStep('checksum', 'success', `CRC32 ${checksumResult.newCrc} ist gültig`);
+                    this.state.setVerificationStep('roundtrip', 'success', `${result.roundtrip.count} Secrets erfolgreich zurückentschlüsselt`);
+                    this.state.setVerificationStep('checksum', 'success', `CRC32 ${result.checksum.newCrc} ist gültig`);
                     this.autoValidationRunning = false;
                     this.setAutoValidationStatus('Automatisch geprüft', 'success');
 
                     if (keepPreviewVisible) this.showDecryptedPreview();
                     else this.showWorkingCopy();
                     this.showStatus('Beide Prüfungen waren erfolgreich. Der geprüfte Export kann jetzt heruntergeladen werden.', 'success');
-                    this.log(`> Prüfschritt 2/2 erfolgreich: CRC32 ${checksumResult.oldCrc} → ${checksumResult.newCrc}.`, 'success');
+                    this.log(`> Prüfschritt 2/2 erfolgreich: CRC32 ${result.checksum.oldCrc} → ${result.checksum.newCrc}.`, 'success');
                 } catch (error) {
                     if (error.message === 'AUTO_VALIDATION_STALE') {
                         this.autoValidationRunning = false;
@@ -1485,10 +1433,9 @@
                         return;
                     }
                     this.autoValidationRunning = false;
-                    if (this.state.verification.roundtrip.status === 'running') {
-                        this.state.setVerificationStep('roundtrip', 'failed', `Roundtrip fehlgeschlagen: ${error.message}`);
-                    } else if (this.state.verification.checksum.status === 'running') {
-                        this.state.setVerificationStep('checksum', 'failed', `CRC32-Prüfung fehlgeschlagen: ${error.message}`);
+                    if (['roundtrip', 'checksum'].includes(error.stage) &&
+                        this.state.verification[error.stage]?.status !== 'failed') {
+                        this.state.setVerificationStep(error.stage, 'failed', error.message);
                     }
                     this.setAutoValidationStatus('Automatische Prüfung fehlgeschlagen', 'error');
                     this.showStatus(`Neuverschlüsselung fehlgeschlagen: ${error.message}`, 'error');
@@ -1612,10 +1559,7 @@
 
                 if (this.parser.isExportFile(content)) {
                     try {
-                        const verificationResult = this.checksum.fromText(content).calculate();
-                        if (verificationResult.oldCrc !== verificationResult.newCrc) {
-                            throw new Error('CHECKSUM_ROUNDTRIP_MISMATCH');
-                        }
+                        const verificationResult = this.exportEditor.verifyExportChecksum(content);
                         this.log(`> CRC32 unmittelbar vor dem Download erneut bestätigt: ${verificationResult.newCrc}.`, 'success');
                     } catch (error) {
                         this.state.setVerificationStep('checksum', 'failed', `Letzte Prüfung fehlgeschlagen: ${error.message}`);
@@ -1674,6 +1618,10 @@
             const statePrototype = window.FritzConfigState?.ConfigState?.prototype;
             const missingCapabilities = requiredStateMethods.filter(method => typeof statePrototype?.[method] !== 'function');
             if (window.FritzConfigState?.API_VERSION !== '2') missingCapabilities.unshift('ConfigState API v2');
+            if (window.FritzExportEditor?.API_VERSION !== '1' ||
+                typeof window.FritzExportEditor?.FritzExportEditor?.applySecretChanges !== 'function') {
+                missingCapabilities.unshift('FritzExportEditor API v1');
+            }
             if (missingCapabilities.length > 0) {
                 console.error('Inkompatible ConfigState.js geladen:', missingCapabilities);
                 showStartupCompatibilityError(missingCapabilities);

@@ -20,7 +20,16 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 
 * **AVM-Prüfsumme:** Nach der Neuverschlüsselung und vor dem Speichern einer Exportdatei wird die CRC32-Prüfsumme am `END OF EXPORT` nach dem AVM-Sektionsverfahren aktualisiert und erneut geprüft.
 
-* **Modular:** Die reine Krypto-Logik ist in `FritzOSCrypto.js` ausgelagert und kann nahtlos in eigenen Node.js-Projekten genutzt werden.
+* **Modular:** Krypto, Export-Prüfsumme und der atomare Bearbeitungsablauf sind voneinander getrennt und können in eigenen Node.js-Projekten genutzt werden.
+
+## 🧩 Bibliotheksaufbau
+
+* `FritzOSCrypto.js`: Secret-Ver- und Entschlüsselung sowie strukturierte Fundstellenerkennung.
+* `FritzExportChecksum.js`: AVM-CRC32 berechnen, ersetzen und prüfen.
+* `FritzExportEditor.js`: Änderungen atomar anwenden. Der Dienst prüft zuerst den vorhandenen Chiffretext, verschlüsselt den neuen Wert, führt den Secret-Roundtrip aus und aktualisiert anschließend CRC32.
+* `ConfigState.js`: UI-Zustand wie offene und validierte Änderungen; keine Kryptografie.
+
+`FritzExportEditor.applySecretChanges()` gibt nur dann einen neuen Exporttext zurück, wenn alle Prüfschritte erfolgreich waren. Bei einem Fehler bleibt der übergebene Text unverändert.
 
 ## 🚀 Nutzung im Browser (UI)
 

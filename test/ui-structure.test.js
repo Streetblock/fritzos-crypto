@@ -83,6 +83,13 @@ assert.equal(html.includes('Geändert · validiert'), true, 'validated change la
 assert.match(html, /ConfigState\.js\?v=\d{8}-\d+/, 'local state script needs a deployment cache key');
 assert.equal(html.includes("ConfigState API v2"), true, 'state compatibility guard is missing');
 assert.equal(html.includes('Die Programmdateien wurden nicht gemeinsam aktualisiert.'), true, 'partial deployment must fail with a useful message');
+assert.match(html, /FritzExportEditor\.js\?v=\d{8}-\d+/, 'atomic export editor needs a deployment cache key');
+assert.equal(html.includes('FritzExportEditor API v1'), true, 'export editor compatibility guard is missing');
+const reencryptWorkflow = html.match(/async reencryptChangedSecrets[\s\S]*?(?=\n\s*async handleDecrypt)/)?.[0] || '';
+assert.match(reencryptWorkflow, /this\.exportEditor\.applySecretChanges/, 'UI must delegate export mutations to the domain service');
+assert.equal(reencryptWorkflow.includes('encryptSecretWithKey'), false, 'UI must not implement secret encryption itself');
+assert.equal(reencryptWorkflow.includes('replaceChecksum'), false, 'UI must not implement checksum mutation itself');
+assert.match(html, /this\.exportEditor\.verifyExportChecksum\(content\)/, 'final download guard must use the domain service');
 for (const status of ['pending', 'decrypted', 'changed', 'failed']) {
   assert.equal(html.includes(`<option value="${status}">`), true, `secret status filter ${status} is missing`);
 }

@@ -59,6 +59,62 @@ async function run() {
   assert.equal(decrypted.plaintext, 'new value');
   const crc = FritzExportChecksum.fromText(result.updatedText).calculate();
   assert.equal(crc.oldCrc, crc.newCrc);
+  assert.deepEqual(FritzExportEditor.verifyExportChecksum(result.updatedText), {
+    valid: true,
+    oldCrc: crc.oldCrc,
+    newCrc: crc.newCrc
+  });
+
+  const masterKey = Uint8Array.from({ length: 16 }, (_, index) => index + 1);
+  const type5Secret = await FritzOSCrypto.encryptSecretWithKey('type5 old', masterKey);
+  const type5Unchecked = unchecked.replace(originalSecret, () => type5Secret);
+  const type5Source = FritzExportChecksum.fromText(type5Unchecked).replaceChecksum().updatedText;
+  const type5Start = type5Source.indexOf(type5Secret);
+  const type5Result = await FritzExportEditor.applySecretChanges({
+    text: type5Source,
+    password,
+    masterKeyBytes: masterKey,
+    changes: [Object.assign({}, mainSecret, {
+      value: type5Secret,
+      start: type5Start,
+      end: type5Start + type5Secret.length,
+      type: 5,
+      plaintext: 'type5 old',
+      editedPlaintext: 'type5 new'
+    })]
+  });
+  assert.equal(
+    FritzOSCrypto.decryptSecretWithKey(type5Result.replacements[0].newValue, masterKey).text,
+    'type5 new'
+  );
+
+  await assert.rejects(
+    FritzExportEditor.applySecretChanges({
+      text: source,
+      password,
+      changes: [Object.assign({}, mainSecret, {
+        start: mainSecret.start + 1,
+        end: mainSecret.end + 1,
+        type: 4,
+        plaintext: 'old value',
+        editedPlaintext: 'must fail'
+      })]
+    }),
+    error => error.code === 'SECRET_POSITION_MISMATCH' && error.stage === 'roundtrip'
+  );
+
+  await assert.rejects(
+    FritzExportEditor.applySecretChanges({
+      text: source,
+      password: 'wrong-password',
+      changes: [Object.assign({}, mainSecret, {
+        type: 4,
+        plaintext: 'old value',
+        editedPlaintext: 'must not be written'
+      })]
+    }),
+    error => error.stage === 'roundtrip'
+  );
 
   console.log('Atomic export editor tests passed.');
 }
