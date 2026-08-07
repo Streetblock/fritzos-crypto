@@ -968,6 +968,22 @@
               .replace(/\b\w/g, character => character.toUpperCase());
       }
 
+      static decodeConfigString(value) {
+          return String(value == null ? '' : value).replace(/\\([\\"'])/g, '$1');
+      }
+
+      static escapeWifiQrValue(value) {
+          return String(value == null ? '' : value).replace(/([\\;,:"])/g, '\\$1');
+      }
+
+      static buildWifiQrPayload(network, password) {
+          const details = network || {};
+          const authentication = ['WPA', 'WEP', 'nopass'].includes(details.authentication)
+              ? details.authentication
+              : 'WPA';
+          return `WIFI:T:${authentication};S:${this.escapeWifiQrValue(details.ssid)};P:${this.escapeWifiQrValue(password)};H:${details.hidden ? 'true' : 'false'};;`;
+      }
+
       static classifySecret(section, field) {
           const normalizedSection = String(section || '').toLowerCase();
           const normalizedField = String(field || '').toLowerCase();
@@ -1003,6 +1019,15 @@
           let sipAccountCounter = 0;
           let sipBlocks = [];
           let fallbackSipBlock = null;
+          let wifiNetworks = null;
+
+          const createWifiNetwork = kind => ({
+              id: `wifi-${kind}`,
+              kind,
+              ssid: null,
+              hidden: false,
+              authentication: 'WPA'
+          });
 
           const finalizeSipBlock = block => {
               if (!block) return;
@@ -1047,12 +1072,16 @@
               if (sectionMatch) {
                   finalizeSipContext();
                   section = sectionMatch[1];
+                  wifiNetworks = section.toLowerCase().includes('wlan')
+                      ? { main: createWifiNetwork('main'), guest: createWifiNetwork('guest') }
+                      : null;
                   absoluteOffset += originalLine.length;
                   continue;
               }
               if (/^\*+\s+END OF FILE\s+\*+/i.test(line)) {
                   finalizeSipContext();
                   section = 'Header';
+                  wifiNetworks = null;
                   absoluteOffset += originalLine.length;
                   continue;
               }
@@ -1066,9 +1095,23 @@
                   }
               }
 
-              const assignment = line.match(/^\s*([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^;\s]+))/);
+              const assignment = line.match(/^\s*([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^;\s]+))/);
               const assignmentField = assignment?.[1] || null;
-              const assignmentValue = assignment ? (assignment[2] ?? assignment[3] ?? assignment[4] ?? '') : null;
+              const assignmentValue = assignment
+                  ? this.decodeConfigString(assignment[2] ?? assignment[3] ?? assignment[4] ?? '')
+                  : null;
+
+              if (wifiNetworks && assignmentField && assignmentValue !== null && !assignmentValue.startsWith('$$$$')) {
+                  const normalizedField = assignmentField.toLowerCase();
+                  const isGuest = normalizedField.includes('guest') || normalizedField.includes('gast');
+                  const network = isGuest ? wifiNetworks.guest : wifiNetworks.main;
+                  if (normalizedField.includes('ssid') && !normalizedField.includes('hidden') && !normalizedField.includes('hide')) {
+                      network.ssid = assignmentValue;
+                  }
+                  if (normalizedField.includes('hidden') || normalizedField.includes('hide_ssid')) {
+                      network.hidden = /^(?:1|yes|true|on)$/i.test(assignmentValue);
+                  }
+              }
 
               let activeSipBlock = null;
               if (inSipSection) {
@@ -1108,7 +1151,12 @@
                       occurrence,
                       category: classification.category,
                       displayLabel: classification.label,
-                      account: null
+                      account: null,
+                      network: classification.category === 'wlan'
+                          ? wifiNetworks?.main || null
+                          : classification.category === 'guest-wlan'
+                              ? wifiNetworks?.guest || null
+                              : null
                   };
                   inventory.push(item);
 

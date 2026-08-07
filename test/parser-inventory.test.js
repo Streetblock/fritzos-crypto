@@ -13,7 +13,9 @@ const source = [
   '**** FRITZ!Box 7590 CONFIGURATION EXPORT',
   `Password=${masterSecret}`,
   '**** CFGFILE: wlan.cfg',
+  'ssid = "Home\\"Lab;5G";',
   `pskvalue = "${duplicate}";`,
+  'guest_ssid = "Gäste, WLAN: Süd";',
   `guest_pskvalue = "${duplicate}";`,
   '**** END OF FILE ****',
   '**** CFGFILE: voip.cfg',
@@ -50,6 +52,14 @@ assert.notEqual(duplicateOccurrences[0].id, duplicateOccurrences[1].id);
 assert.notEqual(duplicateOccurrences[0].stableKey, duplicateOccurrences[1].stableKey);
 assert.deepEqual(duplicateOccurrences.map(item => item.category), ['wlan', 'guest-wlan']);
 assert.deepEqual(duplicateOccurrences.map(item => item.displayLabel), ['WLAN-Schlüssel', 'Gast-WLAN-Schlüssel']);
+assert.equal(duplicateOccurrences[0].network.ssid, 'Home"Lab;5G');
+assert.equal(duplicateOccurrences[1].network.ssid, 'Gäste, WLAN: Süd');
+
+const qrPayload = FritzBoxParser.buildWifiQrPayload(
+  { ssid: 'Home"Lab;5G', authentication: 'WPA', hidden: false },
+  'p\\ass;word,with:marks"'
+);
+assert.equal(qrPayload, 'WIFI:T:WPA;S:Home\\"Lab\\;5G;P:p\\\\ass\\;word\\,with\\:marks\\";H:false;;');
 
 const firstSip = inventory.find(item => item.value === sipPasswordOne);
 const secondSipPassword = inventory.find(item => item.value === sipPasswordTwo);
