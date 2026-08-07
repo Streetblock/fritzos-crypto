@@ -13,6 +13,8 @@ const state = new ConfigState(parser);
 
 state.load(`Password=${first}\nsecret="${second}"`);
 assert.deepEqual(state.getCounts(), { total: 2, pending: 2, decrypted: 0, failed: 0, changed: 0 });
+assert.equal(state.hasUnsavedChanges(), false);
+assert.equal(state.isDownloadReady(), false);
 
 state.markDecrypted(first, { plaintext: '<master>' });
 state.markDecrypted(second, { plaintext: 'cleartext' });
@@ -27,13 +29,20 @@ assert.equal(state.getDecryptableSecrets().length, 0, 'already decrypted plainte
 
 state.setEditedPlaintext(second, 'changed cleartext');
 assert.equal(state.getChangedSecrets().length, 1, 'edited plaintext must be tracked separately');
+assert.equal(state.hasUnsavedChanges(), true);
 assert.match(state.createPreview(replaceAtOccurrence), /changed cleartext/);
 assert.equal(state.getCounts().changed, 1);
 state.setEditedPlaintext(second, 'cleartext');
 assert.equal(state.getChangedSecrets().length, 0, 'restoring plaintext must clear the changed state');
+assert.equal(state.hasUnsavedChanges(), false);
+
+state.setVerificationStep('roundtrip', 'success', '2 Secrets geprüft');
+state.setVerificationStep('checksum', 'success', 'CRC32 geprüft');
+assert.equal(state.isDownloadReady(), true, 'both successful checks must unlock downloads');
 
 state.showWorkingCopy();
 state.setWorkingText(`${state.workingText}\nthird="$$$$CCCC3333"`);
+assert.equal(state.isDownloadReady(), false, 'working-copy edits must invalidate prior checks');
 assert.deepEqual(state.getCounts(), { total: 3, pending: 1, decrypted: 2, failed: 0, changed: 0 });
 
 state.markFailed('$$$$CCCC3333', new Error('BAD_PASSWORD'));
@@ -43,6 +52,11 @@ assert.equal(state.getDecryptableSecrets().length, 1, 'failed secrets must be re
 
 state.markDecrypted('$$$$CCCC3333', { plaintext: 'retried' });
 assert.deepEqual(state.getCounts(), { total: 3, pending: 0, decrypted: 3, failed: 0, changed: 0 });
+
+assert.equal(state.restoreOriginal(), `Password=${first}\nsecret="${second}"`);
+assert.equal(state.hasUnsavedChanges(), false, 'restoring must return to the immutable original');
+assert.equal(state.getCounts().total, 2);
+assert.equal(state.isDownloadReady(), false, 'restored originals require fresh validation before download');
 
 state.load(`replacement="${second}"`);
 assert.equal(state.originalText, `replacement="${second}"`);

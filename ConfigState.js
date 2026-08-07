@@ -22,6 +22,23 @@
     this.fileStatus = "empty";
     this.viewMode = "working";
     this.secrets = [];
+    this.resetVerification();
+  };
+
+  ConfigState.prototype.resetVerification = function () {
+    this.verification = {
+      roundtrip: { status: "idle", message: null },
+      checksum: { status: "idle", message: null }
+    };
+  };
+
+  ConfigState.prototype.setVerificationStep = function (step, status, message) {
+    if (!this.verification[step]) throw new Error("Unknown verification step: " + step);
+    this.verification[step] = { status: status, message: message || null };
+  };
+
+  ConfigState.prototype.invalidateVerification = function () {
+    this.resetVerification();
   };
 
   ConfigState.prototype.load = function (text) {
@@ -30,11 +47,14 @@
     this.workingText = normalized;
     this.fileStatus = normalized ? "loaded" : "empty";
     this.viewMode = "working";
+    this.resetVerification();
     this.syncSecrets(false);
   };
 
   ConfigState.prototype.setWorkingText = function (text) {
-    this.workingText = String(text || "");
+    var nextText = String(text || "");
+    if (nextText !== this.workingText) this.invalidateVerification();
+    this.workingText = nextText;
     this.fileStatus = this.workingText === this.originalText ? "loaded" : "modified";
     this.viewMode = "working";
     this.syncSecrets(true);
@@ -122,7 +142,29 @@
   ConfigState.prototype.setEditedPlaintext = function (identifier, plaintext) {
     var secret = this.getSecret(identifier);
     if (!secret || secret.status !== "decrypted") return;
-    secret.editedPlaintext = String(plaintext);
+    var nextPlaintext = String(plaintext);
+    if (nextPlaintext !== secret.editedPlaintext) this.invalidateVerification();
+    secret.editedPlaintext = nextPlaintext;
+  };
+
+  ConfigState.prototype.hasUnsavedChanges = function () {
+    return this.workingText !== this.originalText || this.getChangedSecrets().length > 0;
+  };
+
+  ConfigState.prototype.isDownloadReady = function () {
+    return Boolean(this.workingText) &&
+      this.getChangedSecrets().length === 0 &&
+      this.verification.roundtrip.status === "success" &&
+      this.verification.checksum.status === "success";
+  };
+
+  ConfigState.prototype.restoreOriginal = function () {
+    this.workingText = this.originalText;
+    this.fileStatus = this.originalText ? "loaded" : "empty";
+    this.viewMode = "working";
+    this.resetVerification();
+    this.syncSecrets(false);
+    return this.workingText;
   };
 
   ConfigState.prototype.getChangedSecrets = function () {
