@@ -974,7 +974,7 @@
                         const mkResult = this.library.decryptExportKey(encryptedMasterKey, passwordFromInput);
                         activeMasterKeyBytes = mkResult.aesKeyBytes;
                         this.state.markDecrypted(masterIdentifier, {
-                            plaintext: '<Binärer Master-Key (entschlüsselt)>',
+                            plaintext: mkResult.exportKeyHex,
                             label: 'Datei-Master-Key'
                         });
                         this.log(`> [OK] Master-Key entschlüsselt! (Hex: ${mkResult.exportKeyHex.substring(0,8)}...)`, 'success');

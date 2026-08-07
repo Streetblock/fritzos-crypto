@@ -38,6 +38,8 @@ for (const source of inlineScripts) new Function(source);
 assert.equal((html.match(/<body\b/gi) || []).length, 1, 'document must contain one body');
 assert.equal((html.match(/<\/body>/gi) || []).length, 1, 'document must close the body once');
 assert.equal(html.includes('id="btnEncrypt"'), false, 'unsafe whole-editor encryption must not return');
+assert.equal(html.includes('<Binärer Master-Key (entschlüsselt)>'), false, 'master key placeholder must not hide the actual decrypted key');
+assert.match(html, /plaintext:\s*mkResult\.exportKeyHex/, 'decrypted master key must be available to the masked secret field');
 assert.match(html, /input\.type\s*=\s*this\.revealedSecrets\.has\(secret\.stableKey\)\s*\?\s*'text'\s*:\s*'password'/, 'plaintext fields must be masked by default');
 for (const action of ['Anzeigen', 'Kopieren', 'Bearbeiten', 'Zurücksetzen']) {
   assert.equal(html.includes(`'${action}'`), true, `secret action ${action} is missing`);
