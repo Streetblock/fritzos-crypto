@@ -28,9 +28,9 @@ The easiest method for end-users:
 
 1. Download or clone this repository.
 2. Open the `index.html` file in any modern web browser (Chrome, Firefox, Safari).
-3. Drag and drop your `.export` file into the text area.
+3. Drag and drop your `.export` file onto the large start area or select it there.
 4. Enter the password you assigned when creating the backup in the FRITZ!Box web interface.
-5. Click on "Decrypt config".
+5. Click "Decrypt secrets". Results appear in the **Secrets** area, while the complete text remains available in the optional **Expert editor**.
 
 ## 💻 Usage as a Node.js Library
 

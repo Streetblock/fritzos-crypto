@@ -28,9 +28,9 @@ Die einfachste Methode für Endanwender:
 
 1. Lade das Repository herunter oder klone es.
 2. Öffne die Datei `index.html` in einem beliebigen modernen Webbrowser (Chrome, Firefox, Safari).
-3. Ziehe deine `.export` Datei per Drag & Drop in das Textfeld.
+3. Ziehe deine `.export` Datei auf das große Startfeld oder wähle sie dort aus.
 4. Gib das Passwort ein, das du beim Erstellen der Sicherung in der FRITZ!Box vergeben hast.
-5. Klicke auf "Konfig entschlüsseln".
+5. Klicke auf "Secrets entschlüsseln". Die Ergebnisse erscheinen im Bereich **Secrets**; der vollständige Text bleibt im optionalen **Experten-Editor** verfügbar.
 
 ## 💻 Nutzung als Node.js Bibliothek
 
