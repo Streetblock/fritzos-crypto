@@ -175,19 +175,51 @@
                         </div>
                         <div id="secretEmptyState" class="bg-white border border-slate-200 rounded-2xl p-10 text-center">
                             <div class="w-12 h-12 mx-auto rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center"><i data-lucide="key-square" class="w-6 h-6"></i></div>
-                            <h3 class="font-semibold text-slate-700 mt-4">Noch keine Klartexte verfügbar</h3>
-                            <p class="text-sm text-slate-500 mt-2">Gib links das Sicherungskennwort ein und starte die Entschlüsselung.</p>
+                            <h3 class="font-semibold text-slate-700 mt-4">Keine Secret-Felder gefunden</h3>
+                            <p class="text-sm text-slate-500 mt-2">In dieser Sicherung wurden keine verschlüsselten AVM-Werte erkannt.</p>
                         </div>
                         <div id="secretEditorSection" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                             <div class="p-5 border-b border-slate-200 flex items-center justify-between gap-4 flex-wrap">
                                 <div>
-                                    <h3 class="font-bold text-slate-800 flex items-center gap-2"><i data-lucide="pencil-line" class="w-4 h-4 text-emerald-600"></i> Entschlüsselte Werte bearbeiten</h3>
-                                    <p class="text-xs text-slate-500 mt-1">Nur geänderte Werte werden neu verschlüsselt; anschließend wird die CRC32 geprüft.</p>
+                                    <h3 class="font-bold text-slate-800 flex items-center gap-2"><i data-lucide="list-filter" class="w-4 h-4 text-emerald-600"></i> Erkannte Secret-Felder</h3>
+                                    <p class="text-xs text-slate-500 mt-1">Klartexte bleiben maskiert. Nur geänderte Werte werden neu verschlüsselt.</p>
                                 </div>
                                 <button id="btnReencryptChanged" disabled class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed">
                                     <i data-lucide="refresh-cw" class="w-4 h-4"></i> Keine Änderungen
                                 </button>
                             </div>
+                            <div class="p-4 border-b border-slate-200 bg-slate-50/70 grid grid-cols-1 md:grid-cols-[minmax(220px,1fr)_180px_170px] gap-3">
+                                <label class="relative">
+                                    <span class="sr-only">Secrets durchsuchen</span>
+                                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-3"></i>
+                                    <input id="secretSearch" type="search" placeholder="Name, Sektion oder SIP-Konto suchen"
+                                           class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                </label>
+                                <label>
+                                    <span class="sr-only">Kategorie filtern</span>
+                                    <select id="secretCategoryFilter" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                        <option value="all">Alle Kategorien</option>
+                                        <option value="wlan">WLAN</option>
+                                        <option value="guest-wlan">Gast-WLAN</option>
+                                        <option value="sip">SIP</option>
+                                        <option value="vpn">VPN</option>
+                                        <option value="provider">Provider</option>
+                                        <option value="system">System</option>
+                                        <option value="other">Weitere</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span class="sr-only">Status filtern</span>
+                                    <select id="secretStatusFilter" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                        <option value="all">Alle Status</option>
+                                        <option value="pending">Offen</option>
+                                        <option value="decrypted">Entschlüsselt</option>
+                                        <option value="changed">Geändert</option>
+                                        <option value="failed">Fehlgeschlagen</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div id="secretResultsSummary" class="px-5 py-2.5 text-xs text-slate-500 border-b border-slate-100"></div>
                             <div id="secretEditorList" class="divide-y divide-slate-100"></div>
                         </div>
                     </section>
@@ -252,6 +284,10 @@
                 this.secretEditorSection = document.getElementById('secretEditorSection');
                 this.secretEditorList = document.getElementById('secretEditorList');
                 this.secretEmptyState = document.getElementById('secretEmptyState');
+                this.secretSearch = document.getElementById('secretSearch');
+                this.secretCategoryFilter = document.getElementById('secretCategoryFilter');
+                this.secretStatusFilter = document.getElementById('secretStatusFilter');
+                this.secretResultsSummary = document.getElementById('secretResultsSummary');
                 this.secretNavCount = document.getElementById('secretNavCount');
                 this.navButtons = [...document.querySelectorAll('.workspace-nav')];
                 this.viewPanels = [...document.querySelectorAll('[data-view-panel]')];
@@ -267,6 +303,7 @@
                 this.dragDepth = 0;
                 this.activeView = 'overview';
                 this.currentFileName = '';
+                this.revealedSecrets = new Set();
                 this.library = window.FritzOSCrypto;
                 this.parser = FritzBoxParser;
                 this.crypto = AVMCrypto;
@@ -294,6 +331,9 @@
                 this.passwordInput?.addEventListener('keydown', event => {
                     if (event.key === 'Enter' && !this.btnDecrypt.disabled) this.handleDecrypt();
                 });
+                this.secretSearch?.addEventListener('input', () => this.renderSecretEditor());
+                this.secretCategoryFilter?.addEventListener('change', () => this.renderSecretEditor());
+                this.secretStatusFilter?.addEventListener('change', () => this.renderSecretEditor());
 
                 if (this.welcomeDropZone) {
                     this.welcomeDropZone.addEventListener('dragover', event => {
@@ -541,55 +581,191 @@
                 lucide.createIcons();
             }
 
+            getSecretDisplayStatus(secret) {
+                if (secret.status === 'decrypted' && secret.editedPlaintext !== secret.plaintext) return 'changed';
+                return secret.status;
+            }
+
+            getSecretSearchText(secret) {
+                return [
+                    secret.displayLabel,
+                    secret.section,
+                    secret.field,
+                    secret.category,
+                    secret.account?.name,
+                    secret.account?.username,
+                    secret.account?.registrar
+                ].filter(Boolean).join(' ').toLocaleLowerCase('de');
+            }
+
+            async copySecretPlaintext(secret) {
+                if (secret.status !== 'decrypted') return;
+                const value = secret.editedPlaintext ?? secret.plaintext ?? '';
+                try {
+                    await navigator.clipboard.writeText(value);
+                } catch (_) {
+                    const temporary = document.createElement('textarea');
+                    temporary.value = value;
+                    temporary.style.position = 'fixed';
+                    temporary.style.opacity = '0';
+                    document.body.appendChild(temporary);
+                    temporary.select();
+                    document.execCommand('copy');
+                    temporary.remove();
+                }
+                this.showStatus(`${secret.displayLabel} wurde kopiert.`, 'success');
+            }
+
             renderSecretEditor() {
                 this.secretEditorList.innerHTML = '';
-                const masterMatch = this.state.workingText.match(/^Password=(\$\$\$\$[A-Za-z0-9./+=_-]+)/m);
-                const masterValue = masterMatch?.[1] || null;
-                const decryptedSecrets = this.state.secrets.filter(secret =>
-                    secret.status === 'decrypted' && secret.value !== masterValue
+                const allSecrets = this.state.secrets;
+                const query = (this.secretSearch?.value || '').trim().toLocaleLowerCase('de');
+                const category = this.secretCategoryFilter?.value || 'all';
+                const status = this.secretStatusFilter?.value || 'all';
+                const visibleSecrets = allSecrets.filter(secret =>
+                    (!query || this.getSecretSearchText(secret).includes(query)) &&
+                    (category === 'all' || secret.category === category) &&
+                    (status === 'all' || this.getSecretDisplayStatus(secret) === status)
                 );
 
-                this.secretEditorSection.classList.toggle('hidden', decryptedSecrets.length === 0);
-                this.secretEmptyState.classList.toggle('hidden', decryptedSecrets.length > 0);
-                for (const secret of decryptedSecrets) {
-                    const supported = secret.type === 4 || secret.type === 5;
-                    const row = document.createElement('div');
-                    row.className = 'p-4 grid grid-cols-1 md:grid-cols-[minmax(150px,0.7fr)_minmax(220px,1.3fr)] gap-3 items-center';
+                this.secretEditorSection.classList.toggle('hidden', allSecrets.length === 0);
+                this.secretEmptyState.classList.toggle('hidden', allSecrets.length > 0);
+                this.secretResultsSummary.textContent = `${visibleSecrets.length} von ${allSecrets.length} Fundstellen angezeigt`;
+
+                const categoryNames = {
+                    wlan: 'WLAN',
+                    'guest-wlan': 'Gast-WLAN',
+                    sip: 'SIP',
+                    vpn: 'VPN',
+                    provider: 'Provider',
+                    system: 'System',
+                    other: 'Weitere'
+                };
+                const statusStyles = {
+                    pending: ['Offen', 'bg-blue-50 text-blue-700 border-blue-200'],
+                    decrypted: ['Entschlüsselt', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
+                    changed: ['Geändert', 'bg-amber-50 text-amber-700 border-amber-200'],
+                    failed: ['Fehlgeschlagen', 'bg-red-50 text-red-700 border-red-200']
+                };
+                const makeAction = (label, icon, handler, disabled) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.disabled = Boolean(disabled);
+                    button.className = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed';
+                    button.innerHTML = `<i data-lucide="${icon}" class="w-3.5 h-3.5"></i><span>${label}</span>`;
+                    if (handler) button.addEventListener('click', handler);
+                    return button;
+                };
+
+                if (visibleSecrets.length === 0 && allSecrets.length > 0) {
+                    const noResults = document.createElement('div');
+                    noResults.className = 'p-10 text-center text-sm text-slate-500';
+                    noResults.textContent = 'Keine Fundstelle passt zu Suche und Filtern.';
+                    this.secretEditorList.appendChild(noResults);
+                }
+
+                for (const secret of visibleSecrets) {
+                    const decrypted = secret.status === 'decrypted';
+                    const supported = decrypted && (secret.type === 4 || secret.type === 5);
+                    const displayStatus = this.getSecretDisplayStatus(secret);
+                    const row = document.createElement('article');
+                    row.className = 'p-5 grid grid-cols-1 xl:grid-cols-[minmax(210px,0.8fr)_minmax(300px,1.2fr)] gap-4 items-start';
+                    row.dataset.secretId = secret.id;
 
                     const description = document.createElement('div');
-                    const title = document.createElement('div');
-                    title.className = 'text-sm font-semibold text-slate-700';
-                    title.textContent = secret.label || `Typ ${secret.type || '?'}`;
-                    const fingerprint = document.createElement('div');
-                    fingerprint.className = 'text-[11px] text-slate-400 font-mono mt-1';
-                    fingerprint.textContent = `${secret.value.slice(0, 16)}…`;
-                    description.append(title, fingerprint);
+                    const headingLine = document.createElement('div');
+                    headingLine.className = 'flex items-center gap-2 flex-wrap';
+                    const title = document.createElement('h4');
+                    title.className = 'text-sm font-bold text-slate-800';
+                    title.textContent = secret.displayLabel;
+                    const categoryBadge = document.createElement('span');
+                    categoryBadge.className = 'text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 text-slate-600';
+                    categoryBadge.textContent = categoryNames[secret.category] || categoryNames.other;
+                    const statusBadge = document.createElement('span');
+                    statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[displayStatus][1]}`;
+                    statusBadge.textContent = statusStyles[displayStatus][0];
+                    headingLine.append(title, categoryBadge, statusBadge);
 
-                    const fieldWrap = document.createElement('div');
+                    const location = document.createElement('p');
+                    location.className = 'text-xs text-slate-500 mt-1.5';
+                    location.textContent = `${secret.section} · ${secret.field} · Zeile ${secret.line}`;
+                    description.append(headingLine, location);
+
+                    if (secret.account) {
+                        const account = document.createElement('p');
+                        account.className = 'text-xs text-slate-600 mt-2 flex items-center gap-1.5';
+                        const accountParts = [secret.account.username, secret.account.registrar].filter(Boolean);
+                        account.textContent = accountParts.length ? `SIP-Konto: ${accountParts.join(' · ')}` : secret.account.name;
+                        description.appendChild(account);
+                    }
+
+                    const valueArea = document.createElement('div');
                     const input = document.createElement('input');
-                    input.type = 'text';
-                    input.value = secret.editedPlaintext;
-                    input.disabled = !supported;
-                    input.className = 'w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-400';
-                    input.setAttribute('aria-label', `${title.textContent} bearbeiten`);
+                    input.type = this.revealedSecrets.has(secret.stableKey) ? 'text' : 'password';
+                    input.value = decrypted ? (secret.editedPlaintext ?? '') : '';
+                    input.placeholder = displayStatus === 'failed' ? 'Entschlüsselung fehlgeschlagen' : 'Noch nicht entschlüsselt';
+                    input.readOnly = true;
+                    input.disabled = !decrypted;
+                    input.className = 'w-full rounded-xl border border-slate-300 px-3 py-2.5 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-400';
+                    input.setAttribute('aria-label', `${secret.displayLabel} Klartext`);
+
+                    const actions = document.createElement('div');
+                    actions.className = 'flex items-center gap-2 flex-wrap mt-2';
+                    const revealButton = makeAction(
+                        this.revealedSecrets.has(secret.stableKey) ? 'Verbergen' : 'Anzeigen',
+                        this.revealedSecrets.has(secret.stableKey) ? 'eye-off' : 'eye',
+                        () => {
+                            if (this.revealedSecrets.has(secret.stableKey)) this.revealedSecrets.delete(secret.stableKey);
+                            else this.revealedSecrets.add(secret.stableKey);
+                            this.renderSecretEditor();
+                        },
+                        !decrypted
+                    );
+                    const copyButton = makeAction('Kopieren', 'copy', () => this.copySecretPlaintext(secret), !decrypted);
+                    const editButton = makeAction('Bearbeiten', 'pencil', () => {
+                        this.revealedSecrets.add(secret.stableKey);
+                        input.type = 'text';
+                        input.readOnly = false;
+                        input.focus();
+                        input.select();
+                    }, !supported);
+                    let resetButton;
+                    resetButton = makeAction('Zurücksetzen', 'undo-2', () => {
+                        this.state.setEditedPlaintext(secret.id, secret.plaintext);
+                        if (this.state.viewMode === 'preview') this.renderPreviewText();
+                        this.renderSecretEditor();
+                    }, false);
+                    resetButton.classList.toggle('hidden', displayStatus !== 'changed');
+                    actions.append(revealButton, copyButton, editButton, resetButton);
+
                     input.addEventListener('input', () => {
                         this.state.setEditedPlaintext(secret.id, input.value);
+                        const currentStatus = this.getSecretDisplayStatus(secret);
+                        statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[currentStatus][1]}`;
+                        statusBadge.textContent = statusStyles[currentStatus][0];
+                        resetButton.classList.toggle('hidden', currentStatus !== 'changed');
                         this.updateChangedButton();
                         if (this.state.viewMode === 'preview') this.renderPreviewText();
                     });
-                    fieldWrap.appendChild(input);
+                    valueArea.append(input, actions);
 
-                    if (!supported) {
+                    if (decrypted && !supported) {
                         const hint = document.createElement('p');
-                        hint.className = 'text-[11px] text-amber-600 mt-1';
-                        hint.textContent = 'Neuverschlüsselung ist derzeit nur für Typ 4 und Typ 5 verfügbar.';
-                        fieldWrap.appendChild(hint);
+                        hint.className = 'text-[11px] text-amber-600 mt-2';
+                        hint.textContent = 'Dieser Verschlüsselungstyp kann angezeigt, aber noch nicht neu verschlüsselt werden.';
+                        valueArea.appendChild(hint);
+                    } else if (displayStatus === 'failed' && secret.error) {
+                        const hint = document.createElement('p');
+                        hint.className = 'text-[11px] text-red-600 mt-2';
+                        hint.textContent = secret.error;
+                        valueArea.appendChild(hint);
                     }
 
-                    row.append(description, fieldWrap);
+                    row.append(description, valueArea);
                     this.secretEditorList.appendChild(row);
                 }
                 this.updateChangedButton();
+                lucide.createIcons();
             }
 
             updateChangedButton() {
@@ -615,6 +791,10 @@
                 this.updateCharCount();
                 this.hideStatus();
                 this.passwordInput.value = '';
+                this.revealedSecrets.clear();
+                if (this.secretSearch) this.secretSearch.value = '';
+                if (this.secretCategoryFilter) this.secretCategoryFilter.value = 'all';
+                if (this.secretStatusFilter) this.secretStatusFilter.value = 'all';
                 this.showWelcome();
                 this.log('> Editor geleert.', 'muted');
             }
