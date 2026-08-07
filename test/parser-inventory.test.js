@@ -76,4 +76,31 @@ assert.equal(inventory.find(item => item.value === vpnSecret).category, 'vpn');
 assert.equal(inventory.find(item => item.value === providerSecret).category, 'provider');
 assert.equal(FritzBoxParser.extractSecrets(source).filter(value => value === duplicate).length, 1, 'legacy API remains unique');
 
+const splitWlanSource = [
+  '**** CFGFILE: wlan_common.cfg',
+  'ssid = "FRITZ!Box Hauptnetz";',
+  'guest_ssid = "FRITZ!Box Gäste";',
+  '**** END OF FILE ****',
+  '**** CFGFILE: wlan.cfg',
+  'pskvalue = "$$$$MAINPASSWORD";',
+  'guest_pskvalue = "$$$$GUESTPASSWORD";',
+  '**** END OF FILE ****'
+].join('\n');
+const splitInventory = FritzBoxParser.extractSecretInventory(splitWlanSource);
+assert.equal(splitInventory.find(item => item.field === 'pskvalue').network.ssid, 'FRITZ!Box Hauptnetz', 'SSID must carry across WLAN sections');
+assert.equal(splitInventory.find(item => item.field === 'guest_pskvalue').network.ssid, 'FRITZ!Box Gäste', 'guest SSID must carry across WLAN sections');
+
+const encryptedSsidSource = [
+  '**** CFGFILE: wlan.cfg',
+  'ssid = "$$$$ENCRYPTEDSSID";',
+  'pskvalue = "$$$$ENCRYPTEDPASSWORD";',
+  '**** END OF FILE ****'
+].join('\n');
+const encryptedSsidInventory = FritzBoxParser.extractSecretInventory(encryptedSsidSource);
+const ssidSecret = encryptedSsidInventory.find(item => item.field === 'ssid');
+const passwordSecret = encryptedSsidInventory.find(item => item.field === 'pskvalue');
+assert.equal(ssidSecret.displayLabel, 'Haupt-WLAN-Name');
+assert.equal(passwordSecret.displayLabel, 'WLAN-Schlüssel');
+assert.equal(passwordSecret.network.ssidSecretId, ssidSecret.id, 'encrypted SSID must be linked to the WLAN credential');
+
 console.log('Structured secret inventory tests passed.');

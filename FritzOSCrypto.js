@@ -993,7 +993,13 @@
           }
           if (normalizedSection.includes('wlan') || normalizedField.includes('psk')) {
               const guest = normalizedField.includes('guest') || normalizedField.includes('gast');
-              return { category: guest ? 'guest-wlan' : 'wlan', label: guest ? 'Gast-WLAN-Schlüssel' : 'WLAN-Schlüssel' };
+              const ssid = normalizedField.includes('ssid') && !normalizedField.includes('hidden') && !normalizedField.includes('hide');
+              return {
+                  category: guest ? 'guest-wlan' : 'wlan',
+                  label: ssid
+                      ? (guest ? 'Gast-WLAN-Name' : 'Haupt-WLAN-Name')
+                      : (guest ? 'Gast-WLAN-Schlüssel' : 'WLAN-Schlüssel')
+              };
           }
           if (normalizedSection.includes('voip')) {
               if (normalizedField.includes('username') || normalizedField === 'user') return { category: 'sip', label: 'SIP-Benutzername' };
@@ -1019,7 +1025,6 @@
           let sipAccountCounter = 0;
           let sipBlocks = [];
           let fallbackSipBlock = null;
-          let wifiNetworks = null;
 
           const createWifiNetwork = kind => ({
               id: `wifi-${kind}`,
@@ -1028,6 +1033,11 @@
               hidden: false,
               authentication: 'WPA'
           });
+          const wifiRegistry = {
+              main: createWifiNetwork('main'),
+              guest: createWifiNetwork('guest')
+          };
+          let wifiNetworks = null;
 
           const finalizeSipBlock = block => {
               if (!block) return;
@@ -1072,9 +1082,7 @@
               if (sectionMatch) {
                   finalizeSipContext();
                   section = sectionMatch[1];
-                  wifiNetworks = section.toLowerCase().includes('wlan')
-                      ? { main: createWifiNetwork('main'), guest: createWifiNetwork('guest') }
-                      : null;
+                  wifiNetworks = section.toLowerCase().includes('wlan') ? wifiRegistry : null;
                   absoluteOffset += originalLine.length;
                   continue;
               }
@@ -1106,7 +1114,11 @@
                   const isGuest = normalizedField.includes('guest') || normalizedField.includes('gast');
                   const network = isGuest ? wifiNetworks.guest : wifiNetworks.main;
                   if (normalizedField.includes('ssid') && !normalizedField.includes('hidden') && !normalizedField.includes('hide')) {
-                      network.ssid = assignmentValue;
+                      const priority = normalizedField === (isGuest ? 'guest_ssid' : 'ssid') ? 2 : 1;
+                      if (!network.ssid || priority >= (network.ssidPriority || 0)) {
+                          network.ssid = assignmentValue;
+                          network.ssidPriority = priority;
+                      }
                   }
                   if (normalizedField.includes('hidden') || normalizedField.includes('hide_ssid')) {
                       network.hidden = /^(?:1|yes|true|on)$/i.test(assignmentValue);
@@ -1159,6 +1171,11 @@
                               : null
                   };
                   inventory.push(item);
+
+                  if (item.network && field.toLowerCase().includes('ssid') &&
+                      !field.toLowerCase().includes('hidden') && !field.toLowerCase().includes('hide')) {
+                      item.network.ssidSecretId = item.id;
+                  }
 
                   if (activeSipBlock) {
                       activeSipBlock.secrets.push(item);

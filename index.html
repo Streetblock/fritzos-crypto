@@ -845,10 +845,24 @@
                 return wrap;
             }
 
+            isWifiPasswordSecret(secret) {
+                const field = String(secret.field).toLowerCase();
+                return !field.includes('ssid') && (field.includes('psk') || field.includes('pass') || field.includes('key'));
+            }
+
+            resolveWifiSsid(secret, wifiSecrets) {
+                if (secret.network?.ssid) return secret.network.ssid;
+                const ssidSecret = wifiSecrets.find(item => item.id === secret.network?.ssidSecretId);
+                return ssidSecret?.status === 'decrypted'
+                    ? (ssidSecret.editedPlaintext ?? ssidSecret.plaintext)
+                    : null;
+            }
+
             renderWifiCards(wifiSecrets) {
                 this.wifiCards.innerHTML = '';
                 const preferred = new Map();
                 wifiSecrets.forEach(secret => {
+                    if (!this.isWifiPasswordSecret(secret)) return;
                     const kind = secret.category === 'guest-wlan' ? 'guest' : 'main';
                     if (!preferred.has(kind)) preferred.set(kind, secret);
                 });
@@ -857,6 +871,7 @@
                     const secret = preferred.get(kind);
                     if (!secret) continue;
                     const isGuest = kind === 'guest';
+                    const resolvedSsid = this.resolveWifiSsid(secret, wifiSecrets);
                     const card = document.createElement('article');
                     card.className = isGuest
                         ? 'rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-5 shadow-sm'
@@ -870,7 +885,7 @@
                     eyebrow.textContent = isGuest ? 'Gast-WLAN' : 'Haupt-WLAN';
                     const ssid = document.createElement('h4');
                     ssid.className = 'text-xl font-black text-slate-900 mt-1 break-words';
-                    ssid.textContent = secret.network?.ssid || 'SSID nicht erkannt';
+                    ssid.textContent = resolvedSsid || 'SSID noch verschlüsselt';
                     const passwordLabel = document.createElement('p');
                     passwordLabel.className = 'text-xs font-semibold text-slate-500 mt-4 mb-1.5';
                     passwordLabel.textContent = 'WLAN-Passwort';
@@ -887,12 +902,15 @@
                     details.appendChild(actions);
                     layout.appendChild(details);
 
-                    if (secret.status === 'decrypted' && secret.network?.ssid) {
+                    if (secret.status === 'decrypted' && resolvedSsid) {
                         const qrArea = document.createElement('div');
                         qrArea.className = 'w-40 rounded-xl border border-slate-200 bg-white p-2 text-center';
                         try {
                             if (typeof window.qrcode !== 'function') throw new Error('QR_LIBRARY_UNAVAILABLE');
-                            const payload = this.parser.buildWifiQrPayload(secret.network, secret.editedPlaintext);
+                            const payload = this.parser.buildWifiQrPayload(
+                                Object.assign({}, secret.network, { ssid: resolvedSsid }),
+                                secret.editedPlaintext
+                            );
                             const qr = window.qrcode(0, 'M');
                             qr.addData(payload, 'Byte');
                             qr.make();
@@ -978,10 +996,11 @@
 
             renderCredentialCards() {
                 const wifiSecrets = this.state.secrets.filter(secret => secret.category === 'wlan' || secret.category === 'guest-wlan');
+                const wifiCredentials = wifiSecrets.filter(secret => this.isWifiPasswordSecret(secret));
                 const sipSecrets = this.state.secrets.filter(secret => secret.category === 'sip');
-                this.wifiCardsSection.classList.toggle('hidden', wifiSecrets.length === 0);
+                this.wifiCardsSection.classList.toggle('hidden', wifiCredentials.length === 0);
                 this.sipCardsSection.classList.toggle('hidden', sipSecrets.length === 0);
-                this.credentialCards.classList.toggle('hidden', wifiSecrets.length === 0 && sipSecrets.length === 0);
+                this.credentialCards.classList.toggle('hidden', wifiCredentials.length === 0 && sipSecrets.length === 0);
                 this.renderWifiCards(wifiSecrets);
                 this.renderSipCards(sipSecrets);
             }
