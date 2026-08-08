@@ -18,6 +18,7 @@ for (const id of [
   'viewOverview',
   'viewSecrets',
   'viewFiles',
+  'viewTelephony',
   'fileNavCount',
   'phonebookOverviewCard',
   'phonebookOverviewSummary',
@@ -31,6 +32,24 @@ for (const id of [
   'embeddedFileViewerSummary',
   'embeddedFileViewer',
   'filesEmptyState',
+  'sipPhoneNavCount',
+  'sipPhoneStatus',
+  'sipPhoneNotice',
+  'sipPhoneAccount',
+  'sipPhoneWebsocket',
+  'btnSipConnect',
+  'sipIncomingCall',
+  'sipIncomingCaller',
+  'btnSipAnswer',
+  'btnSipDecline',
+  'sipDialTarget',
+  'sipSelectedContact',
+  'btnSipCall',
+  'btnSipHangup',
+  'sipCallMessage',
+  'sipContactSearch',
+  'sipContactList',
+  'sipRemoteAudio',
   'exportSafetyPanel',
   'exportMasterKeySection',
   'exportMasterKeyCard',
@@ -147,6 +166,16 @@ assert.match(html, /FritzExportEditor\.js\?v=\d{8}-\d+/, 'atomic export editor n
 assert.equal(html.includes('FritzExportEditor API v1'), true, 'export editor compatibility guard is missing');
 assert.match(html, /FritzEmbeddedFiles\.js\?v=\d{8}-\d+/, 'embedded file decoder needs a deployment cache key');
 assert.equal(html.includes('FritzEmbeddedFiles API v1'), true, 'embedded file decoder compatibility guard is missing');
+assert.match(html, /FritzSipWebPhone\.js\?v=\d{8}-\d+/, 'SIP webphone service needs a deployment cache key');
+assert.equal(html.includes('FritzSipWebPhone API v1'), true, 'SIP webphone compatibility guard is missing');
+assert.equal(html.includes('cdnjs.cloudflare.com/ajax/libs/sip.js/0.20.0/sip.min.js'), true, 'browser SIP stack is missing');
+assert.equal(html.includes('Aktuell wird nur Sipgate automatisch unterstützt'), true, 'webphone must communicate its provider allowlist');
+assert.equal(html.includes('Im Webphone verwenden'), true, 'compatible SIP cards need a webphone handoff');
+assert.match(html, /this\.sipWebPhoneApi\.createCompatibleAccount/, 'UI must delegate WSS provider matching to the webphone service');
+assert.match(html, /this\.renderSipPhoneAccounts\(sipSecrets\)/, 'decrypted SIP accounts must refresh the webphone');
+assert.match(html, /this\.renderSipPhoneContacts\(\)/, 'embedded phonebooks must feed the phone contact picker');
+assert.match(html, /this\.sipDialTarget\.value = contact\.number/, 'contact selection must only prepare the dial target');
+assert.equal(/button\.addEventListener\('click',[\s\S]{0,200}sipPhone\.call\(contact/.test(html), false, 'selecting a contact must never place a call immediately');
 assert.match(html, /typeof window\.FritzEmbeddedFiles\?\.createFilePreview/, 'partial deployments must reject a missing generic preview service');
 assert.match(html, /this\.embeddedFiles\.extractPhonebooks\(text\)/, 'loaded exports must be scanned for embedded phonebooks');
 assert.match(html, /this\.jumpToEditorLine\(entry\.book\.sourceLine\)/, 'phonebooks must link back to their source block');

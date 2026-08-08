@@ -127,7 +127,34 @@
     try {
       await this.userAgent.start();
       this.registerer = new this.SIP.Registerer(this.userAgent);
-      await this.registerer.register();
+      var registerer = this.registerer;
+      var registererState = this.SIP.RegistererState;
+      await new Promise(function (resolve, reject) {
+        var settled = false;
+        var timeout = setTimeout(function () { finish(new Error("Zeitüberschreitung bei der SIP-Registrierung")); }, 15000);
+        function finish(error) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          if (registerer.stateChange && typeof registerer.stateChange.removeListener === "function") registerer.stateChange.removeListener(onChange);
+          if (error) reject(error); else resolve();
+        }
+        function onChange(state) {
+          if (registererState && state === registererState.Registered) finish();
+          if (registererState && state === registererState.Terminated) finish(new Error("SIP-Registrierung wurde beendet"));
+        }
+        if (registerer.stateChange && typeof registerer.stateChange.addListener === "function") registerer.stateChange.addListener(onChange);
+        registerer.register({
+          requestDelegate: {
+            onReject: function (response) {
+              var status = response && response.message && response.message.statusCode;
+              finish(new Error(status ? "SIP-Registrierung abgelehnt (" + status + ")" : "SIP-Registrierung abgelehnt"));
+            }
+          }
+        }).then(function () {
+          if (!registererState || !registerer.stateChange) finish();
+        }).catch(finish);
+      });
       this.emitState("registered");
     } catch (error) {
       await this.disconnect();
@@ -146,7 +173,13 @@
       sessionDescriptionHandlerOptions: { constraints: { audio: true, video: false } }
     });
     this.attachSession(inviter);
-    await inviter.invite();
+    try {
+      await inviter.invite();
+    } catch (error) {
+      this.session = null;
+      this.emitState("registered");
+      throw error;
+    }
   };
 
   SipWebPhone.prototype.answer = async function () {

@@ -22,6 +22,8 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 
 * **Eingebettete Dateien ansehen:** Telefonbuchdateien werden lokal dekodiert und auf einer eigenen schreibgeschützten Seite nach Telefonbüchern und Kontakten gegliedert. Weitere unverschlüsselte `B64FILE`-Blöcke lassen sich dort einzeln ausklappen; Text wird direkt, Binärdaten werden als Hex-Vorschau angezeigt. Die Übersicht zeigt die Anzahl der erkannten Telefonbücher und Kontakte.
 
+* **Sipgate-Webphone:** Vollständig entschlüsselte Sipgate-Konten können bewusst mit der offiziell unterstützten WSS-Adresse verbunden werden. Eingebettete Telefonbücher dienen als Wählhilfe. Unbekannte Provider und Telekom-Konten erhalten keinen geratenen WebSocket-Endpunkt; Kontaktwahl und Anruf bleiben getrennte Aktionen.
+
 * **AVM-Prüfsumme:** Nach der Neuverschlüsselung und vor dem Speichern einer Exportdatei wird die CRC32-Prüfsumme am `END OF EXPORT` nach dem AVM-Sektionsverfahren aktualisiert und erneut geprüft.
 
 * **Modular:** Krypto, Export-Prüfsumme und der atomare Bearbeitungsablauf sind voneinander getrennt und können in eigenen Node.js-Projekten genutzt werden.
@@ -33,6 +35,7 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 * `FritzExportEditor.js`: Änderungen atomar anwenden. Der Dienst prüft zuerst den vorhandenen Chiffretext, verschlüsselt den neuen Wert, führt den Secret-Roundtrip aus und aktualisiert anschließend CRC32.
 * `ConfigState.js`: UI-Zustand wie offene und validierte Änderungen; keine Kryptografie.
 * `FritzEmbeddedFiles.js`: Eingebettete B64-Dateien erkennen und unterstützte Inhalte wie Telefonbücher schreibgeschützt auslesen.
+* `FritzSipWebPhone.js`: Freigegebene SIP-over-WSS-Providerprofile, Rufnummernvalidierung und browserseitiger SIP/WebRTC-Sitzungsablauf.
 
 `FritzExportEditor.applySecretChanges()` und `FritzExportEditor.changeExportPassword()` geben nur dann einen neuen Exporttext zurück, wenn alle Prüfschritte erfolgreich waren. Bei einem Fehler bleibt der übergebene Text unverändert.
 

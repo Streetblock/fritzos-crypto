@@ -22,6 +22,8 @@ The absolute highlight: This tool supports the modern **FRITZ!OS 7.50+ Master-Ke
 
 * **View embedded files:** Phonebook files are decoded locally and presented by phonebook and contact on a dedicated read-only page. Other unencrypted `B64FILE` blocks can be expanded individually; text is shown directly and binary data as a hex preview. The overview shows the number of detected phonebooks and contacts.
 
+* **Sipgate webphone:** Fully decrypted Sipgate accounts can be connected deliberately using the officially supported WSS endpoint. Embedded phonebooks act as a contact picker. Unknown providers and Telekom accounts never receive a guessed WebSocket endpoint, and selecting a contact never starts a call by itself.
+
 * **AVM checksum:** After re-encryption and before saving an export, the CRC32 value at `END OF EXPORT` is updated using AVM's section-aware procedure and verified again.
 
 * **Modular:** Crypto, export checksums, and the atomic editing workflow are separated and can be used directly in Node.js projects.
@@ -33,6 +35,7 @@ The absolute highlight: This tool supports the modern **FRITZ!OS 7.50+ Master-Ke
 * `FritzExportEditor.js`: Apply edits atomically. It verifies the existing ciphertext, encrypts the new value, performs the secret roundtrip, and then updates CRC32.
 * `ConfigState.js`: UI state for pending and validated changes; no cryptography.
 * `FritzEmbeddedFiles.js`: Detect embedded B64 files and read supported content such as phonebooks without modifying it.
+* `FritzSipWebPhone.js`: Allowlisted SIP-over-WSS provider profiles, dial-target validation, and the browser SIP/WebRTC session workflow.
 
 `FritzExportEditor.applySecretChanges()` and `FritzExportEditor.changeExportPassword()` return a new export text only when every verification step succeeds. The provided text remains unchanged on failure.
 

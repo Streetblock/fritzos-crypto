@@ -10,6 +10,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
     <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode_UTF8.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sip.js/0.20.0/sip.min.js"></script>
     
     <!-- ========================================== -->
     <!-- Externe FritzOSCrypto.js Bibliothek        -->
@@ -20,6 +21,7 @@
     <script src="./FritzExportChecksum.js?v=20260807-4"></script>
     <script src="./FritzExportEditor.js?v=20260808-1"></script>
     <script src="./FritzEmbeddedFiles.js?v=20260808-2"></script>
+    <script src="./FritzSipWebPhone.js?v=20260808-1"></script>
 
     <style>
         .glass-panel {
@@ -141,6 +143,10 @@
                         <button data-view="files" class="workspace-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
                             <i data-lucide="files" class="w-4 h-4"></i> Dateien
                             <span id="fileNavCount" class="ml-auto text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">0</span>
+                        </button>
+                        <button data-view="telephony" class="workspace-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
+                            <i data-lucide="phone-call" class="w-4 h-4"></i> Telefonie
+                            <span id="sipPhoneNavCount" class="ml-auto text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">0</span>
                         </button>
                         <button data-view="editor" class="workspace-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
                             <i data-lucide="code-2" class="w-4 h-4"></i> Experten-Editor
@@ -439,6 +445,73 @@
                         </div>
                     </section>
 
+                    <section id="viewTelephony" data-view-panel="telephony" class="hidden space-y-5">
+                        <div class="flex items-end justify-between gap-4 flex-wrap">
+                            <div>
+                                <p class="text-xs font-semibold uppercase tracking-wider text-violet-600">SIP über WebRTC</p>
+                                <h2 class="text-2xl font-bold text-slate-900 mt-1">Telefonie</h2>
+                                <p class="text-sm text-slate-500 mt-2">Mit einem kompatiblen, entschlüsselten SIP-Konto direkt im Browser telefonieren.</p>
+                            </div>
+                            <span id="sipPhoneStatus" class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"><span class="w-2 h-2 rounded-full bg-slate-400"></span> Nicht verbunden</span>
+                        </div>
+
+                        <div id="sipPhoneNotice" class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                            Aktuell wird nur Sipgate automatisch unterstützt. Andere Anbieter benötigen eine offiziell dokumentierte SIP-over-WSS-Schnittstelle.
+                        </div>
+
+                        <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.9fr)] gap-5">
+                            <div class="space-y-5">
+                                <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                                    <h3 class="font-bold text-slate-900 flex items-center gap-2"><i data-lucide="radio-tower" class="w-5 h-5 text-violet-600"></i> Verbindung</h3>
+                                    <label class="block mt-4">
+                                        <span class="text-xs font-semibold text-slate-500">Kompatibles SIP-Konto</span>
+                                        <select id="sipPhoneAccount" class="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-violet-500 outline-none"></select>
+                                    </label>
+                                    <div class="mt-3 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5">
+                                        <div class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">WebSocket</div>
+                                        <div id="sipPhoneWebsocket" class="mt-0.5 font-mono text-xs text-slate-600 break-all">—</div>
+                                    </div>
+                                    <button id="btnSipConnect" type="button" class="mt-4 w-full flex items-center justify-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <i data-lucide="plug" class="w-4 h-4"></i> Mit Sipgate verbinden
+                                    </button>
+                                    <p class="mt-3 text-xs text-slate-500">Das SIP-Passwort bleibt lokal im Browser und wird nur für die gewählte WSS-Verbindung verwendet.</p>
+                                </section>
+
+                                <section class="bg-slate-950 text-white rounded-2xl p-5 shadow-xl">
+                                    <div id="sipIncomingCall" class="hidden mb-4 rounded-xl border border-emerald-700 bg-emerald-950/60 p-4">
+                                        <p class="text-xs font-semibold uppercase tracking-wider text-emerald-400">Eingehender Anruf</p>
+                                        <p id="sipIncomingCaller" class="mt-1 text-lg font-bold">Unbekannt</p>
+                                        <div class="grid grid-cols-2 gap-3 mt-3">
+                                            <button id="btnSipAnswer" type="button" class="rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-bold">Abheben</button>
+                                            <button id="btnSipDecline" type="button" class="rounded-xl bg-rose-600 px-3 py-2.5 text-sm font-bold">Ablehnen</button>
+                                        </div>
+                                    </div>
+                                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Rufnummer</p>
+                                    <input id="sipDialTarget" type="tel" inputmode="tel" autocomplete="off" placeholder="Rufnummer eingeben oder Kontakt wählen" class="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-xl font-mono text-white outline-none focus:border-violet-500">
+                                    <p id="sipSelectedContact" class="h-5 mt-2 text-xs text-slate-400"></p>
+                                    <div class="grid grid-cols-2 gap-3 mt-4">
+                                        <button id="btnSipCall" type="button" class="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-3 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"><i data-lucide="phone" class="w-4 h-4"></i> Anrufen</button>
+                                        <button id="btnSipHangup" type="button" class="flex items-center justify-center gap-2 rounded-xl bg-rose-600 hover:bg-rose-700 px-4 py-3 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"><i data-lucide="phone-off" class="w-4 h-4"></i> Auflegen</button>
+                                    </div>
+                                    <p id="sipCallMessage" class="mt-3 min-h-5 text-xs text-slate-400"></p>
+                                </section>
+                            </div>
+
+                            <section class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                                <div class="p-5 border-b border-slate-200">
+                                    <h3 class="font-bold text-slate-900 flex items-center gap-2"><i data-lucide="book-user" class="w-5 h-5 text-cyan-600"></i> Telefonbuch</h3>
+                                    <label class="relative block mt-3">
+                                        <span class="sr-only">Kontakte durchsuchen</span>
+                                        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-3"></i>
+                                        <input id="sipContactSearch" type="search" placeholder="Name oder Rufnummer suchen" class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-cyan-500 outline-none">
+                                    </label>
+                                </div>
+                                <div id="sipContactList" class="max-h-[46rem] overflow-y-auto divide-y divide-slate-100"></div>
+                            </section>
+                        </div>
+                        <audio id="sipRemoteAudio" autoplay class="hidden"></audio>
+                    </section>
+
                     <section id="viewEditor" data-view-panel="editor" class="hidden">
                         <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
                             <div class="flex justify-between items-center mb-4 gap-4 flex-wrap">
@@ -569,6 +642,24 @@
                 this.embeddedFileViewerSummary = document.getElementById('embeddedFileViewerSummary');
                 this.embeddedFileViewer = document.getElementById('embeddedFileViewer');
                 this.filesEmptyState = document.getElementById('filesEmptyState');
+                this.sipPhoneNavCount = document.getElementById('sipPhoneNavCount');
+                this.sipPhoneStatus = document.getElementById('sipPhoneStatus');
+                this.sipPhoneNotice = document.getElementById('sipPhoneNotice');
+                this.sipPhoneAccount = document.getElementById('sipPhoneAccount');
+                this.sipPhoneWebsocket = document.getElementById('sipPhoneWebsocket');
+                this.btnSipConnect = document.getElementById('btnSipConnect');
+                this.sipIncomingCall = document.getElementById('sipIncomingCall');
+                this.sipIncomingCaller = document.getElementById('sipIncomingCaller');
+                this.btnSipAnswer = document.getElementById('btnSipAnswer');
+                this.btnSipDecline = document.getElementById('btnSipDecline');
+                this.sipDialTarget = document.getElementById('sipDialTarget');
+                this.sipSelectedContact = document.getElementById('sipSelectedContact');
+                this.btnSipCall = document.getElementById('btnSipCall');
+                this.btnSipHangup = document.getElementById('btnSipHangup');
+                this.sipCallMessage = document.getElementById('sipCallMessage');
+                this.sipContactSearch = document.getElementById('sipContactSearch');
+                this.sipContactList = document.getElementById('sipContactList');
+                this.sipRemoteAudio = document.getElementById('sipRemoteAudio');
                 this.navButtons = [...document.querySelectorAll('.workspace-nav')];
                 this.viewPanels = [...document.querySelectorAll('[data-view-panel]')];
                 this.metaList = document.getElementById('metaList');
@@ -593,13 +684,23 @@
                 this.passwordChangeRunning = false;
                 this.originalExportPassword = null;
                 this.phonebookData = { files: [], phonebookFiles: [], books: [], errors: [] };
+                this.compatibleSipAccounts = [];
+                this.sipPhoneState = 'idle';
+                this.selectedSipContact = null;
                 this.library = window.FritzOSCrypto;
                 this.parser = FritzBoxParser;
                 this.crypto = AVMCrypto;
                 this.checksum = window.FritzExportChecksum;
                 this.exportEditor = window.FritzExportEditor.FritzExportEditor;
                 this.embeddedFiles = window.FritzEmbeddedFiles;
+                this.sipWebPhoneApi = window.FritzSipWebPhone;
                 this.state = new window.FritzConfigState.ConfigState(this.parser);
+                this.sipPhone = new this.sipWebPhoneApi.SipWebPhone({
+                    SIP: window.SIP,
+                    remoteAudio: this.sipRemoteAudio,
+                    onState: event => this.handleSipPhoneState(event),
+                    onIncoming: (_session, caller) => this.handleIncomingSipCall(caller)
+                });
 
                 this.bindEvents();
                 this.updateCharCount();
@@ -635,6 +736,17 @@
                 this.secretStatusFilter?.addEventListener('change', () => this.renderSecretEditor());
                 this.phonebookSearch?.addEventListener('input', () => this.renderPhonebookViewer());
                 this.phonebookOverviewCard?.addEventListener('click', () => this.switchView('files'));
+                this.sipPhoneAccount?.addEventListener('change', () => this.updateSipPhoneAccountPreview());
+                this.btnSipConnect?.addEventListener('click', () => this.toggleSipPhoneConnection());
+                this.btnSipCall?.addEventListener('click', () => this.startSipCall());
+                this.btnSipHangup?.addEventListener('click', () => this.sipPhone.hangup());
+                this.btnSipAnswer?.addEventListener('click', () => this.answerSipCall());
+                this.btnSipDecline?.addEventListener('click', () => this.declineSipCall());
+                this.sipContactSearch?.addEventListener('input', () => this.renderSipPhoneContacts());
+                this.sipDialTarget?.addEventListener('input', () => {
+                    this.selectedSipContact = null;
+                    this.sipSelectedContact.textContent = '';
+                });
 
                 if (this.welcomeDropZone) {
                     this.welcomeDropZone.addEventListener('dragover', event => {
@@ -839,6 +951,7 @@
 
                 reader.onload = (loadEvent) => {
                     const text = String(loadEvent.target?.result || '');
+                    void this.sipPhone.disconnect();
                     this.state.load(text);
                     this.phonebookData = this.embeddedFiles.extractPhonebooks(text);
                     this.originalExportPassword = null;
@@ -1079,6 +1192,7 @@
                 if ((this.state.hasUnsavedChanges() || losesResults) &&
                     !window.confirm('Originaldatei wiederherstellen? Alle Änderungen und Entschlüsselungsergebnisse werden verworfen.')) return;
                 const original = this.state.restoreOriginal();
+                void this.sipPhone.disconnect();
                 if (this.originalExportPassword !== null) this.passwordInput.value = this.originalExportPassword;
                 this.closePasswordChangePanel();
                 this.editor.value = original;
@@ -1358,6 +1472,7 @@
                     details.append(summary, xml);
                     this.phonebookXmlViewer.appendChild(details);
                 });
+                this.renderSipPhoneContacts();
                 lucide.createIcons();
             }
 
@@ -1730,16 +1845,34 @@
                 return secret?.status === 'decrypted' ? (secret.editedPlaintext ?? secret.plaintext) : null;
             }
 
-            renderSipCards(sipSecrets) {
-                this.sipCards.innerHTML = '';
+            getSipAccountGroups(sipSecrets) {
                 const groups = new Map();
                 sipSecrets.forEach(secret => {
                     const key = secret.account?.id || secret.stableKey;
-                    if (!groups.has(key)) groups.set(key, { account: secret.account || {}, secrets: [] });
+                    if (!groups.has(key)) groups.set(key, { id: key, account: secret.account || {}, secrets: [] });
                     groups.get(key).secrets.push(secret);
                 });
+                return [...groups.values()];
+            }
 
-                for (const group of groups.values()) {
+            createCompatibleSipAccount(group) {
+                const username = group.account.username || this.getSipAccountValue(group, /^(?:username|user)$/) || '';
+                const registrar = group.account.registrar || this.getSipAccountValue(group, /^registrar$/) || '';
+                const authorizationUsername = this.getSipAccountValue(group, /^authname$/) || username;
+                const password = this.getSipAccountValue(group, /^(?:passwd|password|pass|secret)$/) || '';
+                return this.sipWebPhoneApi.createCompatibleAccount({
+                    id: group.id,
+                    name: group.account.name || username,
+                    username,
+                    authorizationUsername,
+                    password,
+                    registrar
+                });
+            }
+
+            renderSipCards(sipSecrets) {
+                this.sipCards.innerHTML = '';
+                for (const group of this.getSipAccountGroups(sipSecrets)) {
                     const decryptedUsername = this.getSipAccountValue(group, /^(?:username|user)$/);
                     const decryptedRegistrar = this.getSipAccountValue(group, /^registrar$/);
                     const username = group.account.username || decryptedUsername;
@@ -1787,8 +1920,220 @@
                     }, !complete);
                     copyButton.classList.add('w-full', 'mt-4');
                     card.appendChild(copyButton);
+                    const compatibleAccount = this.createCompatibleSipAccount(group);
+                    if (compatibleAccount) {
+                        const phoneButton = this.createCredentialAction('Im Webphone verwenden', 'phone-call', () => {
+                            this.prepareSipPhoneAccount(compatibleAccount.id);
+                        });
+                        phoneButton.classList.add('w-full', 'mt-2');
+                        card.appendChild(phoneButton);
+                    }
                     this.sipCards.appendChild(card);
                 }
+            }
+
+            renderSipPhoneAccounts(sipSecrets) {
+                const selectedId = this.sipPhoneAccount.value;
+                this.compatibleSipAccounts = this.getSipAccountGroups(sipSecrets)
+                    .map(group => this.createCompatibleSipAccount(group))
+                    .filter(Boolean);
+                this.sipPhoneNavCount.textContent = this.compatibleSipAccounts.length;
+                this.sipPhoneAccount.innerHTML = '';
+                if (this.compatibleSipAccounts.length === 0) {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'Kein kompatibles entschlüsseltes Konto';
+                    this.sipPhoneAccount.appendChild(option);
+                } else {
+                    this.compatibleSipAccounts.forEach(account => {
+                        const option = document.createElement('option');
+                        option.value = account.id;
+                        option.textContent = `${account.providerName} · ${account.username}@${account.registrar}`;
+                        this.sipPhoneAccount.appendChild(option);
+                    });
+                    if (this.compatibleSipAccounts.some(account => account.id === selectedId)) this.sipPhoneAccount.value = selectedId;
+                }
+
+                const hasSipgateAccount = this.getSipAccountGroups(sipSecrets).some(group => {
+                    const registrar = group.account.registrar || this.getSipAccountValue(group, /^registrar$/) || '';
+                    return this.sipWebPhoneApi.resolveProvider(registrar)?.id === 'sipgate';
+                });
+                this.sipPhoneNotice.textContent = this.compatibleSipAccounts.length > 0
+                    ? 'Sipgate ist für SIP over WSS freigegeben. Die Verbindung startet erst nach deinem Klick.'
+                    : hasSipgateAccount
+                        ? 'Ein Sipgate-Konto wurde erkannt. Entschlüssele Benutzername und Passwort, um das Webphone zu verwenden.'
+                        : 'Kein kompatibler WSS-Anbieter erkannt. Telekom und unbekannte Registrare werden nicht mit geratenen WebSocket-Adressen verbunden.';
+                this.updateSipPhoneAccountPreview();
+                this.renderSipPhoneState();
+            }
+
+            getSelectedSipAccount() {
+                return this.compatibleSipAccounts.find(account => account.id === this.sipPhoneAccount.value) || null;
+            }
+
+            updateSipPhoneAccountPreview() {
+                const account = this.getSelectedSipAccount();
+                this.sipPhoneWebsocket.textContent = account?.websocket || '—';
+                this.btnSipConnect.disabled = !account || ['connecting', 'calling', 'active'].includes(this.sipPhoneState);
+            }
+
+            prepareSipPhoneAccount(accountId) {
+                this.switchView('telephony');
+                if (this.compatibleSipAccounts.some(account => account.id === accountId)) this.sipPhoneAccount.value = accountId;
+                this.updateSipPhoneAccountPreview();
+                this.sipDialTarget.focus();
+            }
+
+            handleSipPhoneState(event) {
+                this.sipPhoneState = event.state;
+                if (event.state !== 'calling') this.sipIncomingCall.classList.add('hidden');
+                if (event.detail) this.sipCallMessage.textContent = event.detail;
+                this.renderSipPhoneState();
+            }
+
+            renderSipPhoneState() {
+                const states = {
+                    idle: ['Nicht verbunden', 'bg-slate-400', 'text-slate-600'],
+                    connecting: ['Verbindung wird aufgebaut…', 'bg-amber-500', 'text-amber-700'],
+                    registered: ['Mit Sipgate verbunden', 'bg-emerald-500', 'text-emerald-700'],
+                    calling: ['Anruf wird aufgebaut…', 'bg-amber-500', 'text-amber-700'],
+                    active: ['Gespräch aktiv', 'bg-emerald-500', 'text-emerald-700'],
+                    failed: ['Verbindung fehlgeschlagen', 'bg-red-500', 'text-red-700']
+                };
+                const [label, dotClass, textClass] = states[this.sipPhoneState] || states.idle;
+                this.sipPhoneStatus.className = `inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold ${textClass}`;
+                this.sipPhoneStatus.innerHTML = `<span class="w-2 h-2 rounded-full ${dotClass}"></span> ${label}`;
+                const registered = ['registered', 'calling', 'active'].includes(this.sipPhoneState);
+                const busy = ['connecting', 'calling', 'active'].includes(this.sipPhoneState);
+                this.btnSipConnect.disabled = (!this.getSelectedSipAccount() && !registered) || busy;
+                this.btnSipConnect.innerHTML = registered
+                    ? '<i data-lucide="unplug" class="w-4 h-4"></i> Verbindung trennen'
+                    : '<i data-lucide="plug" class="w-4 h-4"></i> Mit Sipgate verbinden';
+                this.sipPhoneAccount.disabled = this.sipPhoneState !== 'idle' && this.sipPhoneState !== 'failed';
+                this.btnSipCall.disabled = this.sipPhoneState !== 'registered';
+                this.btnSipHangup.disabled = !['calling', 'active'].includes(this.sipPhoneState);
+                lucide.createIcons();
+            }
+
+            async toggleSipPhoneConnection() {
+                if (['registered', 'calling', 'active'].includes(this.sipPhoneState)) {
+                    await this.sipPhone.disconnect();
+                    this.sipCallMessage.textContent = 'Verbindung getrennt.';
+                    return;
+                }
+                const account = this.getSelectedSipAccount();
+                if (!account) return;
+                this.sipCallMessage.textContent = 'Sichere WebSocket-Verbindung wird aufgebaut…';
+                try {
+                    await this.sipPhone.connect(account);
+                    this.sipCallMessage.textContent = `${account.providerName}-Konto ist registriert.`;
+                } catch (error) {
+                    this.sipCallMessage.textContent = `Verbindung fehlgeschlagen: ${error.message || error}`;
+                }
+            }
+
+            async requestSipMicrophone() {
+                if (!navigator.mediaDevices?.getUserMedia) throw new Error('Mikrofonzugriff wird von diesem Browser nicht unterstützt.');
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                stream.getTracks().forEach(track => track.stop());
+            }
+
+            async startSipCall() {
+                try {
+                    await this.requestSipMicrophone();
+                    this.sipCallMessage.textContent = 'Anruf wird aufgebaut…';
+                    await this.sipPhone.call(this.sipDialTarget.value);
+                } catch (error) {
+                    this.sipCallMessage.textContent = `Anruf nicht gestartet: ${error.message || error}`;
+                }
+            }
+
+            async answerSipCall() {
+                try {
+                    await this.requestSipMicrophone();
+                    await this.sipPhone.answer();
+                    this.sipIncomingCall.classList.add('hidden');
+                } catch (error) {
+                    this.sipCallMessage.textContent = `Anruf konnte nicht angenommen werden: ${error.message || error}`;
+                }
+            }
+
+            async declineSipCall() {
+                await this.sipPhone.hangup();
+                this.sipIncomingCall.classList.add('hidden');
+            }
+
+            handleIncomingSipCall(caller) {
+                const contact = this.findSipContact(caller);
+                this.sipPhoneState = 'calling';
+                this.renderSipPhoneState();
+                this.sipIncomingCaller.textContent = contact ? `${contact.name} · ${caller}` : caller;
+                this.sipIncomingCall.classList.remove('hidden');
+                this.switchView('telephony');
+            }
+
+            normalizePhoneNumber(value) {
+                return String(value || '').replace(/[^0-9+]/g, '').replace(/^00/, '+');
+            }
+
+            getSipPhoneContacts() {
+                return (this.phonebookData?.books || []).flatMap(book => book.contacts.flatMap(contact =>
+                    contact.numbers.filter(number => number.value).map(number => ({
+                        name: contact.name,
+                        number: number.value,
+                        type: number.type,
+                        book: book.name
+                    }))
+                ));
+            }
+
+            findSipContact(number) {
+                const target = this.normalizePhoneNumber(number);
+                if (!target) return null;
+                return this.getSipPhoneContacts().find(contact => {
+                    const candidate = this.normalizePhoneNumber(contact.number);
+                    return candidate === target || (candidate.length >= 7 && target.endsWith(candidate.slice(-7))) || (target.length >= 7 && candidate.endsWith(target.slice(-7)));
+                }) || null;
+            }
+
+            renderSipPhoneContacts() {
+                const query = (this.sipContactSearch.value || '').trim().toLocaleLowerCase('de');
+                const contacts = this.getSipPhoneContacts().filter(contact => !query ||
+                    [contact.name, contact.number, contact.book, this.getPhoneNumberTypeLabel(contact.type)]
+                        .join(' ').toLocaleLowerCase('de').includes(query));
+                this.sipContactList.innerHTML = '';
+                if (contacts.length === 0) {
+                    const empty = document.createElement('p');
+                    empty.className = 'p-6 text-center text-sm text-slate-500';
+                    empty.textContent = query ? 'Kein Kontakt passt zur Suche.' : 'Keine Rufnummern in den eingebetteten Telefonbüchern gefunden.';
+                    this.sipContactList.appendChild(empty);
+                    return;
+                }
+                contacts.forEach(contact => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'w-full p-4 text-left hover:bg-cyan-50 flex items-center justify-between gap-4';
+                    const identity = document.createElement('span');
+                    identity.className = 'min-w-0';
+                    const name = document.createElement('span');
+                    name.className = 'block font-semibold text-slate-900 truncate';
+                    name.textContent = contact.name;
+                    const meta = document.createElement('span');
+                    meta.className = 'block text-xs text-slate-500 mt-0.5 truncate';
+                    meta.textContent = `${contact.book} · ${this.getPhoneNumberTypeLabel(contact.type)}`;
+                    identity.append(name, meta);
+                    const number = document.createElement('span');
+                    number.className = 'font-mono text-sm text-cyan-700 shrink-0';
+                    number.textContent = contact.number;
+                    button.append(identity, number);
+                    button.addEventListener('click', () => {
+                        this.selectedSipContact = contact;
+                        this.sipDialTarget.value = contact.number;
+                        this.sipSelectedContact.textContent = `${contact.name} · ${contact.book}`;
+                        this.sipDialTarget.focus();
+                    });
+                    this.sipContactList.appendChild(button);
+                });
             }
 
             groupStructuredCredentials(secrets) {
@@ -2022,6 +2367,7 @@
                 this.renderStructuredCredentialCards(this.onlineServiceCards, onlineServiceSecrets);
                 this.renderStructuredCredentialCards(this.providerAccessCards, providerAccessSecrets);
                 this.renderStructuredCredentialCards(this.vpnCards, vpnSecrets);
+                this.renderSipPhoneAccounts(sipSecrets);
             }
 
             toggleAllSecrets() {
@@ -2252,6 +2598,7 @@
 
             clearAll() {
                 this.cancelAutoValidation();
+                void this.sipPhone.disconnect();
                 this.editor.value = '';
                 this.editor.readOnly = false;
                 this.currentFileName = '';
@@ -2261,6 +2608,10 @@
                 this.state.reset();
                 this.phonebookData = { files: [], phonebookFiles: [], books: [], errors: [] };
                 if (this.phonebookSearch) this.phonebookSearch.value = '';
+                if (this.sipContactSearch) this.sipContactSearch.value = '';
+                if (this.sipDialTarget) this.sipDialTarget.value = '';
+                this.compatibleSipAccounts = [];
+                this.selectedSipContact = null;
                 this.renderPhonebookViewer();
                 this.renderState();
                 this.editor.classList.remove('bg-slate-900', 'text-green-400');
@@ -2581,6 +2932,11 @@
                 typeof window.FritzEmbeddedFiles?.extractPhonebooks !== 'function' ||
                 typeof window.FritzEmbeddedFiles?.createFilePreview !== 'function') {
                 missingCapabilities.unshift('FritzEmbeddedFiles API v1');
+            }
+            if (window.FritzSipWebPhone?.API_VERSION !== '1' ||
+                typeof window.FritzSipWebPhone?.createCompatibleAccount !== 'function' ||
+                typeof window.FritzSipWebPhone?.SipWebPhone !== 'function') {
+                missingCapabilities.unshift('FritzSipWebPhone API v1');
             }
             if (missingCapabilities.length > 0) {
                 console.error('Inkompatible ConfigState.js geladen:', missingCapabilities);
