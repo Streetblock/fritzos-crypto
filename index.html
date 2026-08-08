@@ -16,9 +16,11 @@
     <!-- Externe FritzOSCrypto.js Bibliothek        -->
     <!-- (Muss im selben Ordner liegen!)            -->
     <!-- ========================================== -->
-    <script src="./FritzOSCrypto.js?v=20260808-6"></script>
+    <script src="./FritzOSCrypto.js?v=20260808-7"></script>
     <script src="./ConfigState.js?v=20260807-4"></script>
     <script src="./DecryptedEditor.js?v=20260808-1"></script>
+    <script src="./FritzConfigDocument.js?v=20260808-1"></script>
+    <script src="./FritzSipAccounts.js?v=20260808-1"></script>
     <script src="./FritzExportChecksum.js?v=20260807-4"></script>
     <script src="./FritzExportEditor.js?v=20260808-2"></script>
     <script src="./FritzEmbeddedFiles.js?v=20260808-2"></script>
@@ -290,9 +292,25 @@
                                 <div id="wifiCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
                             </section>
                             <section id="sipCardsSection" class="hidden">
-                                <div class="flex items-center gap-2 mb-3">
-                                    <i data-lucide="phone" class="w-5 h-5 text-violet-600"></i>
-                                    <h3 class="font-bold text-slate-800">Telefonie-Konten</h3>
+                                <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="phone" class="w-5 h-5 text-violet-600"></i>
+                                        <h3 class="font-bold text-slate-800">Telefonie-Konten</h3>
+                                    </div>
+                                    <button id="btnNewSipAccount" type="button" class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50">
+                                        <i data-lucide="plus" class="w-4 h-4"></i> Neue Verbindung
+                                    </button>
+                                </div>
+                                <div id="newSipAccountPanel" class="hidden mb-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+                                    <p class="text-sm font-bold text-slate-800">Vorlage für die neue Verbindung</p>
+                                    <p class="mt-1 text-xs text-slate-500">Der vollständige Providerblock wird als deaktivierter Entwurf übernommen. Zugangsdaten kannst du anschließend in der neuen Kachel ändern.</p>
+                                    <div class="mt-3 flex items-end gap-2 flex-wrap">
+                                        <label class="min-w-[240px] flex-1 text-xs font-semibold text-slate-600">Provider-Vorlage
+                                            <select id="newSipAccountTemplate" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"></select>
+                                        </label>
+                                        <button id="btnCreateSipAccount" type="button" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700"><i data-lucide="copy-plus" class="w-4 h-4"></i> Entwurf anlegen</button>
+                                        <button id="btnCancelNewSipAccount" type="button" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600">Abbrechen</button>
+                                    </div>
                                 </div>
                                 <div id="sipCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
                             </section>
@@ -619,6 +637,11 @@
                 this.wifiCards = document.getElementById('wifiCards');
                 this.sipCardsSection = document.getElementById('sipCardsSection');
                 this.sipCards = document.getElementById('sipCards');
+                this.btnNewSipAccount = document.getElementById('btnNewSipAccount');
+                this.newSipAccountPanel = document.getElementById('newSipAccountPanel');
+                this.newSipAccountTemplate = document.getElementById('newSipAccountTemplate');
+                this.btnCreateSipAccount = document.getElementById('btnCreateSipAccount');
+                this.btnCancelNewSipAccount = document.getElementById('btnCancelNewSipAccount');
                 this.internalTelephonyCardsSection = document.getElementById('internalTelephonyCardsSection');
                 this.internalTelephonyCards = document.getElementById('internalTelephonyCards');
                 this.phonebookCardsSection = document.getElementById('phonebookCardsSection');
@@ -705,6 +728,8 @@
                 this.exportEditor = window.FritzExportEditor.FritzExportEditor;
                 this.embeddedFiles = window.FritzEmbeddedFiles;
                 this.sipWebPhoneApi = window.FritzSipWebPhone;
+                this.configDocumentApi = window.FritzConfigDocument;
+                this.sipAccountsApi = window.FritzSipAccounts;
                 this.state = new window.FritzConfigState.ConfigState(this.parser);
                 this.sipPhone = new this.sipWebPhoneApi.SipWebPhone({
                     SIP: window.SIP,
@@ -728,6 +753,9 @@
                 this.btnChangeFile?.addEventListener('click', () => this.fileInput.click());
                 this.btnToggleView?.addEventListener('click', () => this.toggleView());
                 this.btnEditorTheme?.addEventListener('click', () => this.toggleEditorTheme());
+                this.btnNewSipAccount?.addEventListener('click', () => this.toggleNewSipAccountPanel(true));
+                this.btnCancelNewSipAccount?.addEventListener('click', () => this.toggleNewSipAccountPanel(false));
+                this.btnCreateSipAccount?.addEventListener('click', () => this.createSipAccountDraft());
                 this.btnToggleAllSecrets?.addEventListener('click', () => this.toggleAllSecrets());
                 this.btnTogglePasswordChange?.addEventListener('click', () => this.togglePasswordChangePanel());
                 this.btnCancelPasswordChange?.addEventListener('click', () => this.closePasswordChangePanel());
@@ -1987,13 +2015,121 @@
             }
 
             getSipAccountGroups(sipSecrets) {
+                const document = this.configDocumentApi.parse(this.state.workingText);
+                const structures = this.sipAccountsApi.project(document);
                 const groups = new Map();
                 sipSecrets.forEach(secret => {
                     const key = secret.account?.id || secret.stableKey;
-                    if (!groups.has(key)) groups.set(key, { id: key, account: secret.account || {}, secrets: [] });
+                    if (!groups.has(key)) groups.set(key, { id: key, account: secret.account || {}, secrets: [], document, structure: null });
                     groups.get(key).secrets.push(secret);
                 });
-                return [...groups.values()];
+                const result = [...groups.values()];
+                result.forEach(group => {
+                    group.structure = group.secrets.map(secret => this.sipAccountsApi.findBySecret(structures, secret)).find(Boolean) || null;
+                    if (group.structure) group.id = group.structure.id;
+                });
+                return result;
+            }
+
+            toggleNewSipAccountPanel(visible) {
+                this.newSipAccountPanel.classList.toggle('hidden', !visible);
+                if (visible) this.newSipAccountTemplate.focus();
+            }
+
+            applySipConfigText(updatedText, message) {
+                const keepDecryptedView = this.state.viewMode === 'preview';
+                this.state.setWorkingText(updatedText);
+                this.updateCharCount();
+                this.renderState();
+                if (keepDecryptedView) this.showDecryptedPreview();
+                this.scheduleAutoValidation();
+                this.showStatus(message, 'success');
+            }
+
+            cloneSipAccount(group, asNew = false) {
+                if (!group?.structure) return;
+                const draftName = asNew ? 'Neues SIP-Konto' : `Kopie von ${group.structure.values.name || group.structure.name}`;
+                const result = this.sipAccountsApi.clone(group.document, group.structure, {
+                    enabled: 'no',
+                    name: draftName
+                });
+                this.applySipConfigText(
+                    result.updatedText,
+                    `${result.accountName} wurde als deaktivierter Entwurf angelegt. Bitte Zugangsdaten prüfen und ändern.`
+                );
+                this.toggleNewSipAccountPanel(false);
+            }
+
+            createSipAccountDraft() {
+                const groups = this.getSipAccountGroups(this.state.secrets.filter(secret => secret.category === 'sip'));
+                const selected = groups.find(group => group.structure?.id === this.newSipAccountTemplate.value);
+                if (!selected) {
+                    this.showStatus('Bitte zuerst eine vorhandene Provider-Vorlage auswählen.', 'warning');
+                    return;
+                }
+                this.cloneSipAccount(selected, true);
+            }
+
+            saveSipSimpleSettings(group, panel) {
+                if (!group?.structure) return;
+                const changes = {};
+                panel.querySelectorAll('[data-sip-setting]').forEach(input => {
+                    changes[input.dataset.sipSetting] = input.type === 'checkbox' ? (input.checked ? 'yes' : 'no') : input.value;
+                });
+                try {
+                    const updatedText = this.sipAccountsApi.update(group.document, group.structure, changes);
+                    this.applySipConfigText(updatedText, `${group.structure.name}: SIP-Einstellungen übernommen.`);
+                } catch (error) {
+                    this.showStatus(`SIP-Einstellungen konnten nicht übernommen werden: ${error.message}`, 'error');
+                }
+            }
+
+            createSipSettingsPanel(group) {
+                const panel = document.createElement('div');
+                panel.className = 'hidden mt-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4';
+                const title = document.createElement('p');
+                title.className = 'text-sm font-bold text-slate-800';
+                title.textContent = 'Einfache Verbindungseinstellungen';
+                const hint = document.createElement('p');
+                hint.className = 'mt-1 text-xs text-slate-500';
+                hint.textContent = 'Weitere technische Felder bleiben erhalten und können in der Expertenansicht bearbeitet werden.';
+                const grid = document.createElement('div');
+                grid.className = 'mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3';
+                const definitions = [
+                    ['enabled', 'Verbindung aktiv', 'checkbox'],
+                    ['name', 'Anzeigename', 'text'],
+                    ['registrar', 'Registrar', 'text'],
+                    ['outboundproxy', 'Outbound-Proxy', 'text'],
+                    ['transport_type', 'Transport', 'text']
+                ];
+                definitions.forEach(([field, labelText, type]) => {
+                    const assignment = group.structure?.fields[field];
+                    if (!assignment || String(assignment.value).startsWith('$$$$')) return;
+                    const label = document.createElement('label');
+                    label.className = type === 'checkbox'
+                        ? 'flex items-center gap-2 rounded-lg border border-violet-100 bg-white px-3 py-2 text-sm font-semibold text-slate-700'
+                        : 'text-xs font-semibold text-slate-600';
+                    const input = document.createElement('input');
+                    input.type = type;
+                    input.dataset.sipSetting = field;
+                    if (type === 'checkbox') {
+                        input.checked = /^(?:yes|1|true|on)$/i.test(assignment.value);
+                        input.className = 'h-4 w-4 rounded border-slate-300 text-violet-600';
+                        label.append(input, document.createTextNode(labelText));
+                    } else {
+                        input.value = assignment.value;
+                        input.className = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800';
+                        label.append(document.createTextNode(labelText), input);
+                    }
+                    grid.appendChild(label);
+                });
+                const actions = document.createElement('div');
+                actions.className = 'mt-4 flex flex-wrap gap-2';
+                const save = this.createCredentialAction('Einstellungen übernehmen', 'save', () => this.saveSipSimpleSettings(group, panel), !group.structure);
+                const clone = this.createCredentialAction('Kachel klonen', 'copy-plus', () => this.cloneSipAccount(group), !group.structure);
+                actions.append(save, clone);
+                panel.append(title, hint, grid, actions);
+                return panel;
             }
 
             createCompatibleSipAccount(group) {
@@ -2013,7 +2149,16 @@
 
             renderSipCards(sipSecrets) {
                 this.sipCards.innerHTML = '';
-                for (const group of this.getSipAccountGroups(sipSecrets)) {
+                const groups = this.getSipAccountGroups(sipSecrets);
+                this.newSipAccountTemplate.innerHTML = '';
+                groups.filter(group => group.structure).forEach(group => {
+                    const option = document.createElement('option');
+                    option.value = group.structure.id;
+                    option.textContent = `${group.structure.name} · ${group.structure.values.registrar || 'Registrar unbekannt'}`;
+                    this.newSipAccountTemplate.appendChild(option);
+                });
+                this.btnNewSipAccount.disabled = this.newSipAccountTemplate.options.length === 0;
+                for (const group of groups) {
                     const decryptedUsername = this.getSipAccountValue(group, /^(?:username|user)$/);
                     const decryptedRegistrar = this.getSipAccountValue(group, /^registrar$/);
                     const username = group.account.username || decryptedUsername;
@@ -2029,7 +2174,21 @@
                     const subtitle = document.createElement('p');
                     subtitle.className = 'text-sm text-slate-500 mt-1 break-words';
                     subtitle.textContent = registrar ? `Registrar: ${registrar}` : 'Registrar: nicht verfügbar';
-                    card.append(eyebrow, title, subtitle);
+                    const heading = document.createElement('div');
+                    heading.className = 'flex items-start justify-between gap-3';
+                    const headingText = document.createElement('div');
+                    headingText.append(eyebrow, title, subtitle);
+                    const settingsButton = this.createCredentialAction('', 'settings', null, !group.structure);
+                    settingsButton.classList.add('shrink-0', 'px-2.5');
+                    settingsButton.title = 'Einfache SIP-Einstellungen';
+                    settingsButton.setAttribute('aria-label', `${title.textContent} Einstellungen öffnen`);
+                    const settingsPanel = this.createSipSettingsPanel(group);
+                    settingsButton.addEventListener('click', () => {
+                        settingsPanel.classList.toggle('hidden');
+                        settingsButton.classList.toggle('bg-violet-50', !settingsPanel.classList.contains('hidden'));
+                    });
+                    heading.append(headingText, settingsButton);
+                    card.append(heading);
 
                     const fields = document.createElement('div');
                     fields.className = 'space-y-3 mt-4';
@@ -2069,6 +2228,7 @@
                         phoneButton.classList.add('w-full', 'mt-2');
                         card.appendChild(phoneButton);
                     }
+                    card.appendChild(settingsPanel);
                     this.sipCards.appendChild(card);
                 }
             }
@@ -3149,6 +3309,13 @@
             if (typeof window.FritzDecryptedEditor?.buildDocument !== 'function' ||
                 typeof window.FritzDecryptedEditor?.applyEdit !== 'function') {
                 missingCapabilities.unshift('FritzDecryptedEditor');
+            }
+            if (window.FritzConfigDocument?.API_VERSION !== '1' ||
+                typeof window.FritzConfigDocument?.parse !== 'function' ||
+                window.FritzSipAccounts?.API_VERSION !== '1' ||
+                typeof window.FritzSipAccounts?.project !== 'function' ||
+                typeof window.FritzSipAccounts?.clone !== 'function') {
+                missingCapabilities.unshift('SIP-Konfigurationsmodell API v1');
             }
             if (window.FritzEmbeddedFiles?.API_VERSION !== '1' ||
                 typeof window.FritzEmbeddedFiles?.extractPhonebooks !== 'function' ||

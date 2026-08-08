@@ -41,7 +41,7 @@
     return document.applyPatches(patches);
   }
 
-  function clone(document, account) {
+  function clone(document, account, draftChanges) {
     const accounts = project(document);
     const used = new Set(accounts.map(item => item.name.toLowerCase()));
     let ordinal = 1;
@@ -51,10 +51,15 @@
     const renamed = raw.slice(0, account.block.nameStart - account.start) + nextName +
       raw.slice(account.block.nameEnd - account.start);
     const eol = document.source.includes("\r\n") ? "\r\n" : "\n";
-    return {
-      updatedText: document.applyPatches([{ start: account.end, end: account.end, text: eol + renamed }]),
-      accountName: nextName
-    };
+    let updatedText = document.applyPatches([{ start: account.end, end: account.end, text: eol + renamed }]);
+    if (draftChanges && Object.keys(draftChanges).length > 0) {
+      const updatedDocument = ConfigApi.parse(updatedText);
+      const created = project(updatedDocument).find(item => item.name.toLowerCase() === nextName);
+      updatedText = update(updatedDocument, created, Object.fromEntries(
+        Object.entries(draftChanges).filter(([field]) => created.fields[field])
+      ));
+    }
+    return { updatedText, accountName: nextName };
   }
 
   return { API_VERSION, project, findBySecret, update, clone };

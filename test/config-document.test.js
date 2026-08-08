@@ -1,6 +1,8 @@
 const assert = require('node:assert/strict');
 const Config = require('../FritzConfigDocument.js');
 const Sip = require('../FritzSipAccounts.js');
+const { FritzBoxParser } = require('../FritzOSCrypto.js');
+const { ConfigState } = require('../ConfigState.js');
 
 const source = [
   '**** FRITZ!Box Test CONFIGURATION EXPORT',
@@ -39,13 +41,29 @@ assert.match(changed, /ua4 \{[\s\S]*enabled = no;[\s\S]*registrar = "new\.exampl
 assert.match(changed, /\/\* preserved comment \*\//, 'unrelated syntax must remain untouched');
 assert.match(changed, /passwd = "\$\$\$\$PASSWORD";/, 'encrypted fields must remain untouched');
 
-const cloned = Sip.clone(document, accounts[0]);
+const cloned = Sip.clone(document, accounts[0], { enabled: 'no', registrar: 'draft.example.net' });
 assert.equal(cloned.accountName, 'ua1');
 const clonedDocument = Config.parse(cloned.updatedText);
 assert.deepEqual(Sip.project(clonedDocument).map(account => account.name), ['ua4', 'ua1', 'ua5']);
+assert.equal(Sip.project(clonedDocument)[1].values.enabled, 'no');
+assert.equal(Sip.project(clonedDocument)[1].values.registrar, 'draft.example.net');
 assert.equal((cloned.updatedText.match(/\$\$\$\$PASSWORD/g) || []).length, 2, 'cloning must preserve encrypted values verbatim');
 
 const secret = { start: source.indexOf('$$$$PASSWORD'), end: source.indexOf('$$$$PASSWORD') + 12 };
 assert.equal(Sip.findBySecret(accounts, secret).name, 'ua4');
+
+const state = new ConfigState(FritzBoxParser);
+state.load(source);
+const ua4Password = state.secrets.find(item => item.value === '$$$$PASSWORD');
+const ua5Password = state.secrets.find(item => item.value === '$$$$OTHER');
+state.markDecrypted(ua4Password.id, { plaintext: 'first', type: 4 });
+state.markDecrypted(ua5Password.id, { plaintext: 'second', type: 4 });
+state.setWorkingText(cloned.updatedText);
+const preservedUa4 = state.secrets.find(item => item.stableKey.includes('|ua4|passwd|'));
+const preservedUa5 = state.secrets.find(item => item.stableKey.includes('|ua5|passwd|'));
+const newUa1 = state.secrets.find(item => item.stableKey.includes('|ua1|passwd|'));
+assert.equal(preservedUa4.plaintext, 'first', 'cloning must retain the source account decryption state');
+assert.equal(preservedUa5.plaintext, 'second', 'cloning must not shift a following account onto the wrong plaintext');
+assert.equal(newUa1.status, 'pending', 'the new ciphertext occurrence must be decrypted independently');
 
 console.log('Lossless config document and SIP projection tests passed.');

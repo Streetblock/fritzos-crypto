@@ -72,6 +72,7 @@ assert.equal(secondSipPassword.account.registrar, 'sip.second.example');
 assert.equal(secondSipUsername.account.usernameSecretId, secondSipUsername.id);
 assert.equal(secondSipPassword.account.id, secondSipUsername.account.id, 'SIP fields must share one account');
 assert.notEqual(firstSip.account.id, secondSipPassword.account.id, 'separate SIP accounts must not be merged');
+assert.match(firstSip.stableKey, /voip\.cfg\|sip\|ua-1\|passwd\|1/, 'SIP identities must include their block so cloned accounts do not shift existing state');
 
 assert.equal(inventory.find(item => item.value === masterSecret).category, 'system');
 assert.equal(inventory.find(item => item.value === vpnSecret).category, 'vpn');

@@ -1223,6 +1223,7 @@
                   registrar: null,
                   usernameSecretId: null,
                   registrarSecretId: null,
+                  fieldOccurrences: Object.create(null),
                   secrets: []
               };
           };
@@ -1324,7 +1325,16 @@
                   const occurrenceBase = `${section.toLowerCase()}|${field.toLowerCase()}`;
                   const occurrence = (occurrenceCounts.get(occurrenceBase) || 0) + 1;
                   occurrenceCounts.set(occurrenceBase, occurrence);
-                  const stableKey = `${occurrenceBase}|${occurrence}`;
+                  let stableKey = `${occurrenceBase}|${occurrence}`;
+                  if (activeSipBlock && classification.category === 'sip') {
+                      const normalizedField = field.toLowerCase();
+                      const localOccurrence = (activeSipBlock.fieldOccurrences[normalizedField] || 0) + 1;
+                      activeSipBlock.fieldOccurrences[normalizedField] = localOccurrence;
+                      const blockIdentity = /^ua\d+$/i.test(activeSipBlock.name || '')
+                          ? activeSipBlock.name.toLowerCase()
+                          : `${String(activeSipBlock.name || 'account').toLowerCase()}-${activeSipBlock.ordinal}`;
+                      stableKey = `${section.toLowerCase()}|sip|${blockIdentity}|${normalizedField}|${localOccurrence}`;
+                  }
                   const item = {
                       id: `secret-${inventory.length + 1}`,
                       stableKey,

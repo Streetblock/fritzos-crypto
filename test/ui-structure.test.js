@@ -98,7 +98,10 @@ for (const id of [
   'editorLineNumbers',
   'editorSectionNav',
   'editorContent',
-  'btnEditorTheme'
+  'btnEditorTheme',
+  'btnNewSipAccount',
+  'newSipAccountPanel',
+  'newSipAccountTemplate'
 ]) {
   assert.equal(ids.includes(id), true, `required UI element #${id} is missing`);
 }
@@ -128,6 +131,10 @@ assert.match(html, /FritzDecryptedEditor\.buildDocument/, 'decrypted expert view
 assert.match(html, /Original · schreibgeschützt/, 'the immutable loaded original needs an explicit view state');
 assert.match(html, /this\.editorTheme === 'console'/, 'the expert editor needs an independent console/light theme toggle');
 assert.match(html, /this\.validateWorkingCopy\(generation\)/, 'structural edits need automatic roundtrip and checksum validation');
+assert.match(html, /this\.sipAccountsApi\.update\(group\.document, group\.structure, changes\)/, 'simple SIP settings must update the shared config document');
+assert.match(html, /this\.sipAccountsApi\.clone\(group\.document, group\.structure/, 'SIP cloning must use the lossless block model');
+assert.match(html, /\['registrar', 'Registrar', 'text'\]/, 'the SIP card settings need an explicit small-field allowlist');
+assert.match(html, /enabled:\s*'no'/, 'cloned SIP accounts must start disabled');
 assert.match(html, /this\.jumpToEditorLine\(secret\.line\)/, 'secret location links must navigate to the exact source line');
 assert.equal((html.match(/this\.createSecretLocationLink\(secret/g) || []).length >= 5, true, 'secret list, audit and credential cards must expose source links');
 assert.equal(html.includes('<Binärer Master-Key (entschlüsselt)>'), false, 'master key placeholder must not hide the actual decrypted key');
