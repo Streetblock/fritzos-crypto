@@ -15,10 +15,10 @@
     <!-- Externe FritzOSCrypto.js Bibliothek        -->
     <!-- (Muss im selben Ordner liegen!)            -->
     <!-- ========================================== -->
-    <script src="./FritzOSCrypto.js?v=20260808-5"></script>
+    <script src="./FritzOSCrypto.js?v=20260808-6"></script>
     <script src="./ConfigState.js?v=20260807-4"></script>
     <script src="./FritzExportChecksum.js?v=20260807-4"></script>
-    <script src="./FritzExportEditor.js?v=20260807-4"></script>
+    <script src="./FritzExportEditor.js?v=20260808-1"></script>
 
     <style>
         .glass-panel {
@@ -204,7 +204,42 @@
                             </div>
                         </section>
                         <section id="exportMasterKeySection" class="hidden bg-white rounded-2xl shadow-sm border border-blue-200 overflow-hidden">
-                            <div id="exportMasterKeyCard"></div>
+                            <div class="p-5 flex items-center justify-between gap-4 flex-wrap bg-gradient-to-r from-blue-50 to-white">
+                                <div>
+                                    <p class="text-xs font-semibold uppercase tracking-wider text-blue-600">Sicherungsschutz</p>
+                                    <h3 class="font-bold text-slate-900 mt-1">Sicherungskennwort der Exportdatei</h3>
+                                    <p class="text-xs text-slate-500 mt-1">Der Export-Master-Key bleibt unverändert und wird nur mit einem neuen Kennwort geschützt.</p>
+                                </div>
+                                <button id="btnTogglePasswordChange" type="button" class="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50">
+                                    <i data-lucide="key-round" class="w-4 h-4"></i> Sicherungskennwort ändern
+                                </button>
+                            </div>
+                            <form id="passwordChangePanel" class="hidden border-t border-blue-100 bg-blue-50/40 p-5">
+                                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                                    <label>
+                                        <span class="block text-xs font-semibold text-slate-600 mb-1.5">Bisheriges Kennwort</span>
+                                        <input id="currentExportPassword" type="password" autocomplete="current-password" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                    </label>
+                                    <label>
+                                        <span class="block text-xs font-semibold text-slate-600 mb-1.5">Neues Kennwort</span>
+                                        <input id="newExportPassword" type="password" autocomplete="new-password" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                    </label>
+                                    <label>
+                                        <span class="block text-xs font-semibold text-slate-600 mb-1.5">Neues Kennwort wiederholen</span>
+                                        <input id="confirmExportPassword" type="password" autocomplete="new-password" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                    </label>
+                                </div>
+                                <div class="mt-4 flex items-center justify-between gap-4 flex-wrap">
+                                    <p id="passwordChangeStatus" class="text-xs text-slate-500">Nur moderne Sicherungen mit Export-Master-Key werden unterstützt.</p>
+                                    <div class="flex items-center gap-2">
+                                        <button id="btnCancelPasswordChange" type="button" class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50">Abbrechen</button>
+                                        <button id="btnChangeExportPassword" type="submit" class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                            <i data-lucide="shield-check" class="w-4 h-4"></i> Kennwort ändern und prüfen
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                            <div id="exportMasterKeyCard" class="border-t border-blue-100"></div>
                         </section>
                         <details id="reencryptSummary" class="hidden group bg-amber-50 border border-amber-200 rounded-2xl shadow-sm overflow-hidden">
                             <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-4">
@@ -431,6 +466,14 @@
                 this.credentialCards = document.getElementById('credentialCards');
                 this.exportMasterKeySection = document.getElementById('exportMasterKeySection');
                 this.exportMasterKeyCard = document.getElementById('exportMasterKeyCard');
+                this.btnTogglePasswordChange = document.getElementById('btnTogglePasswordChange');
+                this.passwordChangePanel = document.getElementById('passwordChangePanel');
+                this.currentExportPassword = document.getElementById('currentExportPassword');
+                this.newExportPassword = document.getElementById('newExportPassword');
+                this.confirmExportPassword = document.getElementById('confirmExportPassword');
+                this.passwordChangeStatus = document.getElementById('passwordChangeStatus');
+                this.btnCancelPasswordChange = document.getElementById('btnCancelPasswordChange');
+                this.btnChangeExportPassword = document.getElementById('btnChangeExportPassword');
                 this.wifiCardsSection = document.getElementById('wifiCardsSection');
                 this.wifiCards = document.getElementById('wifiCards');
                 this.sipCardsSection = document.getElementById('sipCardsSection');
@@ -475,6 +518,8 @@
                 this.autoValidationDeadline = 0;
                 this.autoValidationGeneration = 0;
                 this.autoValidationRunning = false;
+                this.passwordChangeRunning = false;
+                this.originalExportPassword = null;
                 this.library = window.FritzOSCrypto;
                 this.parser = FritzBoxParser;
                 this.crypto = AVMCrypto;
@@ -497,6 +542,9 @@
                 this.btnChangeFile?.addEventListener('click', () => this.fileInput.click());
                 this.btnToggleView?.addEventListener('click', () => this.toggleView());
                 this.btnToggleAllSecrets?.addEventListener('click', () => this.toggleAllSecrets());
+                this.btnTogglePasswordChange?.addEventListener('click', () => this.togglePasswordChangePanel());
+                this.btnCancelPasswordChange?.addEventListener('click', () => this.closePasswordChangePanel());
+                this.passwordChangePanel?.addEventListener('submit', event => this.handleExportPasswordChange(event));
                 this.btnClearLog?.addEventListener('click', () => this.clearLog());
                 this.fileInput?.addEventListener('change', (event) => this.handleFileInput(event));
                 this.editor?.addEventListener('input', () => this.handleEditorInput());
@@ -716,6 +764,8 @@
                 reader.onload = (loadEvent) => {
                     const text = String(loadEvent.target?.result || '');
                     this.state.load(text);
+                    this.originalExportPassword = null;
+                    this.closePasswordChangePanel();
                     this.revealedSecrets.clear();
                     this.cancelAutoValidation();
                     this.hideReencryptSummary();
@@ -951,6 +1001,8 @@
                 if ((this.state.hasUnsavedChanges() || losesResults) &&
                     !window.confirm('Originaldatei wiederherstellen? Alle Änderungen und Entschlüsselungsergebnisse werden verworfen.')) return;
                 const original = this.state.restoreOriginal();
+                if (this.originalExportPassword !== null) this.passwordInput.value = this.originalExportPassword;
+                this.closePasswordChangePanel();
                 this.editor.value = original;
                 this.editor.readOnly = false;
                 this.editor.classList.remove('bg-slate-900', 'text-green-400');
@@ -1028,6 +1080,138 @@
 
             isExportMasterKey(secret) {
                 return secret.section === 'Header' && String(secret.field).toLowerCase() === 'password';
+            }
+
+            setPasswordChangeStatus(message, type = 'idle') {
+                const styles = {
+                    idle: 'text-slate-500',
+                    running: 'text-blue-700 font-semibold',
+                    success: 'text-emerald-700 font-semibold',
+                    error: 'text-red-700 font-semibold'
+                };
+                this.passwordChangeStatus.className = `text-xs ${styles[type] || styles.idle}`;
+                this.passwordChangeStatus.textContent = message;
+            }
+
+            setPasswordChangeBusy(running) {
+                this.passwordChangeRunning = running;
+                [
+                    this.currentExportPassword,
+                    this.newExportPassword,
+                    this.confirmExportPassword,
+                    this.btnCancelPasswordChange,
+                    this.btnChangeExportPassword
+                ].forEach(element => { if (element) element.disabled = running; });
+                this.btnChangeExportPassword.innerHTML = running
+                    ? '<i data-lucide="loader-circle" class="w-4 h-4 animate-spin"></i> Kennwort wird geprüft…'
+                    : '<i data-lucide="shield-check" class="w-4 h-4"></i> Kennwort ändern und prüfen';
+                lucide.createIcons();
+            }
+
+            togglePasswordChangePanel() {
+                if (this.passwordChangeRunning) return;
+                if (!this.passwordChangePanel.classList.contains('hidden')) {
+                    this.closePasswordChangePanel();
+                    return;
+                }
+                this.passwordChangePanel.classList.remove('hidden');
+                this.currentExportPassword.value = this.passwordInput.value;
+                this.newExportPassword.value = '';
+                this.confirmExportPassword.value = '';
+                this.setPasswordChangeStatus('Der Export-Master-Key selbst wird nicht verändert.', 'idle');
+                this.newExportPassword.focus();
+            }
+
+            closePasswordChangePanel() {
+                if (!this.passwordChangePanel || this.passwordChangeRunning) return;
+                this.passwordChangePanel.classList.add('hidden');
+                this.currentExportPassword.value = '';
+                this.newExportPassword.value = '';
+                this.confirmExportPassword.value = '';
+                this.setPasswordChangeStatus('Nur moderne Sicherungen mit Export-Master-Key werden unterstützt.', 'idle');
+            }
+
+            async handleExportPasswordChange(event) {
+                event.preventDefault();
+                if (this.passwordChangeRunning) return;
+                const oldPassword = this.currentExportPassword.value;
+                const newPassword = this.newExportPassword.value;
+                const confirmation = this.confirmExportPassword.value;
+
+                if (this.autoValidationRunning || this.state.getChangedSecrets().length > 0) {
+                    this.setPasswordChangeStatus('Bitte warte zuerst, bis offene Secret-Änderungen automatisch geprüft wurden.', 'error');
+                    return;
+                }
+                if (!oldPassword) {
+                    this.setPasswordChangeStatus('Bitte gib das bisherige Sicherungskennwort ein.', 'error');
+                    this.currentExportPassword.focus();
+                    return;
+                }
+                if (!newPassword) {
+                    this.setPasswordChangeStatus('Das neue Sicherungskennwort darf nicht leer sein.', 'error');
+                    this.newExportPassword.focus();
+                    return;
+                }
+                if (newPassword !== confirmation) {
+                    this.setPasswordChangeStatus('Die beiden Eingaben für das neue Kennwort stimmen nicht überein.', 'error');
+                    this.confirmExportPassword.focus();
+                    return;
+                }
+                if (newPassword === oldPassword) {
+                    this.setPasswordChangeStatus('Das neue Kennwort ist mit dem bisherigen identisch.', 'error');
+                    this.newExportPassword.focus();
+                    return;
+                }
+
+                const sourceText = this.state.workingText;
+                const ensureFresh = () => {
+                    if (!this.passwordChangeRunning || this.state.workingText !== sourceText) {
+                        throw new Error('PASSWORD_CHANGE_STALE');
+                    }
+                };
+                this.cancelAutoValidation();
+                this.state.invalidateVerification();
+                this.setPasswordChangeBusy(true);
+                this.setPasswordChangeStatus('Master-Key-Roundtrip und CRC32-Prüfung laufen…', 'running');
+                this.renderSafetyState();
+
+                try {
+                    const result = await this.exportEditor.changeExportPassword({
+                        text: sourceText,
+                        oldPassword,
+                        newPassword,
+                        assertFresh: ensureFresh,
+                        onStep: step => {
+                            this.state.setVerificationStep(step.step, step.status, step.message);
+                            this.renderSafetyState();
+                        }
+                    });
+                    ensureFresh();
+                    if (this.originalExportPassword === null) this.originalExportPassword = oldPassword;
+                    this.state.setWorkingText(result.updatedText);
+                    this.state.setVerificationStep('roundtrip', 'success', `Export-Master-Key und ${result.roundtrip.payloadSecretsVerified} Nutz-Secrets geprüft`);
+                    this.state.setVerificationStep('checksum', 'success', `CRC32 ${result.checksum.newCrc} ist gültig`);
+                    this.passwordInput.value = newPassword;
+                    this.setPasswordChangeBusy(false);
+                    this.showWorkingCopy();
+                    this.closePasswordChangePanel();
+                    this.showStatus('Sicherungskennwort geändert. Export-Master-Key und CRC32 wurden erfolgreich geprüft.', 'success');
+                    this.log(`> Sicherungskennwort geändert: Master-Key unverändert, ${result.roundtrip.payloadSecretsVerified} Nutz-Secrets und CRC32 ${result.checksum.newCrc} geprüft.`, 'success');
+                } catch (error) {
+                    this.setPasswordChangeBusy(false);
+                    if (error.message === 'PASSWORD_CHANGE_STALE') {
+                        this.setPasswordChangeStatus('Kennwortwechsel verworfen, weil sich die Arbeitskopie geändert hat.', 'error');
+                    } else {
+                        if (['roundtrip', 'checksum'].includes(error.stage) &&
+                            this.state.verification[error.stage]?.status !== 'failed') {
+                            this.state.setVerificationStep(error.stage, 'failed', error.message);
+                        }
+                        this.setPasswordChangeStatus(error.message || 'Kennwortwechsel fehlgeschlagen.', 'error');
+                        this.showStatus(`Sicherungskennwort konnte nicht geändert werden: ${error.message}`, 'error');
+                        this.log(`> FEHLER beim Kennwortwechsel: ${error.message}`, 'error');
+                    }
+                    this.renderState();
+                }
             }
 
             async copyText(value, successMessage) {
@@ -1582,6 +1766,7 @@
                 for (const secret of renderedSecrets) {
                     const decrypted = secret.status === 'decrypted';
                     const supported = decrypted && (secret.type === 4 || secret.type === 5);
+                    const editable = supported && !this.isExportMasterKey(secret);
                     const displayStatus = this.getSecretDisplayStatus(secret);
                     const row = document.createElement('article');
                     row.className = 'p-5 grid grid-cols-1 xl:grid-cols-[minmax(210px,0.8fr)_minmax(300px,1.2fr)] gap-4 items-start';
@@ -1651,7 +1836,7 @@
                         input.readOnly = false;
                         input.focus();
                         input.select();
-                    }, !supported);
+                    }, !editable);
                     let resetButton;
                     resetButton = makeAction('Zurücksetzen', 'undo-2', () => {
                         this.state.setEditedPlaintext(secret.id, secret.plaintext);
@@ -1680,6 +1865,11 @@
                         const hint = document.createElement('p');
                         hint.className = 'text-[11px] text-amber-600 mt-2';
                         hint.textContent = 'Dieser Verschlüsselungstyp kann angezeigt, aber noch nicht neu verschlüsselt werden.';
+                        valueArea.appendChild(hint);
+                    } else if (decrypted && this.isExportMasterKey(secret)) {
+                        const hint = document.createElement('p');
+                        hint.className = 'text-[11px] text-blue-700 mt-2';
+                        hint.textContent = 'Der Export-Master-Key selbst bleibt schreibgeschützt. Geändert wird nur sein Sicherungskennwort.';
                         valueArea.appendChild(hint);
                     } else if (displayStatus === 'failed' && secret.error) {
                         const hint = document.createElement('p');
@@ -1732,6 +1922,8 @@
                 this.updateCharCount();
                 this.hideStatus();
                 this.passwordInput.value = '';
+                this.originalExportPassword = null;
+                this.closePasswordChangePanel();
                 this.revealedSecrets.clear();
                 if (this.secretSearch) this.secretSearch.value = '';
                 if (this.secretCategoryFilter) this.secretCategoryFilter.value = 'all';
@@ -2035,7 +2227,8 @@
             const missingCapabilities = requiredStateMethods.filter(method => typeof statePrototype?.[method] !== 'function');
             if (window.FritzConfigState?.API_VERSION !== '2') missingCapabilities.unshift('ConfigState API v2');
             if (window.FritzExportEditor?.API_VERSION !== '1' ||
-                typeof window.FritzExportEditor?.FritzExportEditor?.applySecretChanges !== 'function') {
+                typeof window.FritzExportEditor?.FritzExportEditor?.applySecretChanges !== 'function' ||
+                typeof window.FritzExportEditor?.FritzExportEditor?.changeExportPassword !== 'function') {
                 missingCapabilities.unshift('FritzExportEditor API v1');
             }
             if (missingCapabilities.length > 0) {
