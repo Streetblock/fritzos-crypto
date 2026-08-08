@@ -42,6 +42,8 @@ for (const id of [
   'onlineServiceCards',
   'providerAccessCardsSection',
   'providerAccessCards',
+  'vpnCardsSection',
+  'vpnCards',
   'secretEditorSection',
   'btnToggleAllSecrets',
   'secretSearch',
@@ -117,5 +119,13 @@ assert.equal(html.includes('Mobilfunkzugang'), true, 'mobile access cards need a
 assert.match(html, /APN: \$\{metadata\.provider\}/, 'mobile access cards must label the APN source field');
 assert.equal(html.includes('PPPoE-Internetzugang'), true, 'PPPoE access cards need a descriptive title');
 assert.match(html, /Profil: \$\{metadata\.name\}/, 'PPPoE cards must expose the target profile name');
+assert.equal(html.includes('TR-069 / CWMP-Fernwartung'), true, 'remote management card needs an explicit title');
+assert.equal(html.includes('TR-069 Connection Request'), true, 'remote management credentials need their own subsection');
+assert.equal(html.includes('DDNS-Erreichbarkeit'), true, 'TR-069 helper DDNS needs its own subsection');
+assert.equal(html.includes('FRITZ!Box WireGuard-Identität'), true, 'WireGuard global key card is missing');
+assert.equal(html.includes('WireGuard-Gegenstelle'), true, 'WireGuard connection card is missing');
+for (const label of ['Gegenstellen-Domain', 'Lokale IP', 'Entfernte IP', 'Erlaubte Netze', 'Öffentlicher Schlüssel der Gegenstelle']) {
+  assert.equal(html.includes(label), true, `WireGuard metadata ${label} is missing`);
+}
 
 console.log('UI structure regression tests passed.');

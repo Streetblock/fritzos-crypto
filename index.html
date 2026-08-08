@@ -15,7 +15,7 @@
     <!-- Externe FritzOSCrypto.js Bibliothek        -->
     <!-- (Muss im selben Ordner liegen!)            -->
     <!-- ========================================== -->
-    <script src="./FritzOSCrypto.js?v=20260808-4"></script>
+    <script src="./FritzOSCrypto.js?v=20260808-5"></script>
     <script src="./ConfigState.js?v=20260807-4"></script>
     <script src="./FritzExportChecksum.js?v=20260807-4"></script>
     <script src="./FritzExportEditor.js?v=20260807-4"></script>
@@ -268,6 +268,13 @@
                                 </div>
                                 <div id="providerAccessCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
                             </section>
+                            <section id="vpnCardsSection" class="hidden">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <i data-lucide="shield" class="w-5 h-5 text-teal-600"></i>
+                                    <h3 class="font-bold text-slate-800">WireGuard &amp; VPN</h3>
+                                </div>
+                                <div id="vpnCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+                            </section>
                         </div>
                         <div id="secretEmptyState" class="bg-white border border-slate-200 rounded-2xl p-10 text-center">
                             <div class="w-12 h-12 mx-auto rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center"><i data-lucide="key-square" class="w-6 h-6"></i></div>
@@ -419,6 +426,8 @@
                 this.onlineServiceCards = document.getElementById('onlineServiceCards');
                 this.providerAccessCardsSection = document.getElementById('providerAccessCardsSection');
                 this.providerAccessCards = document.getElementById('providerAccessCards');
+                this.vpnCardsSection = document.getElementById('vpnCardsSection');
+                this.vpnCards = document.getElementById('vpnCards');
                 this.secretEditorList = document.getElementById('secretEditorList');
                 this.secretEmptyState = document.getElementById('secretEmptyState');
                 this.secretSearch = document.getElementById('secretSearch');
@@ -1161,6 +1170,22 @@
                 const metadata = group.metadata || {};
                 const normalizedPath = String(group.path || '').toLowerCase();
                 const admin = /^(?:1|yes|true|on)$/i.test(String(metadata.box_admin_rights || ''));
+                const detail = (label, value) => value == null || String(value).trim() === '' ? null : { label, value: String(value) };
+                const wireguardDetails = normalizedPath.includes('global')
+                    ? [
+                        detail('Öffentlicher Schlüssel', metadata.wg_public_key),
+                        detail('Listen-Port', metadata.wg_listen_port)
+                    ].filter(Boolean)
+                    : [
+                        detail('Gegenstellen-Domain', metadata.wg_dyndns),
+                        detail('Lokale IP', metadata.localip || metadata.local_virtualip),
+                        detail('Entfernte IP', metadata.remoteip || metadata.remote_virtualip),
+                        detail('Erlaubte Netze', metadata.wg_allowed_ips),
+                        detail('Gegenstellen-Netz', metadata.wg_slave_network && metadata.wg_slave_mask
+                            ? `${metadata.wg_slave_network} / ${metadata.wg_slave_mask}`
+                            : metadata.wg_slave_network),
+                        detail('Öffentlicher Schlüssel der Gegenstelle', metadata.wg_public_key)
+                    ].filter(Boolean);
                 const definitions = {
                     'fritz-user': {
                         eyebrow: 'FRITZ!Box-Anmeldung',
@@ -1208,8 +1233,8 @@
                     },
                     'remote-management': {
                         eyebrow: 'Provider-Fernwartung',
-                        title: 'TR-069 / CWMP',
-                        subtitle: 'Verbindungsanforderung des Providers',
+                        title: 'TR-069 / CWMP-Fernwartung',
+                        subtitle: 'Connection Request mit DDNS-Erreichbarkeit',
                         color: 'amber'
                     },
                     'online-phonebook': {
@@ -1223,6 +1248,17 @@
                         title: metadata.extension_number ? `Nebenstelle ${metadata.extension_number}` : 'FRITZ!App Fon / IP-Telefon',
                         subtitle: metadata.appid ? `Interne App-Kennung ${metadata.appid}` : 'Lokaler Telefoniezugang',
                         color: 'indigo'
+                    },
+                    vpn: {
+                        eyebrow: normalizedPath.includes('global') ? 'WireGuard-Basis' : 'WireGuard-Verbindung',
+                        title: normalizedPath.includes('global')
+                            ? 'FRITZ!Box WireGuard-Identität'
+                            : (metadata.name || 'WireGuard-Gegenstelle'),
+                        subtitle: normalizedPath.includes('global')
+                            ? 'Boxweites Schlüsselpaar'
+                            : 'Schlüssel und erreichbare Netze',
+                        details: wireguardDetails,
+                        color: 'teal'
                     }
                 };
                 return definitions[group.category] || {
@@ -1233,6 +1269,13 @@
                 };
             }
 
+            getStructuredCredentialFieldSection(group, secret) {
+                if (group.category !== 'remote-management') return null;
+                return String(secret.contextPath || '').toLowerCase().split('/').includes('ddns')
+                    ? 'DDNS-Erreichbarkeit'
+                    : 'TR-069 Connection Request';
+            }
+
             renderStructuredCredentialCards(container, secrets) {
                 container.innerHTML = '';
                 const colorClasses = {
@@ -1241,6 +1284,7 @@
                     amber: ['border-amber-200', 'text-amber-700', 'bg-amber-50'],
                     fuchsia: ['border-fuchsia-200', 'text-fuchsia-700', 'bg-fuchsia-50'],
                     indigo: ['border-indigo-200', 'text-indigo-700', 'bg-indigo-50'],
+                    teal: ['border-teal-200', 'text-teal-700', 'bg-teal-50'],
                     slate: ['border-slate-200', 'text-slate-600', 'bg-slate-50']
                 };
                 this.groupStructuredCredentials(secrets).forEach(group => {
@@ -1260,9 +1304,36 @@
                     subtitle.textContent = description.subtitle;
                     card.append(eyebrow, title, subtitle);
 
+                    if (description.details?.length) {
+                        const details = document.createElement('dl');
+                        details.className = 'grid grid-cols-1 gap-2 mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3';
+                        description.details.forEach(item => {
+                            const row = document.createElement('div');
+                            row.className = 'min-w-0';
+                            const label = document.createElement('dt');
+                            label.className = 'text-[11px] font-semibold uppercase tracking-wide text-slate-500';
+                            label.textContent = item.label;
+                            const value = document.createElement('dd');
+                            value.className = 'text-xs font-mono text-slate-700 mt-0.5 break-all';
+                            value.textContent = item.value;
+                            row.append(label, value);
+                            details.appendChild(row);
+                        });
+                        card.appendChild(details);
+                    }
+
                     const fields = document.createElement('div');
                     fields.className = 'space-y-3 mt-4';
+                    let currentFieldSection = null;
                     group.secrets.forEach(secret => {
+                        const fieldSection = this.getStructuredCredentialFieldSection(group, secret);
+                        if (fieldSection && fieldSection !== currentFieldSection) {
+                            const sectionTitle = document.createElement('p');
+                            sectionTitle.className = 'pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400';
+                            sectionTitle.textContent = fieldSection;
+                            fields.appendChild(sectionTitle);
+                            currentFieldSection = fieldSection;
+                        }
                         const field = document.createElement('div');
                         const label = document.createElement('p');
                         label.className = 'text-xs font-semibold text-slate-500 mb-1';
@@ -1274,9 +1345,10 @@
 
                     const decrypted = group.secrets.filter(secret => secret.status === 'decrypted');
                     const copyButton = this.createCredentialAction('In Zwischenablage kopieren', 'clipboard-copy', async () => {
-                        const lines = decrypted.map(secret =>
+                        const lines = (description.details || []).map(item => `${item.label}: ${item.value}`);
+                        lines.push(...decrypted.map(secret =>
                             `${secret.displayLabel}: ${secret.editedPlaintext ?? secret.plaintext ?? ''}`
-                        );
+                        ));
                         await this.copyText(lines.join('\n'), `${description.eyebrow}: Zugangsdaten wurden kopiert.`);
                     }, decrypted.length === 0);
                     copyButton.classList.add('w-full', 'mt-4');
@@ -1294,6 +1366,7 @@
                 const fritzAccessSecrets = this.state.secrets.filter(secret => ['fritz-user', 'app-access'].includes(secret.category));
                 const onlineServiceSecrets = this.state.secrets.filter(secret => ['email', 'myfritz', 'dyndns'].includes(secret.category));
                 const providerAccessSecrets = this.state.secrets.filter(secret => ['provider', 'remote-management'].includes(secret.category));
+                const vpnSecrets = this.state.secrets.filter(secret => secret.category === 'vpn');
                 this.wifiCardsSection.classList.toggle('hidden', wifiCredentials.length === 0);
                 this.sipCardsSection.classList.toggle('hidden', sipSecrets.length === 0);
                 this.internalTelephonyCardsSection.classList.toggle('hidden', internalTelephonySecrets.length === 0);
@@ -1301,8 +1374,9 @@
                 this.fritzAccessCardsSection.classList.toggle('hidden', fritzAccessSecrets.length === 0);
                 this.onlineServiceCardsSection.classList.toggle('hidden', onlineServiceSecrets.length === 0);
                 this.providerAccessCardsSection.classList.toggle('hidden', providerAccessSecrets.length === 0);
+                this.vpnCardsSection.classList.toggle('hidden', vpnSecrets.length === 0);
                 const hasCards = wifiCredentials.length > 0 || sipSecrets.length > 0 || internalTelephonySecrets.length > 0 || phonebookSecrets.length > 0 ||
-                    fritzAccessSecrets.length > 0 || onlineServiceSecrets.length > 0 || providerAccessSecrets.length > 0;
+                    fritzAccessSecrets.length > 0 || onlineServiceSecrets.length > 0 || providerAccessSecrets.length > 0 || vpnSecrets.length > 0;
                 this.credentialCards.classList.toggle('hidden', !hasCards);
                 this.renderWifiCards(wifiSecrets);
                 this.renderSipCards(sipSecrets);
@@ -1311,6 +1385,7 @@
                 this.renderStructuredCredentialCards(this.fritzAccessCards, fritzAccessSecrets);
                 this.renderStructuredCredentialCards(this.onlineServiceCards, onlineServiceSecrets);
                 this.renderStructuredCredentialCards(this.providerAccessCards, providerAccessSecrets);
+                this.renderStructuredCredentialCards(this.vpnCards, vpnSecrets);
             }
 
             toggleAllSecrets() {
