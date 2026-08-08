@@ -15,7 +15,7 @@
     <!-- Externe FritzOSCrypto.js Bibliothek        -->
     <!-- (Muss im selben Ordner liegen!)            -->
     <!-- ========================================== -->
-    <script src="./FritzOSCrypto.js?v=20260807-4"></script>
+    <script src="./FritzOSCrypto.js?v=20260808-1"></script>
     <script src="./ConfigState.js?v=20260807-4"></script>
     <script src="./FritzExportChecksum.js?v=20260807-4"></script>
     <script src="./FritzExportEditor.js?v=20260807-4"></script>
@@ -233,6 +233,27 @@
                                 </div>
                                 <div id="sipCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
                             </section>
+                            <section id="fritzAccessCardsSection" class="hidden">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <i data-lucide="users-round" class="w-5 h-5 text-emerald-600"></i>
+                                    <h3 class="font-bold text-slate-800">FRITZ!Box-Anmeldungen &amp; Apps</h3>
+                                </div>
+                                <div id="fritzAccessCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+                            </section>
+                            <section id="onlineServiceCardsSection" class="hidden">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <i data-lucide="cloud" class="w-5 h-5 text-cyan-600"></i>
+                                    <h3 class="font-bold text-slate-800">E-Mail, MyFRITZ! &amp; DynDNS</h3>
+                                </div>
+                                <div id="onlineServiceCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+                            </section>
+                            <section id="providerAccessCardsSection" class="hidden">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <i data-lucide="network" class="w-5 h-5 text-amber-600"></i>
+                                    <h3 class="font-bold text-slate-800">Internetzugang &amp; Provider-Fernwartung</h3>
+                                </div>
+                                <div id="providerAccessCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+                            </section>
                         </div>
                         <div id="secretEmptyState" class="bg-white border border-slate-200 rounded-2xl p-10 text-center">
                             <div class="w-12 h-12 mx-auto rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center"><i data-lucide="key-square" class="w-6 h-6"></i></div>
@@ -269,6 +290,12 @@
                                         <option value="guest-wlan">Gast-WLAN</option>
                                         <option value="sip">SIP</option>
                                         <option value="vpn">VPN</option>
+                                        <option value="fritz-user">FRITZ!Box-Benutzer</option>
+                                        <option value="app-access">FRITZ!App</option>
+                                        <option value="email">E-Mail / SMTP</option>
+                                        <option value="myfritz">MyFRITZ!</option>
+                                        <option value="dyndns">DynDNS</option>
+                                        <option value="remote-management">Provider-Fernwartung</option>
                                         <option value="provider">Provider</option>
                                         <option value="system">System</option>
                                         <option value="other">Weitere</option>
@@ -365,6 +392,12 @@
                 this.wifiCards = document.getElementById('wifiCards');
                 this.sipCardsSection = document.getElementById('sipCardsSection');
                 this.sipCards = document.getElementById('sipCards');
+                this.fritzAccessCardsSection = document.getElementById('fritzAccessCardsSection');
+                this.fritzAccessCards = document.getElementById('fritzAccessCards');
+                this.onlineServiceCardsSection = document.getElementById('onlineServiceCardsSection');
+                this.onlineServiceCards = document.getElementById('onlineServiceCards');
+                this.providerAccessCardsSection = document.getElementById('providerAccessCardsSection');
+                this.providerAccessCards = document.getElementById('providerAccessCards');
                 this.secretEditorList = document.getElementById('secretEditorList');
                 this.secretEmptyState = document.getElementById('secretEmptyState');
                 this.secretSearch = document.getElementById('secretSearch');
@@ -871,6 +904,8 @@
                     secret.section,
                     secret.field,
                     secret.category,
+                    secret.contextPath,
+                    ...Object.values(secret.credentialGroup?.metadata || {}),
                     secret.account?.name,
                     secret.account?.username,
                     secret.account?.registrar
@@ -1084,15 +1119,147 @@
                 }
             }
 
+            groupStructuredCredentials(secrets) {
+                const groups = new Map();
+                secrets.forEach(secret => {
+                    const key = secret.credentialGroup?.id || secret.stableKey;
+                    if (!groups.has(key)) {
+                        groups.set(key, {
+                            category: secret.category,
+                            metadata: secret.credentialGroup?.metadata || {},
+                            secrets: []
+                        });
+                    }
+                    groups.get(key).secrets.push(secret);
+                });
+                return [...groups.values()];
+            }
+
+            describeStructuredCredential(group) {
+                const metadata = group.metadata || {};
+                const admin = /^(?:1|yes|true|on)$/i.test(String(metadata.box_admin_rights || ''));
+                const definitions = {
+                    'fritz-user': {
+                        eyebrow: 'FRITZ!Box-Anmeldung',
+                        title: admin ? 'Administrator-Konto' : 'Benutzerkonto',
+                        subtitle: admin ? 'Mit administrativen Rechten' : 'Lokaler FRITZ!Box-Zugang',
+                        color: 'emerald'
+                    },
+                    'app-access': {
+                        eyebrow: 'FRITZ!App',
+                        title: metadata.displayname || 'App-Zugang',
+                        subtitle: 'Lokale App-Berechtigung',
+                        color: 'emerald'
+                    },
+                    email: {
+                        eyebrow: 'E-Mail / SMTP',
+                        title: 'E-Mail-Benachrichtigungen',
+                        subtitle: metadata.SMTPServer || 'SMTP-Zugang',
+                        color: 'cyan'
+                    },
+                    myfritz: {
+                        eyebrow: 'MyFRITZ!',
+                        title: 'MyFRITZ!-Konto',
+                        subtitle: 'Adresse und OAuth-Zugang',
+                        color: 'cyan'
+                    },
+                    dyndns: {
+                        eyebrow: 'Dynamisches DNS',
+                        title: 'DynDNS-Zugang',
+                        subtitle: 'Domain und Aktualisierungszugang',
+                        color: 'cyan'
+                    },
+                    provider: {
+                        eyebrow: 'Internetzugang',
+                        title: metadata.providerdisplayname || metadata.provider || metadata.name || 'Provider-Zugang',
+                        subtitle: 'Einwahl-Zugangsdaten',
+                        color: 'amber'
+                    },
+                    'remote-management': {
+                        eyebrow: 'Provider-Fernwartung',
+                        title: 'TR-069 / CWMP',
+                        subtitle: 'Verbindungsanforderung des Providers',
+                        color: 'amber'
+                    }
+                };
+                return definitions[group.category] || {
+                    eyebrow: 'Zugangsdaten',
+                    title: 'Konto',
+                    subtitle: '',
+                    color: 'slate'
+                };
+            }
+
+            renderStructuredCredentialCards(container, secrets) {
+                container.innerHTML = '';
+                const colorClasses = {
+                    emerald: ['border-emerald-200', 'text-emerald-700', 'bg-emerald-50'],
+                    cyan: ['border-cyan-200', 'text-cyan-700', 'bg-cyan-50'],
+                    amber: ['border-amber-200', 'text-amber-700', 'bg-amber-50'],
+                    slate: ['border-slate-200', 'text-slate-600', 'bg-slate-50']
+                };
+                this.groupStructuredCredentials(secrets).forEach(group => {
+                    const description = this.describeStructuredCredential(group);
+                    const colors = colorClasses[description.color] || colorClasses.slate;
+                    const card = document.createElement('article');
+                    card.className = `rounded-2xl border ${colors[0]} bg-white p-5 shadow-sm`;
+
+                    const eyebrow = document.createElement('p');
+                    eyebrow.className = `inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ${colors[1]} ${colors[2]}`;
+                    eyebrow.textContent = description.eyebrow;
+                    const title = document.createElement('h4');
+                    title.className = 'text-lg font-black text-slate-900 mt-2 break-words';
+                    title.textContent = description.title;
+                    const subtitle = document.createElement('p');
+                    subtitle.className = 'text-sm text-slate-500 mt-1 break-words';
+                    subtitle.textContent = description.subtitle;
+                    card.append(eyebrow, title, subtitle);
+
+                    const fields = document.createElement('div');
+                    fields.className = 'space-y-3 mt-4';
+                    group.secrets.forEach(secret => {
+                        const field = document.createElement('div');
+                        const label = document.createElement('p');
+                        label.className = 'text-xs font-semibold text-slate-500 mb-1';
+                        label.textContent = secret.displayLabel;
+                        field.append(label, this.createMaskedCredential(secret));
+                        fields.appendChild(field);
+                    });
+                    card.appendChild(fields);
+
+                    const decrypted = group.secrets.filter(secret => secret.status === 'decrypted');
+                    const copyButton = this.createCredentialAction('In Zwischenablage kopieren', 'clipboard-copy', async () => {
+                        const lines = decrypted.map(secret =>
+                            `${secret.displayLabel}: ${secret.editedPlaintext ?? secret.plaintext ?? ''}`
+                        );
+                        await this.copyText(lines.join('\n'), `${description.eyebrow}: Zugangsdaten wurden kopiert.`);
+                    }, decrypted.length === 0);
+                    copyButton.classList.add('w-full', 'mt-4');
+                    card.appendChild(copyButton);
+                    container.appendChild(card);
+                });
+            }
+
             renderCredentialCards() {
                 const wifiSecrets = this.state.secrets.filter(secret => secret.category === 'wlan' || secret.category === 'guest-wlan');
                 const wifiCredentials = wifiSecrets.filter(secret => this.isWifiPasswordSecret(secret));
                 const sipSecrets = this.state.secrets.filter(secret => secret.category === 'sip');
+                const fritzAccessSecrets = this.state.secrets.filter(secret => ['fritz-user', 'app-access'].includes(secret.category));
+                const onlineServiceSecrets = this.state.secrets.filter(secret => ['email', 'myfritz', 'dyndns'].includes(secret.category));
+                const providerAccessSecrets = this.state.secrets.filter(secret => ['provider', 'remote-management'].includes(secret.category));
                 this.wifiCardsSection.classList.toggle('hidden', wifiCredentials.length === 0);
                 this.sipCardsSection.classList.toggle('hidden', sipSecrets.length === 0);
-                this.credentialCards.classList.toggle('hidden', wifiCredentials.length === 0 && sipSecrets.length === 0);
+                this.fritzAccessCardsSection.classList.toggle('hidden', fritzAccessSecrets.length === 0);
+                this.onlineServiceCardsSection.classList.toggle('hidden', onlineServiceSecrets.length === 0);
+                this.providerAccessCardsSection.classList.toggle('hidden', providerAccessSecrets.length === 0);
+                const hasCards = wifiCredentials.length > 0 || sipSecrets.length > 0 ||
+                    fritzAccessSecrets.length > 0 || onlineServiceSecrets.length > 0 || providerAccessSecrets.length > 0;
+                this.credentialCards.classList.toggle('hidden', !hasCards);
                 this.renderWifiCards(wifiSecrets);
                 this.renderSipCards(sipSecrets);
+                this.renderStructuredCredentialCards(this.fritzAccessCards, fritzAccessSecrets);
+                this.renderStructuredCredentialCards(this.onlineServiceCards, onlineServiceSecrets);
+                this.renderStructuredCredentialCards(this.providerAccessCards, providerAccessSecrets);
             }
 
             toggleAllSecrets() {
@@ -1135,6 +1302,12 @@
                     'guest-wlan': 'Gast-WLAN',
                     sip: 'SIP',
                     vpn: 'VPN',
+                    'fritz-user': 'FRITZ!Box-Benutzer',
+                    'app-access': 'FRITZ!App',
+                    email: 'E-Mail / SMTP',
+                    myfritz: 'MyFRITZ!',
+                    dyndns: 'DynDNS',
+                    'remote-management': 'Provider-Fernwartung',
                     provider: 'Provider',
                     system: 'System',
                     other: 'Weitere'
