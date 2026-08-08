@@ -2067,9 +2067,10 @@
                 if (visible) this.newSipAccountTemplate.focus();
             }
 
-            applySipConfigText(updatedText, message) {
+            applySipConfigText(updatedText, message, afterStateUpdate = null) {
                 const keepDecryptedView = this.state.viewMode === 'preview';
                 this.state.setWorkingText(updatedText);
+                if (afterStateUpdate) afterStateUpdate();
                 this.updateCharCount();
                 this.renderState();
                 if (keepDecryptedView) this.showDecryptedPreview();
@@ -2077,8 +2078,40 @@
                 this.showStatus(message, 'success');
             }
 
+            initializeClonedSipSecrets(sourceGroup, accountName, clearCredentials) {
+                const sourceByField = new Map();
+                sourceGroup.secrets.forEach(secret => {
+                    const field = String(secret.field).toLowerCase();
+                    if (!sourceByField.has(field)) sourceByField.set(field, []);
+                    sourceByField.get(field).push(secret);
+                });
+                const fieldIndexes = new Map();
+                const blockIdentity = `|${String(accountName).toLowerCase()}|`;
+                this.state.secrets.filter(secret => secret.stableKey.includes(blockIdentity)).forEach(secret => {
+                    const field = String(secret.field).toLowerCase();
+                    const index = fieldIndexes.get(field) || 0;
+                    fieldIndexes.set(field, index + 1);
+                    const source = sourceByField.get(field)?.[index];
+                    if (!source || source.status !== 'decrypted') return;
+                    this.state.markDecrypted(secret.id, {
+                        plaintext: source.plaintext,
+                        type: source.type,
+                        label: source.label,
+                        source: source.source
+                    });
+                    if (clearCredentials && /^(?:username|user|authname|passwd|password|pass|secret)$/.test(field)) {
+                        this.state.setEditedPlaintext(secret.id, '');
+                    }
+                });
+            }
+
             cloneSipAccount(group, asNew = false) {
                 if (!group?.structure) return;
+                const credentialSecrets = group.secrets.filter(secret => /^(?:username|user|authname|passwd|password|pass|secret)$/i.test(secret.field));
+                if (asNew && credentialSecrets.some(secret => secret.status !== 'decrypted')) {
+                    this.showStatus('Bitte die Zugangsdaten der gewählten Vorlage zuerst entschlüsseln.', 'warning');
+                    return;
+                }
                 const draftName = asNew ? 'Neues SIP-Konto' : `Kopie von ${group.structure.values.name || group.structure.name}`;
                 const result = this.sipAccountsApi.clone(group.document, group.structure, {
                     enabled: 'no',
@@ -2086,7 +2119,8 @@
                 });
                 this.applySipConfigText(
                     result.updatedText,
-                    `${result.accountName} wurde als deaktivierter Entwurf angelegt. Bitte Zugangsdaten prüfen und ändern.`
+                    `${result.accountName} wurde als deaktivierter Entwurf angelegt.`,
+                    () => this.initializeClonedSipSecrets(group, result.accountName, asNew)
                 );
                 this.toggleNewSipAccountPanel(false);
             }
