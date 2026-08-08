@@ -50,6 +50,9 @@ for (const id of [
   'secretCategoryFilter',
   'secretStatusFilter',
   'secretResultsSummary',
+  'editorShell',
+  'editorLineNumbers',
+  'editorSectionNav',
   'editorContent'
 ]) {
   assert.equal(ids.includes(id), true, `required UI element #${id} is missing`);
@@ -69,6 +72,11 @@ for (const source of inlineScripts) new Function(source);
 assert.equal((html.match(/<body\b/gi) || []).length, 1, 'document must contain one body');
 assert.equal((html.match(/<\/body>/gi) || []).length, 1, 'document must close the body once');
 assert.equal(html.includes('id="btnEncrypt"'), false, 'unsafe whole-editor encryption must not return');
+assert.match(html, /id="editorContent"[\s\S]*?wrap="off"/, 'expert editor must keep logical lines aligned with its gutter');
+assert.match(html, /h-\[calc\(100vh-19rem\)\]/, 'expert editor must use the available viewport height');
+assert.match(html, /this\.editorLineNumbers\.scrollTop\s*=\s*this\.editor\.scrollTop/, 'line number gutter must follow editor scrolling');
+assert.match(html, /CFGFILE\|\(\?:CRYPTED\)\?BINFILE\|\(\?:CRYPTED\)\?B64FILE/, 'editor section navigation must recognize export file markers');
+assert.match(html, /button\.addEventListener\('click', \(\) => this\.jumpToEditorLine\(section\.line\)\)/, 'section markers must navigate to their source line');
 assert.equal(html.includes('<Binärer Master-Key (entschlüsselt)>'), false, 'master key placeholder must not hide the actual decrypted key');
 assert.match(html, /plaintext:\s*mkResult\.exportKeyHex/, 'decrypted master key must be available to the masked secret field');
 assert.match(html, /input\.type\s*=\s*this\.revealedSecrets\.has\(secret\.stableKey\)\s*\?\s*'text'\s*:\s*'password'/, 'plaintext fields must be masked by default');

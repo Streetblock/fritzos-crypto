@@ -357,10 +357,21 @@
                                 </button>
                             </div>
                             <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">Direkte Strukturänderungen können eine Sicherung unbrauchbar machen. Beim Speichern wird die Prüfsumme aktualisiert, nicht jedoch die fachliche Gültigkeit jeder Einstellung geprüft.</p>
+                            <nav aria-label="Abschnitte der Exportdatei" class="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <i data-lucide="signpost" class="w-4 h-4 text-slate-500"></i>
+                                    <span class="text-xs font-semibold text-slate-600">Sprungmarken der Konfigurationsdateien</span>
+                                </div>
+                                <div id="editorSectionNav" class="flex items-center gap-2 overflow-x-auto pb-1"></div>
+                            </nav>
                             <div id="editorDropZone" class="relative">
-                                <textarea id="editorContent"
-                                          class="w-full min-h-[520px] p-4 rounded-xl border border-slate-300 bg-slate-50 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-y shadow-inner text-slate-700"
-                                          placeholder="Inhalt der Exportdatei"></textarea>
+                                <div id="editorShell" class="flex h-[calc(100vh-19rem)] min-h-[600px] overflow-hidden rounded-xl border border-slate-300 bg-slate-50 shadow-inner focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+                                    <pre id="editorLineNumbers" aria-hidden="true" class="m-0 min-w-[4.5rem] overflow-hidden border-r border-slate-200 bg-slate-100 px-3 py-4 text-right font-mono text-sm leading-6 text-slate-400 select-none"></pre>
+                                    <textarea id="editorContent"
+                                              wrap="off" spellcheck="false"
+                                              class="min-w-0 flex-1 h-full overflow-auto border-0 bg-slate-50 p-4 font-mono text-sm leading-6 outline-none resize-none text-slate-700"
+                                              placeholder="Inhalt der Exportdatei"></textarea>
+                                </div>
                                 <div id="dropOverlay" class="absolute inset-0 bg-blue-50/95 rounded-xl flex flex-col items-center justify-center opacity-0 pointer-events-none transition-opacity border-2 border-blue-400 border-dashed">
                                     <i data-lucide="upload-cloud" class="w-14 h-14 text-blue-500 mb-3"></i>
                                     <span class="text-blue-700 font-semibold">Andere Datei hier ablegen</span>
@@ -380,6 +391,8 @@
         class ConfigToolApp {
             constructor() {
                 this.editor = document.getElementById('editorContent');
+                this.editorLineNumbers = document.getElementById('editorLineNumbers');
+                this.editorSectionNav = document.getElementById('editorSectionNav');
                 this.welcomeSection = document.getElementById('welcomeSection');
                 this.workspaceSection = document.getElementById('workspaceSection');
                 this.welcomeDropZone = document.getElementById('welcomeDropZone');
@@ -482,6 +495,7 @@
                 this.btnClearLog?.addEventListener('click', () => this.clearLog());
                 this.fileInput?.addEventListener('change', (event) => this.handleFileInput(event));
                 this.editor?.addEventListener('input', () => this.handleEditorInput());
+                this.editor?.addEventListener('scroll', () => this.syncEditorScroll());
                 this.navButtons.forEach(button => button.addEventListener('click', () => this.switchView(button.dataset.view)));
                 this.passwordInput?.addEventListener('keydown', event => {
                     if (event.key === 'Enter' && !this.btnDecrypt.disabled) this.handleDecrypt();
@@ -551,6 +565,72 @@
 
             updateCharCount() {
                 this.charCount.textContent = `${this.editor.value.length.toLocaleString('de-DE')} Zeichen`;
+                this.renderEditorNavigation();
+            }
+
+            syncEditorScroll() {
+                if (!this.editorLineNumbers) return;
+                this.editorLineNumbers.scrollTop = this.editor.scrollTop;
+            }
+
+            getEditorSections(text = this.editor.value) {
+                const sections = [];
+                String(text).split(/\r\n|\n|\r/).forEach((line, index) => {
+                    const match = line.match(/^\*+\s+(CFGFILE|(?:CRYPTED)?BINFILE|(?:CRYPTED)?B64FILE):\s*(\S+)/i);
+                    if (!match) return;
+                    sections.push({ type: match[1].toUpperCase(), name: match[2], line: index + 1 });
+                });
+                return sections;
+            }
+
+            renderEditorNavigation() {
+                if (!this.editorLineNumbers || !this.editorSectionNav) return;
+                const lineCount = Math.max(1, String(this.editor.value).split(/\r\n|\n|\r/).length);
+                this.editorLineNumbers.textContent = Array.from({ length: lineCount }, (_, index) => index + 1).join('\n');
+                this.syncEditorScroll();
+
+                this.editorSectionNav.innerHTML = '';
+                const sections = this.getEditorSections();
+                const targets = [{ type: 'HEADER', name: 'Dateianfang', line: 1 }, ...sections];
+                targets.forEach(section => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700';
+                    button.textContent = `${section.name} · Z. ${section.line}`;
+                    button.title = section.type === 'HEADER' ? 'Zum Anfang der Exportdatei' : `${section.type} ab Zeile ${section.line}`;
+                    button.addEventListener('click', () => this.jumpToEditorLine(section.line));
+                    this.editorSectionNav.appendChild(button);
+                });
+            }
+
+            getEditorLineRange(lineNumber) {
+                const text = this.editor.value;
+                const target = Math.max(1, Number(lineNumber) || 1);
+                let line = 1;
+                let start = 0;
+                const separator = /\r\n|\n|\r/g;
+                let match;
+                while (line < target && (match = separator.exec(text))) {
+                    start = match.index + match[0].length;
+                    line += 1;
+                }
+                const relativeEnd = text.slice(start).search(/\r\n|\n|\r/);
+                const end = relativeEnd >= 0 ? start + relativeEnd : text.length;
+                return { start, end, line };
+            }
+
+            jumpToEditorLine(lineNumber) {
+                if (!this.state.originalText) return;
+                if (this.state.viewMode === 'preview') this.showWorkingCopy();
+                this.switchView('editor');
+                requestAnimationFrame(() => {
+                    const range = this.getEditorLineRange(lineNumber);
+                    const lineHeight = parseFloat(getComputedStyle(this.editor).lineHeight) || 24;
+                    this.editor.focus({ preventScroll: true });
+                    this.editor.setSelectionRange(range.start, range.end);
+                    this.editor.scrollTop = Math.max(0, (range.line - 1) * lineHeight - this.editor.clientHeight * 0.25);
+                    this.syncEditorScroll();
+                });
             }
 
             clearLog() {
