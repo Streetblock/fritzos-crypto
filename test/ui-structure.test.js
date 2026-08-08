@@ -182,11 +182,12 @@ for (const action of ['Anzeigen', 'Kopieren', 'Bearbeiten', 'Zurücksetzen']) {
 assert.equal(html.includes('Alle anzeigen'), true, 'global reveal action is missing');
 assert.equal(html.includes('Alle verbergen'), true, 'global hide action is missing');
 assert.equal(html.includes('In Zwischenablage kopieren'), true, 'SIP clipboard action is missing');
-const cardEditor = html.match(/createMaskedCredential\(secret\)\s*\{[\s\S]*?(?=\n\s*isWifiPasswordSecret\()/)?.[0] || '';
+const cardEditor = html.match(/createMaskedCredential\(secret, options = \{\}\)\s*\{[\s\S]*?(?=\n\s*isWifiPasswordSecret\()/)?.[0] || '';
 assert.match(cardEditor, /createCredentialAction\('', 'pencil'/, 'credential cards need a direct edit action');
 assert.match(cardEditor, /createCredentialAction\('', 'undo-2'/, 'credential cards need a per-field reset action');
-assert.match(cardEditor, /inputRow\.append\(value, toggle\)/, 'only the reveal action may reduce the credential input width');
-assert.match(cardEditor, /actionRow\.append\(edit, reset\)/, 'edit and reset actions belong on the second credential row');
+assert.match(cardEditor, /if \(editInInputRow\) inputRow\.appendChild\(edit\)/, 'credential card edit actions belong next to the reveal action by default');
+assert.match(html, /createMaskedCredential\(secret, \{ editInInputRow: false \}\)/, 'WLAN cards need their edit action on the second row');
+assert.match(html, /credential\.querySelector\('\[data-credential-actions\]'\)\?\.append\(copyPassword\)/, 'the WLAN edit action must remain left of the copy action');
 assert.match(cardEditor, /this\.state\.setEditedPlaintext\(secret\.id, value\.value\)/, 'card edits must use the shared config state');
 assert.match(cardEditor, /this\.scheduleAutoValidation\(\)/, 'card edits must schedule the verified re-encryption flow');
 assert.match(cardEditor, /this\.syncSecretEditorRow\(secret\)/, 'card edits must keep the detailed secret row synchronized');
