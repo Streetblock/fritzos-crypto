@@ -20,6 +20,8 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 
 * **Sicherungskennwort ändern:** Bei modernen Exporten kann der vorhandene Export-Master-Key unverändert mit einem neuen Sicherungskennwort geschützt werden. Master-Key-Roundtrip, gebundene Nutz-Secrets und CRC32 werden vor dem Download geprüft. Gemischte Exporte mit noch direkt kennwortgebundenen Secrets werden sicher abgelehnt.
 
+* **Telefonbücher ansehen:** Eingebettete Telefonbuchdateien werden lokal dekodiert und auf einer eigenen schreibgeschützten Seite nach Telefonbüchern und Kontakten gegliedert. Die Übersicht zeigt die Anzahl der erkannten Telefonbücher und Kontakte.
+
 * **AVM-Prüfsumme:** Nach der Neuverschlüsselung und vor dem Speichern einer Exportdatei wird die CRC32-Prüfsumme am `END OF EXPORT` nach dem AVM-Sektionsverfahren aktualisiert und erneut geprüft.
 
 * **Modular:** Krypto, Export-Prüfsumme und der atomare Bearbeitungsablauf sind voneinander getrennt und können in eigenen Node.js-Projekten genutzt werden.
@@ -30,6 +32,7 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 * `FritzExportChecksum.js`: AVM-CRC32 berechnen, ersetzen und prüfen.
 * `FritzExportEditor.js`: Änderungen atomar anwenden. Der Dienst prüft zuerst den vorhandenen Chiffretext, verschlüsselt den neuen Wert, führt den Secret-Roundtrip aus und aktualisiert anschließend CRC32.
 * `ConfigState.js`: UI-Zustand wie offene und validierte Änderungen; keine Kryptografie.
+* `FritzEmbeddedFiles.js`: Eingebettete B64-Dateien erkennen und unterstützte Inhalte wie Telefonbücher schreibgeschützt auslesen.
 
 `FritzExportEditor.applySecretChanges()` und `FritzExportEditor.changeExportPassword()` geben nur dann einen neuen Exporttext zurück, wenn alle Prüfschritte erfolgreich waren. Bei einem Fehler bleibt der übergebene Text unverändert.
 

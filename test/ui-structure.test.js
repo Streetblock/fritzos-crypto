@@ -17,6 +17,16 @@ for (const id of [
   'btnSave',
   'viewOverview',
   'viewSecrets',
+  'viewFiles',
+  'fileNavCount',
+  'phonebookOverviewCard',
+  'phonebookOverviewSummary',
+  'phonebookViewerSection',
+  'phonebookViewerSummary',
+  'phonebookSearch',
+  'phonebookViewerErrors',
+  'phonebookViewer',
+  'filesEmptyState',
   'exportSafetyPanel',
   'exportMasterKeySection',
   'exportMasterKeyCard',
@@ -131,6 +141,12 @@ assert.equal(html.includes("ConfigState API v2"), true, 'state compatibility gua
 assert.equal(html.includes('Die Programmdateien wurden nicht gemeinsam aktualisiert.'), true, 'partial deployment must fail with a useful message');
 assert.match(html, /FritzExportEditor\.js\?v=\d{8}-\d+/, 'atomic export editor needs a deployment cache key');
 assert.equal(html.includes('FritzExportEditor API v1'), true, 'export editor compatibility guard is missing');
+assert.match(html, /FritzEmbeddedFiles\.js\?v=\d{8}-\d+/, 'embedded file decoder needs a deployment cache key');
+assert.equal(html.includes('FritzEmbeddedFiles API v1'), true, 'embedded file decoder compatibility guard is missing');
+assert.match(html, /this\.embeddedFiles\.extractPhonebooks\(text\)/, 'loaded exports must be scanned for embedded phonebooks');
+assert.match(html, /this\.jumpToEditorLine\(entry\.book\.sourceLine\)/, 'phonebooks must link back to their source block');
+assert.match(html, /this\.phonebookOverviewCard\?\.addEventListener\('click', \(\) => this\.switchView\('files'\)\)/, 'overview phonebook summary must open the files page');
+assert.equal(html.includes('separat Base64-kodierten Zeilen'), false, 'line-wise Base64 encoding is an implementation detail, not user-facing copy');
 const reencryptWorkflow = html.match(/async reencryptChangedSecrets[\s\S]*?(?=\n\s*async handleDecrypt)/)?.[0] || '';
 assert.match(reencryptWorkflow, /this\.exportEditor\.applySecretChanges/, 'UI must delegate export mutations to the domain service');
 assert.equal(reencryptWorkflow.includes('encryptSecretWithKey'), false, 'UI must not implement secret encryption itself');

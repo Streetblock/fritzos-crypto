@@ -19,6 +19,7 @@
     <script src="./ConfigState.js?v=20260807-4"></script>
     <script src="./FritzExportChecksum.js?v=20260807-4"></script>
     <script src="./FritzExportEditor.js?v=20260808-1"></script>
+    <script src="./FritzEmbeddedFiles.js?v=20260808-1"></script>
 
     <style>
         .glass-panel {
@@ -137,6 +138,10 @@
                             <i data-lucide="key-square" class="w-4 h-4"></i> Secrets
                             <span id="secretNavCount" class="ml-auto text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">0</span>
                         </button>
+                        <button data-view="files" class="workspace-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
+                            <i data-lucide="files" class="w-4 h-4"></i> Dateien
+                            <span id="fileNavCount" class="ml-auto text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">0</span>
+                        </button>
                         <button data-view="editor" class="workspace-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
                             <i data-lucide="code-2" class="w-4 h-4"></i> Experten-Editor
                         </button>
@@ -173,6 +178,18 @@
                                 <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-2xl font-black text-red-500" id="failedCount">0</div><div class="text-xs text-slate-500 mt-1">Fehlgeschlagen</div></div>
                                 <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-2xl font-black text-blue-500" id="pendingCount">0</div><div class="text-xs text-slate-500 mt-1">Offen</div></div>
                             </div>
+                            <button id="phonebookOverviewCard" type="button" class="hidden w-full bg-white border border-slate-200 rounded-2xl p-5 text-left hover:border-cyan-300 hover:bg-cyan-50/40 transition-colors group">
+                                <div class="flex items-center justify-between gap-4">
+                                    <div class="flex items-center gap-3 min-w-0">
+                                        <span class="w-10 h-10 shrink-0 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center"><i data-lucide="book-user" class="w-5 h-5"></i></span>
+                                        <div class="min-w-0">
+                                            <h3 class="font-bold text-slate-800">Eingebettete Telefonbücher</h3>
+                                            <p id="phonebookOverviewSummary" class="text-sm text-slate-500 mt-0.5"></p>
+                                        </div>
+                                    </div>
+                                    <span class="inline-flex items-center gap-1 text-sm font-semibold text-cyan-700 shrink-0">Ansehen <i data-lucide="arrow-right" class="w-4 h-4 transition-transform group-hover:translate-x-0.5"></i></span>
+                                </div>
+                            </button>
                             <div class="bg-white border border-slate-200 rounded-2xl p-5">
                                 <h3 class="font-bold text-slate-800 flex items-center gap-2 mb-4"><i data-lucide="router" class="w-5 h-5 text-blue-500"></i> FRITZ!Box-Informationen</h3>
                                 <ul id="metaList" class="text-sm text-slate-600 grid sm:grid-cols-2 gap-3"></ul>
@@ -380,6 +397,39 @@
                         </div>
                     </section>
 
+                    <section id="viewFiles" data-view-panel="files" class="hidden space-y-5">
+                        <div class="flex items-end justify-between gap-4 flex-wrap">
+                            <div>
+                                <p class="text-xs font-semibold uppercase tracking-wider text-cyan-600">Eingebettete Exportdateien</p>
+                                <h2 class="text-2xl font-bold text-slate-900 mt-1">Dateien</h2>
+                                <p class="text-sm text-slate-500 mt-2">Unterstützte Inhalte werden ausschließlich lokal und schreibgeschützt geöffnet.</p>
+                            </div>
+                            <span class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600"><i data-lucide="eye" class="w-4 h-4"></i> Nur ansehen</span>
+                        </div>
+
+                        <section id="phonebookViewerSection" class="hidden bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                            <div class="p-5 border-b border-slate-200 flex items-center justify-between gap-4 flex-wrap">
+                                <div>
+                                    <h3 class="font-bold text-slate-900 flex items-center gap-2"><i data-lucide="book-user" class="w-5 h-5 text-cyan-600"></i> Telefonbücher</h3>
+                                    <p id="phonebookViewerSummary" class="text-xs text-slate-500 mt-1"></p>
+                                </div>
+                                <label class="relative w-full sm:w-80">
+                                    <span class="sr-only">Telefonbücher durchsuchen</span>
+                                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-3"></i>
+                                    <input id="phonebookSearch" type="search" placeholder="Name oder Rufnummer suchen" class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 bg-white text-sm focus:ring-2 focus:ring-cyan-500 outline-none">
+                                </label>
+                            </div>
+                            <div id="phonebookViewerErrors" class="hidden border-b border-red-200 bg-red-50 px-5 py-3 text-xs font-medium text-red-700"></div>
+                            <div id="phonebookViewer" class="p-5 space-y-4"></div>
+                        </section>
+
+                        <div id="filesEmptyState" class="bg-white border border-slate-200 rounded-2xl p-10 text-center">
+                            <div class="w-12 h-12 mx-auto rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center"><i data-lucide="files" class="w-6 h-6"></i></div>
+                            <h3 class="font-semibold text-slate-700 mt-4">Keine unterstützten Dateien gefunden</h3>
+                            <p class="text-sm text-slate-500 mt-2">Aktuell kann der Viewer eingebettete B64-Telefonbücher schreibgeschützt öffnen.</p>
+                        </div>
+                    </section>
+
                     <section id="viewEditor" data-view-panel="editor" class="hidden">
                         <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
                             <div class="flex justify-between items-center mb-4 gap-4 flex-wrap">
@@ -497,6 +547,15 @@
                 this.secretStatusFilter = document.getElementById('secretStatusFilter');
                 this.secretResultsSummary = document.getElementById('secretResultsSummary');
                 this.secretNavCount = document.getElementById('secretNavCount');
+                this.fileNavCount = document.getElementById('fileNavCount');
+                this.phonebookOverviewCard = document.getElementById('phonebookOverviewCard');
+                this.phonebookOverviewSummary = document.getElementById('phonebookOverviewSummary');
+                this.phonebookViewerSection = document.getElementById('phonebookViewerSection');
+                this.phonebookViewerSummary = document.getElementById('phonebookViewerSummary');
+                this.phonebookSearch = document.getElementById('phonebookSearch');
+                this.phonebookViewerErrors = document.getElementById('phonebookViewerErrors');
+                this.phonebookViewer = document.getElementById('phonebookViewer');
+                this.filesEmptyState = document.getElementById('filesEmptyState');
                 this.navButtons = [...document.querySelectorAll('.workspace-nav')];
                 this.viewPanels = [...document.querySelectorAll('[data-view-panel]')];
                 this.metaList = document.getElementById('metaList');
@@ -520,11 +579,13 @@
                 this.autoValidationRunning = false;
                 this.passwordChangeRunning = false;
                 this.originalExportPassword = null;
+                this.phonebookData = { files: [], phonebookFiles: [], books: [], errors: [] };
                 this.library = window.FritzOSCrypto;
                 this.parser = FritzBoxParser;
                 this.crypto = AVMCrypto;
                 this.checksum = window.FritzExportChecksum;
                 this.exportEditor = window.FritzExportEditor.FritzExportEditor;
+                this.embeddedFiles = window.FritzEmbeddedFiles;
                 this.state = new window.FritzConfigState.ConfigState(this.parser);
 
                 this.bindEvents();
@@ -559,6 +620,8 @@
                 this.secretSearch?.addEventListener('input', () => this.renderSecretEditor());
                 this.secretCategoryFilter?.addEventListener('change', () => this.renderSecretEditor());
                 this.secretStatusFilter?.addEventListener('change', () => this.renderSecretEditor());
+                this.phonebookSearch?.addEventListener('input', () => this.renderPhonebookViewer());
+                this.phonebookOverviewCard?.addEventListener('click', () => this.switchView('files'));
 
                 if (this.welcomeDropZone) {
                     this.welcomeDropZone.addEventListener('dragover', event => {
@@ -764,6 +827,7 @@
                 reader.onload = (loadEvent) => {
                     const text = String(loadEvent.target?.result || '');
                     this.state.load(text);
+                    this.phonebookData = this.embeddedFiles.extractPhonebooks(text);
                     this.originalExportPassword = null;
                     this.closePasswordChangePanel();
                     this.revealedSecrets.clear();
@@ -775,6 +839,7 @@
                     this.editor.classList.add('bg-slate-50', 'text-slate-700');
                     this.updateCharCount();
                     this.renderState();
+                    this.renderPhonebookViewer();
                     this.updateDashboard(text);
                     this.inspectChecksum(text);
                     this.passwordInput.value = '';
@@ -1013,9 +1078,157 @@
                 this.updateCharCount();
                 this.updateDashboard(original);
                 this.inspectChecksum(original);
+                this.phonebookData = this.embeddedFiles.extractPhonebooks(original);
+                this.renderPhonebookViewer();
                 this.renderState();
                 this.showStatus('Die unveränderte Originaldatei wurde wiederhergestellt.', 'success');
                 this.log('> Originaldatei wiederhergestellt; Änderungen und Prüfergebnisse verworfen.', 'success');
+            }
+
+            getPhoneNumberTypeLabel(type) {
+                const labels = {
+                    home: 'Privat',
+                    mobile: 'Mobil',
+                    work: 'Arbeit',
+                    intern: 'Intern',
+                    memo: 'Memo',
+                    fax: 'Fax',
+                    fax_home: 'Fax privat',
+                    fax_work: 'Fax Arbeit',
+                    other: 'Weitere'
+                };
+                return labels[String(type || '').toLowerCase()] || this.parser.humanizeField(type || 'Weitere');
+            }
+
+            renderPhonebookViewer() {
+                const data = this.phonebookData || { phonebookFiles: [], books: [], errors: [] };
+                const query = (this.phonebookSearch?.value || '').trim().toLocaleLowerCase('de');
+                const totalContacts = data.books.reduce((sum, book) => sum + book.contacts.length, 0);
+                const visibleBooks = data.books.map(book => ({
+                    book,
+                    contacts: book.contacts.filter(contact => {
+                        if (!query) return true;
+                        const searchText = [
+                            contact.name,
+                            contact.category,
+                            ...contact.numbers.flatMap(number => [number.value, number.type, this.getPhoneNumberTypeLabel(number.type)])
+                        ].filter(Boolean).join(' ').toLocaleLowerCase('de');
+                        return searchText.includes(query);
+                    })
+                })).filter(entry => entry.contacts.length > 0 || (!query && entry.book.contacts.length === 0));
+                const visibleContacts = visibleBooks.reduce((sum, entry) => sum + entry.contacts.length, 0);
+
+                this.fileNavCount.textContent = data.phonebookFiles.length;
+                const hasPhonebookFile = data.phonebookFiles.length > 0;
+                this.phonebookOverviewCard.classList.toggle('hidden', !hasPhonebookFile);
+                this.phonebookOverviewSummary.textContent = `${data.books.length} ${data.books.length === 1 ? 'Telefonbuch' : 'Telefonbücher'} · ${totalContacts} ${totalContacts === 1 ? 'Kontakt' : 'Kontakte'}`;
+                this.phonebookViewerSection.classList.toggle('hidden', !hasPhonebookFile);
+                this.filesEmptyState.classList.toggle('hidden', hasPhonebookFile);
+                this.phonebookViewerSummary.textContent = query
+                    ? `${visibleContacts} von ${totalContacts} Kontakten in ${data.books.length} Telefonbüchern`
+                    : `${data.books.length} Telefonbücher · ${totalContacts} Kontakte`;
+
+                this.phonebookViewerErrors.classList.toggle('hidden', data.errors.length === 0);
+                this.phonebookViewerErrors.textContent = data.errors.length
+                    ? `${data.errors.length} Telefonbuchdatei konnte nicht gelesen werden.`
+                    : '';
+                this.phonebookViewer.innerHTML = '';
+
+                if (visibleBooks.length === 0 && hasPhonebookFile) {
+                    const empty = document.createElement('div');
+                    empty.className = 'rounded-xl border border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500';
+                    empty.textContent = query ? 'Kein Kontakt passt zur Suche.' : 'Die Telefonbuchdatei enthält keine lesbaren Kontakte.';
+                    this.phonebookViewer.appendChild(empty);
+                }
+
+                visibleBooks.forEach((entry, bookIndex) => {
+                    const details = document.createElement('details');
+                    details.className = 'group rounded-2xl border border-slate-200 overflow-hidden';
+                    details.open = Boolean(query) || bookIndex === 0;
+                    const summary = document.createElement('summary');
+                    summary.className = 'cursor-pointer list-none bg-slate-50 px-4 py-3 flex items-center justify-between gap-4';
+                    const heading = document.createElement('div');
+                    heading.className = 'min-w-0';
+                    const title = document.createElement('h4');
+                    title.className = 'font-bold text-slate-900 truncate';
+                    title.textContent = entry.book.name;
+                    const meta = document.createElement('p');
+                    meta.className = 'text-xs text-slate-500 mt-0.5';
+                    meta.textContent = `${entry.contacts.length}${query ? ` von ${entry.book.contacts.length}` : ''} Kontakte${entry.book.owner === '255' ? ' · FRITZ!Box-interne Ziele' : ''}`;
+                    heading.append(title, meta);
+                    const summaryActions = document.createElement('div');
+                    summaryActions.className = 'flex items-center gap-3 shrink-0';
+                    if (entry.book.sourceLine) {
+                        const sourceLink = document.createElement('button');
+                        sourceLink.type = 'button';
+                        sourceLink.className = 'text-xs font-medium text-slate-500 hover:text-blue-700 hover:underline';
+                        sourceLink.textContent = `${entry.book.sourceName} · Zeile ${entry.book.sourceLine}`;
+                        sourceLink.addEventListener('click', event => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            this.jumpToEditorLine(entry.book.sourceLine);
+                        });
+                        summaryActions.appendChild(sourceLink);
+                    }
+                    const chevron = document.createElement('i');
+                    chevron.setAttribute('data-lucide', 'chevron-down');
+                    chevron.className = 'w-4 h-4 text-slate-400 transition-transform group-open:rotate-180';
+                    summaryActions.appendChild(chevron);
+                    summary.append(heading, summaryActions);
+                    details.appendChild(summary);
+
+                    const contacts = document.createElement('div');
+                    contacts.className = 'grid grid-cols-1 xl:grid-cols-2 gap-3 p-4 bg-white';
+                    entry.contacts.forEach(contact => {
+                        const card = document.createElement('article');
+                        card.className = 'rounded-xl border border-slate-200 p-4 min-w-0';
+                        const header = document.createElement('div');
+                        header.className = 'flex items-center gap-3';
+                        const avatar = document.createElement('span');
+                        avatar.className = 'w-9 h-9 shrink-0 rounded-full bg-cyan-50 text-cyan-700 flex items-center justify-center text-sm font-bold';
+                        avatar.textContent = contact.name.trim().slice(0, 1).toLocaleUpperCase('de') || '?';
+                        const identity = document.createElement('div');
+                        identity.className = 'min-w-0';
+                        const name = document.createElement('h5');
+                        name.className = 'font-semibold text-slate-900 truncate';
+                        name.textContent = contact.name;
+                        identity.appendChild(name);
+                        if (contact.category) {
+                            const category = document.createElement('p');
+                            category.className = 'text-[11px] text-slate-500 mt-0.5';
+                            category.textContent = contact.category;
+                            identity.appendChild(category);
+                        }
+                        header.append(avatar, identity);
+                        card.appendChild(header);
+
+                        const numbers = document.createElement('div');
+                        numbers.className = 'mt-3 space-y-2';
+                        if (contact.numbers.length === 0) {
+                            const noNumber = document.createElement('p');
+                            noNumber.className = 'text-xs text-slate-400';
+                            noNumber.textContent = 'Keine Rufnummer hinterlegt';
+                            numbers.appendChild(noNumber);
+                        }
+                        contact.numbers.forEach(number => {
+                            const row = document.createElement('div');
+                            row.className = 'flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2';
+                            const value = document.createElement('span');
+                            value.className = 'font-mono text-sm text-slate-800 break-all';
+                            value.textContent = number.value || '—';
+                            const type = document.createElement('span');
+                            type.className = 'shrink-0 rounded-full bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-500';
+                            type.textContent = this.getPhoneNumberTypeLabel(number.type);
+                            row.append(value, type);
+                            numbers.appendChild(row);
+                        });
+                        card.appendChild(numbers);
+                        contacts.appendChild(card);
+                    });
+                    details.appendChild(contacts);
+                    this.phonebookViewer.appendChild(details);
+                });
+                lucide.createIcons();
             }
 
             renderState() {
@@ -1916,6 +2129,9 @@
                 this.dashboardSection.classList.add('hidden');
                 this.metaList.innerHTML = '';
                 this.state.reset();
+                this.phonebookData = { files: [], phonebookFiles: [], books: [], errors: [] };
+                if (this.phonebookSearch) this.phonebookSearch.value = '';
+                this.renderPhonebookViewer();
                 this.renderState();
                 this.editor.classList.remove('bg-slate-900', 'text-green-400');
                 this.editor.classList.add('bg-slate-50', 'text-slate-700');
@@ -2230,6 +2446,10 @@
                 typeof window.FritzExportEditor?.FritzExportEditor?.applySecretChanges !== 'function' ||
                 typeof window.FritzExportEditor?.FritzExportEditor?.changeExportPassword !== 'function') {
                 missingCapabilities.unshift('FritzExportEditor API v1');
+            }
+            if (window.FritzEmbeddedFiles?.API_VERSION !== '1' ||
+                typeof window.FritzEmbeddedFiles?.extractPhonebooks !== 'function') {
+                missingCapabilities.unshift('FritzEmbeddedFiles API v1');
             }
             if (missingCapabilities.length > 0) {
                 console.error('Inkompatible ConfigState.js geladen:', missingCapabilities);
