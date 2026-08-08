@@ -101,7 +101,10 @@ for (const id of [
   'btnEditorTheme',
   'btnNewSipAccount',
   'newSipAccountPanel',
-  'newSipAccountTemplate'
+  'newSipAccountTemplate',
+  'sipSettingsDrawer',
+  'sipSettingsDrawerBody',
+  'sipSettingsDrawerActions'
 ]) {
   assert.equal(ids.includes(id), true, `required UI element #${id} is missing`);
 }
@@ -135,6 +138,9 @@ assert.match(html, /this\.sipAccountsApi\.update\(group\.document, group\.struct
 assert.match(html, /this\.sipAccountsApi\.clone\(group\.document, group\.structure/, 'SIP cloning must use the lossless block model');
 assert.match(html, /\['registrar', 'Registrar', 'text'\]/, 'the SIP card settings need an explicit small-field allowlist');
 assert.match(html, /enabled:\s*'no'/, 'cloned SIP accounts must start disabled');
+assert.match(html, /inset-y-0 right-0[\s\S]*max-w-xl/, 'desktop SIP settings must use a right-side drawer');
+assert.match(html, /sipSettingsDrawerBody[\s\S]*overflow-y-auto/, 'the SIP settings drawer body must scroll independently');
+assert.match(html, /sipSettingsDrawerActions[\s\S]*shrink-0/, 'drawer actions must remain visible below the scroll area');
 assert.match(html, /this\.jumpToEditorLine\(secret\.line\)/, 'secret location links must navigate to the exact source line');
 assert.equal((html.match(/this\.createSecretLocationLink\(secret/g) || []).length >= 5, true, 'secret list, audit and credential cards must expose source links');
 assert.equal(html.includes('<Binärer Master-Key (entschlüsselt)>'), false, 'master key placeholder must not hide the actual decrypted key');
