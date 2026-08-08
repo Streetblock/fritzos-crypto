@@ -98,7 +98,13 @@ for (const id of [
   'editorLineNumbers',
   'editorSectionNav',
   'editorContent',
-  'btnEditorTheme'
+  'btnEditorTheme',
+  'btnNewSipAccount',
+  'newSipAccountPanel',
+  'newSipAccountTemplate',
+  'sipSettingsDrawer',
+  'sipSettingsDrawerBody',
+  'sipSettingsDrawerActions'
 ]) {
   assert.equal(ids.includes(id), true, `required UI element #${id} is missing`);
 }
@@ -128,6 +134,31 @@ assert.match(html, /FritzDecryptedEditor\.buildDocument/, 'decrypted expert view
 assert.match(html, /Original · schreibgeschützt/, 'the immutable loaded original needs an explicit view state');
 assert.match(html, /this\.editorTheme === 'console'/, 'the expert editor needs an independent console/light theme toggle');
 assert.match(html, /this\.validateWorkingCopy\(generation\)/, 'structural edits need automatic roundtrip and checksum validation');
+assert.match(html, /this\.sipAccountsApi\.update\(group\.document, group\.structure, changes\)/, 'simple SIP settings must update the shared config document');
+assert.match(html, /this\.sipAccountsApi\.clone\(group\.document, group\.structure/, 'SIP cloning must use the lossless block model');
+assert.match(html, /\['registrar', 'Registrar', 'text'\]/, 'the SIP card settings need an explicit small-field allowlist');
+assert.match(html, /enabled:\s*'no'/, 'cloned SIP accounts must start disabled');
+assert.match(html, /initializeClonedSipSecrets\(group, result\.accountName, asNew\)/, 'new SIP drafts must inherit the decrypted template state');
+assert.match(html, /this\.state\.setEditedPlaintext\(secret\.id, ''\)/, 'new SIP credentials must start as directly editable blank changes');
+assert.match(html, /Zugangsdaten der gewählten Vorlage zuerst entschlüsseln/, 'new SIP drafts must require a decrypted template');
+assert.match(html, /inset-y-0 right-0[\s\S]*max-w-xl/, 'desktop SIP settings must use a right-side drawer');
+assert.match(html, /sipSettingsDrawerBody[\s\S]*overflow-y-auto/, 'the SIP settings drawer body must scroll independently');
+assert.match(html, /sipSettingsDrawerActions[\s\S]*shrink-0/, 'drawer actions must remain visible below the scroll area');
+assert.match(html, /FritzWireGuardConnections\.js\?v=\d{8}-\d+/, 'WireGuard projection needs a deployment cache key');
+assert.match(html, /this\.wireGuardApi\.project\(document\)/, 'WireGuard cards must use the lossless document projection');
+assert.match(html, /this\.wireGuardApi\.update\(documentModel, connection, changes\)/, 'WireGuard settings must update the shared config document');
+assert.match(html, /renderWireGuardCards\(vpnSecrets, wireGuardProjection\)/, 'VPN secrets must render through complete WireGuard connection cards');
+assert.match(html, /\['wg_dyndns', 'Endpoint \/ Domain', 'text'\]/, 'WireGuard simple settings must expose the endpoint');
+assert.match(html, /\['wg_allowed_ips', 'Erlaubte Netze', 'text'\]/, 'WireGuard simple settings must expose allowed networks');
+assert.match(html, /connection\.fields\.dns_servers[\s\S]*connection\.fields\.wg_dnsserver/, 'WireGuard settings must support v4 and v3 DNS field names');
+assert.match(html, /connection\.values\.wg_slave_network[\s\S]*connection\.values\.wg_slave_mask/, 'WireGuard cards must support v3 peer network fields');
+const wireGuardCardDetails = html.match(/this\.appendWireGuardDetails\(card, \[\s*\['Erlaubte Netze'[\s\S]*?\]\);/)?.[0] || '';
+assert.match(wireGuardCardDetails, /Erlaubte Netze/, 'WireGuard cards must keep allowed networks visible');
+assert.match(wireGuardCardDetails, /DNS-Server/, 'WireGuard cards must keep DNS servers visible');
+for (const hiddenDetail of ['Endpoint / Domain', 'Lokale IP', 'Entfernte IP', 'Gegenstellen-Netz', 'Persistent Keepalive']) {
+  assert.equal(wireGuardCardDetails.includes(hiddenDetail), false, `${hiddenDetail} belongs in the WireGuard settings drawer`);
+}
+assert.match(html, /technicalTitle\.textContent = 'Technische Werte'/, 'hidden WireGuard connection details must remain available in the drawer');
 assert.match(html, /this\.jumpToEditorLine\(secret\.line\)/, 'secret location links must navigate to the exact source line');
 assert.equal((html.match(/this\.createSecretLocationLink\(secret/g) || []).length >= 5, true, 'secret list, audit and credential cards must expose source links');
 assert.equal(html.includes('<Binärer Master-Key (entschlüsselt)>'), false, 'master key placeholder must not hide the actual decrypted key');

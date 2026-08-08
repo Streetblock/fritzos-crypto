@@ -5,7 +5,7 @@
   "main": "./FritzOSCrypto.js",
   "scripts": {
     "generate:sip-providers": "node ./scripts/generate-sip-provider-table.js",
-    "test": "node ./test/parser-inventory.test.js && node ./test/embedded-files.test.js && node ./test/sip-webphone.test.js && node ./test/configstate.test.js && node ./test/decrypted-editor.test.js && node ./test/checksum.test.js && node ./test/export-editor.test.js && node ./test/export-edit.test.js && node ./test/ui-structure.test.js && node ./test/fritzoscrypto.test.js"
+    "test": "node ./test/parser-inventory.test.js && node ./test/config-document.test.js && node ./test/wireguard-connections.test.js && node ./test/embedded-files.test.js && node ./test/sip-webphone.test.js && node ./test/configstate.test.js && node ./test/decrypted-editor.test.js && node ./test/checksum.test.js && node ./test/export-editor.test.js && node ./test/export-edit.test.js && node ./test/ui-structure.test.js && node ./test/fritzoscrypto.test.js"
   },
   "repository": {
     "type": "git",

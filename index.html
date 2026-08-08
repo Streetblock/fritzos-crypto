@@ -16,9 +16,12 @@
     <!-- Externe FritzOSCrypto.js Bibliothek        -->
     <!-- (Muss im selben Ordner liegen!)            -->
     <!-- ========================================== -->
-    <script src="./FritzOSCrypto.js?v=20260808-6"></script>
+    <script src="./FritzOSCrypto.js?v=20260808-7"></script>
     <script src="./ConfigState.js?v=20260807-4"></script>
     <script src="./DecryptedEditor.js?v=20260808-1"></script>
+    <script src="./FritzConfigDocument.js?v=20260808-2"></script>
+    <script src="./FritzSipAccounts.js?v=20260808-1"></script>
+    <script src="./FritzWireGuardConnections.js?v=20260808-1"></script>
     <script src="./FritzExportChecksum.js?v=20260807-4"></script>
     <script src="./FritzExportEditor.js?v=20260808-2"></script>
     <script src="./FritzEmbeddedFiles.js?v=20260808-2"></script>
@@ -290,9 +293,24 @@
                                 <div id="wifiCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
                             </section>
                             <section id="sipCardsSection" class="hidden">
-                                <div class="flex items-center gap-2 mb-3">
-                                    <i data-lucide="phone" class="w-5 h-5 text-violet-600"></i>
-                                    <h3 class="font-bold text-slate-800">Telefonie-Konten</h3>
+                                <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="phone" class="w-5 h-5 text-violet-600"></i>
+                                        <h3 class="font-bold text-slate-800">Telefonie-Konten</h3>
+                                    </div>
+                                    <button id="btnNewSipAccount" type="button" class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50">
+                                        <i data-lucide="plus" class="w-4 h-4"></i> Neue Verbindung
+                                    </button>
+                                </div>
+                                <div id="newSipAccountPanel" class="hidden mb-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+                                    <p class="text-sm font-bold text-slate-800">Vorlage für die neue Verbindung</p>
+                                    <div class="mt-3 flex items-end gap-2 flex-wrap">
+                                        <label class="min-w-[240px] flex-1 text-xs font-semibold text-slate-600">Provider-Vorlage
+                                            <select id="newSipAccountTemplate" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"></select>
+                                        </label>
+                                        <button id="btnCreateSipAccount" type="button" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700"><i data-lucide="copy-plus" class="w-4 h-4"></i> Entwurf anlegen</button>
+                                        <button id="btnCancelNewSipAccount" type="button" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600">Abbrechen</button>
+                                    </div>
                                 </div>
                                 <div id="sipCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
                             </section>
@@ -559,6 +577,24 @@
                 </main>
             </div>
         </section>
+
+        <div id="sipSettingsDrawer" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="sipSettingsDrawerTitle">
+            <button id="sipSettingsBackdrop" type="button" class="absolute inset-0 bg-slate-950/35 backdrop-blur-[1px]" aria-label="SIP-Einstellungen schließen"></button>
+            <aside class="absolute inset-y-0 right-0 flex w-full max-w-xl flex-col bg-white shadow-2xl sm:border-l sm:border-slate-200">
+                <header class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+                    <div class="min-w-0">
+                        <p id="settingsDrawerEyebrow" class="text-xs font-bold uppercase tracking-wider text-violet-600">SIP-Konto</p>
+                        <h2 id="sipSettingsDrawerTitle" class="mt-1 truncate text-xl font-black text-slate-900">Verbindungseinstellungen</h2>
+                        <p id="sipSettingsDrawerSubtitle" class="mt-1 truncate text-sm text-slate-500"></p>
+                    </div>
+                    <button id="btnCloseSipSettings" type="button" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900" aria-label="Einstellungen schließen">
+                        <i data-lucide="x" class="h-5 w-5"></i>
+                    </button>
+                </header>
+                <div id="sipSettingsDrawerBody" class="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6"></div>
+                <footer id="sipSettingsDrawerActions" class="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6"></footer>
+            </aside>
+        </div>
     </div>
 
     <script>
@@ -619,6 +655,19 @@
                 this.wifiCards = document.getElementById('wifiCards');
                 this.sipCardsSection = document.getElementById('sipCardsSection');
                 this.sipCards = document.getElementById('sipCards');
+                this.btnNewSipAccount = document.getElementById('btnNewSipAccount');
+                this.newSipAccountPanel = document.getElementById('newSipAccountPanel');
+                this.newSipAccountTemplate = document.getElementById('newSipAccountTemplate');
+                this.btnCreateSipAccount = document.getElementById('btnCreateSipAccount');
+                this.btnCancelNewSipAccount = document.getElementById('btnCancelNewSipAccount');
+                this.sipSettingsDrawer = document.getElementById('sipSettingsDrawer');
+                this.sipSettingsBackdrop = document.getElementById('sipSettingsBackdrop');
+                this.sipSettingsDrawerTitle = document.getElementById('sipSettingsDrawerTitle');
+                this.settingsDrawerEyebrow = document.getElementById('settingsDrawerEyebrow');
+                this.sipSettingsDrawerSubtitle = document.getElementById('sipSettingsDrawerSubtitle');
+                this.sipSettingsDrawerBody = document.getElementById('sipSettingsDrawerBody');
+                this.sipSettingsDrawerActions = document.getElementById('sipSettingsDrawerActions');
+                this.btnCloseSipSettings = document.getElementById('btnCloseSipSettings');
                 this.internalTelephonyCardsSection = document.getElementById('internalTelephonyCardsSection');
                 this.internalTelephonyCards = document.getElementById('internalTelephonyCards');
                 this.phonebookCardsSection = document.getElementById('phonebookCardsSection');
@@ -696,6 +745,7 @@
                 this.compatibleSipAccounts = [];
                 this.sipPhoneState = 'idle';
                 this.selectedSipContact = null;
+                this.sipSettingsPreviousFocus = null;
                 this.editorTheme = 'console';
                 this.decryptedEditorModel = null;
                 this.library = window.FritzOSCrypto;
@@ -705,6 +755,9 @@
                 this.exportEditor = window.FritzExportEditor.FritzExportEditor;
                 this.embeddedFiles = window.FritzEmbeddedFiles;
                 this.sipWebPhoneApi = window.FritzSipWebPhone;
+                this.configDocumentApi = window.FritzConfigDocument;
+                this.sipAccountsApi = window.FritzSipAccounts;
+                this.wireGuardApi = window.FritzWireGuardConnections;
                 this.state = new window.FritzConfigState.ConfigState(this.parser);
                 this.sipPhone = new this.sipWebPhoneApi.SipWebPhone({
                     SIP: window.SIP,
@@ -728,6 +781,14 @@
                 this.btnChangeFile?.addEventListener('click', () => this.fileInput.click());
                 this.btnToggleView?.addEventListener('click', () => this.toggleView());
                 this.btnEditorTheme?.addEventListener('click', () => this.toggleEditorTheme());
+                this.btnNewSipAccount?.addEventListener('click', () => this.toggleNewSipAccountPanel(true));
+                this.btnCancelNewSipAccount?.addEventListener('click', () => this.toggleNewSipAccountPanel(false));
+                this.btnCreateSipAccount?.addEventListener('click', () => this.createSipAccountDraft());
+                this.btnCloseSipSettings?.addEventListener('click', () => this.closeSipSettingsDrawer());
+                this.sipSettingsBackdrop?.addEventListener('click', () => this.closeSipSettingsDrawer());
+                document.addEventListener('keydown', event => {
+                    if (event.key === 'Escape' && !this.sipSettingsDrawer.classList.contains('hidden')) this.closeSipSettingsDrawer();
+                });
                 this.btnToggleAllSecrets?.addEventListener('click', () => this.toggleAllSecrets());
                 this.btnTogglePasswordChange?.addEventListener('click', () => this.togglePasswordChangePanel());
                 this.btnCancelPasswordChange?.addEventListener('click', () => this.closePasswordChangePanel());
@@ -985,6 +1046,7 @@
             }
 
             processFile(file) {
+                this.closeSipSettingsDrawer();
                 const reader = new FileReader();
                 this.currentFileName = file.name || '';
                 this.fileNameLabel.textContent = this.currentFileName || 'Datei geladen';
@@ -1987,13 +2049,190 @@
             }
 
             getSipAccountGroups(sipSecrets) {
+                const document = this.configDocumentApi.parse(this.state.workingText);
+                const structures = this.sipAccountsApi.project(document);
                 const groups = new Map();
                 sipSecrets.forEach(secret => {
                     const key = secret.account?.id || secret.stableKey;
-                    if (!groups.has(key)) groups.set(key, { id: key, account: secret.account || {}, secrets: [] });
+                    if (!groups.has(key)) groups.set(key, { id: key, account: secret.account || {}, secrets: [], document, structure: null });
                     groups.get(key).secrets.push(secret);
                 });
-                return [...groups.values()];
+                const result = [...groups.values()];
+                result.forEach(group => {
+                    group.structure = group.secrets.map(secret => this.sipAccountsApi.findBySecret(structures, secret)).find(Boolean) || null;
+                    if (group.structure) group.id = group.structure.id;
+                });
+                return result;
+            }
+
+            toggleNewSipAccountPanel(visible) {
+                this.newSipAccountPanel.classList.toggle('hidden', !visible);
+                if (visible) this.newSipAccountTemplate.focus();
+            }
+
+            applyStructuredConfigText(updatedText, message, afterStateUpdate = null) {
+                const keepDecryptedView = this.state.viewMode === 'preview';
+                this.state.setWorkingText(updatedText);
+                if (afterStateUpdate) afterStateUpdate();
+                this.updateCharCount();
+                this.renderState();
+                if (keepDecryptedView) this.showDecryptedPreview();
+                this.scheduleAutoValidation();
+                this.showStatus(message, 'success');
+            }
+
+            initializeClonedSipSecrets(sourceGroup, accountName, clearCredentials) {
+                const sourceByField = new Map();
+                sourceGroup.secrets.forEach(secret => {
+                    const field = String(secret.field).toLowerCase();
+                    if (!sourceByField.has(field)) sourceByField.set(field, []);
+                    sourceByField.get(field).push(secret);
+                });
+                const fieldIndexes = new Map();
+                const blockIdentity = `|${String(accountName).toLowerCase()}|`;
+                this.state.secrets.filter(secret => secret.stableKey.includes(blockIdentity)).forEach(secret => {
+                    const field = String(secret.field).toLowerCase();
+                    const index = fieldIndexes.get(field) || 0;
+                    fieldIndexes.set(field, index + 1);
+                    const source = sourceByField.get(field)?.[index];
+                    if (!source || source.status !== 'decrypted') return;
+                    this.state.markDecrypted(secret.id, {
+                        plaintext: source.plaintext,
+                        type: source.type,
+                        label: source.label,
+                        source: source.source
+                    });
+                    if (clearCredentials && /^(?:username|user|authname|passwd|password|pass|secret)$/.test(field)) {
+                        this.state.setEditedPlaintext(secret.id, '');
+                    }
+                });
+            }
+
+            cloneSipAccount(group, asNew = false) {
+                if (!group?.structure) return;
+                const credentialSecrets = group.secrets.filter(secret => /^(?:username|user|authname|passwd|password|pass|secret)$/i.test(secret.field));
+                if (asNew && credentialSecrets.some(secret => secret.status !== 'decrypted')) {
+                    this.showStatus('Bitte die Zugangsdaten der gewählten Vorlage zuerst entschlüsseln.', 'warning');
+                    return;
+                }
+                const draftName = asNew ? 'Neues SIP-Konto' : `Kopie von ${group.structure.values.name || group.structure.name}`;
+                const result = this.sipAccountsApi.clone(group.document, group.structure, {
+                    enabled: 'no',
+                    name: draftName
+                });
+                this.applyStructuredConfigText(
+                    result.updatedText,
+                    `${result.accountName} wurde als deaktivierter Entwurf angelegt.`,
+                    () => this.initializeClonedSipSecrets(group, result.accountName, asNew)
+                );
+                this.toggleNewSipAccountPanel(false);
+            }
+
+            createSipAccountDraft() {
+                const groups = this.getSipAccountGroups(this.state.secrets.filter(secret => secret.category === 'sip'));
+                const selected = groups.find(group => group.structure?.id === this.newSipAccountTemplate.value);
+                if (!selected) {
+                    this.showStatus('Bitte zuerst eine vorhandene Provider-Vorlage auswählen.', 'warning');
+                    return;
+                }
+                this.cloneSipAccount(selected, true);
+            }
+
+            saveSipSimpleSettings(group, panel) {
+                if (!group?.structure) return;
+                const changes = {};
+                panel.querySelectorAll('[data-sip-setting]').forEach(input => {
+                    changes[input.dataset.sipSetting] = input.type === 'checkbox' ? (input.checked ? 'yes' : 'no') : input.value;
+                });
+                try {
+                    const updatedText = this.sipAccountsApi.update(group.document, group.structure, changes);
+                    this.closeSipSettingsDrawer();
+                    this.applyStructuredConfigText(updatedText, `${group.structure.name}: SIP-Einstellungen übernommen.`);
+                } catch (error) {
+                    this.showStatus(`SIP-Einstellungen konnten nicht übernommen werden: ${error.message}`, 'error');
+                }
+            }
+
+            createSipSettingsPanel(group) {
+                const panel = document.createElement('div');
+                panel.className = 'space-y-5';
+                const title = document.createElement('p');
+                title.className = 'text-sm font-bold text-slate-800';
+                title.textContent = 'Einfache Verbindungseinstellungen';
+                const hint = document.createElement('p');
+                hint.className = 'mt-1 text-xs text-slate-500';
+                hint.textContent = 'Weitere technische Felder bleiben erhalten und können in der Expertenansicht bearbeitet werden.';
+                const intro = document.createElement('div');
+                intro.append(title, hint);
+                const grid = document.createElement('div');
+                grid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-4';
+                const definitions = [
+                    ['enabled', 'Verbindung aktiv', 'checkbox'],
+                    ['name', 'Anzeigename', 'text'],
+                    ['registrar', 'Registrar', 'text'],
+                    ['outboundproxy', 'Outbound-Proxy', 'text'],
+                    ['transport_type', 'Transport', 'text']
+                ];
+                definitions.forEach(([field, labelText, type]) => {
+                    const assignment = group.structure?.fields[field];
+                    if (!assignment || String(assignment.value).startsWith('$$$$')) return;
+                    const label = document.createElement('label');
+                    label.className = type === 'checkbox'
+                        ? 'flex items-center gap-2 rounded-lg border border-violet-100 bg-white px-3 py-2 text-sm font-semibold text-slate-700'
+                        : 'text-xs font-semibold text-slate-600';
+                    const input = document.createElement('input');
+                    input.type = type;
+                    input.dataset.sipSetting = field;
+                    if (type === 'checkbox') {
+                        input.checked = /^(?:yes|1|true|on)$/i.test(assignment.value);
+                        input.className = 'h-4 w-4 rounded border-slate-300 text-violet-600';
+                        label.append(input, document.createTextNode(labelText));
+                    } else {
+                        input.value = assignment.value;
+                        input.className = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800';
+                        label.append(document.createTextNode(labelText), input);
+                    }
+                    grid.appendChild(label);
+                });
+                const expertHint = document.createElement('div');
+                expertHint.className = 'rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800';
+                expertHint.textContent = 'Technische Providerwerte werden unverändert beibehalten. Für weitere Felder steht die Expertenansicht zur Verfügung.';
+                panel.append(intro, grid, expertHint);
+                return panel;
+            }
+
+            openSipSettingsDrawer(group, title, registrar) {
+                this.sipSettingsPreviousFocus = document.activeElement;
+                this.settingsDrawerEyebrow.textContent = 'SIP-Konto';
+                this.settingsDrawerEyebrow.className = 'text-xs font-bold uppercase tracking-wider text-violet-600';
+                this.sipSettingsDrawerTitle.textContent = title || group.structure?.name || 'SIP-Verbindung';
+                this.sipSettingsDrawerSubtitle.textContent = [group.structure?.name, registrar].filter(Boolean).join(' · ');
+                this.sipSettingsDrawerBody.innerHTML = '';
+                this.sipSettingsDrawerActions.innerHTML = '';
+                const panel = this.createSipSettingsPanel(group);
+                const clone = this.createCredentialAction('Kachel klonen', 'copy-plus', () => {
+                    this.closeSipSettingsDrawer();
+                    this.cloneSipAccount(group);
+                }, !group.structure);
+                const cancel = this.createCredentialAction('Abbrechen', 'x', () => this.closeSipSettingsDrawer(), false);
+                const save = this.createCredentialAction('Einstellungen übernehmen', 'save', () => this.saveSipSimpleSettings(group, panel), !group.structure);
+                save.classList.add('border-violet-600', 'bg-violet-600', 'text-white', 'hover:bg-violet-700');
+                this.sipSettingsDrawerBody.appendChild(panel);
+                this.sipSettingsDrawerActions.append(clone, cancel, save);
+                this.sipSettingsDrawer.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+                requestAnimationFrame(() => this.btnCloseSipSettings.focus());
+                lucide.createIcons();
+            }
+
+            closeSipSettingsDrawer() {
+                const previousFocus = this.sipSettingsPreviousFocus;
+                this.sipSettingsPreviousFocus = null;
+                this.sipSettingsDrawer.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+                this.sipSettingsDrawerBody.innerHTML = '';
+                this.sipSettingsDrawerActions.innerHTML = '';
+                if (previousFocus?.isConnected) previousFocus.focus();
             }
 
             createCompatibleSipAccount(group) {
@@ -2013,7 +2252,16 @@
 
             renderSipCards(sipSecrets) {
                 this.sipCards.innerHTML = '';
-                for (const group of this.getSipAccountGroups(sipSecrets)) {
+                const groups = this.getSipAccountGroups(sipSecrets);
+                this.newSipAccountTemplate.innerHTML = '';
+                groups.filter(group => group.structure).forEach(group => {
+                    const option = document.createElement('option');
+                    option.value = group.structure.id;
+                    option.textContent = `${group.structure.name} · ${group.structure.values.registrar || 'Registrar unbekannt'}`;
+                    this.newSipAccountTemplate.appendChild(option);
+                });
+                this.btnNewSipAccount.disabled = this.newSipAccountTemplate.options.length === 0;
+                for (const group of groups) {
                     const decryptedUsername = this.getSipAccountValue(group, /^(?:username|user)$/);
                     const decryptedRegistrar = this.getSipAccountValue(group, /^registrar$/);
                     const username = group.account.username || decryptedUsername;
@@ -2029,7 +2277,17 @@
                     const subtitle = document.createElement('p');
                     subtitle.className = 'text-sm text-slate-500 mt-1 break-words';
                     subtitle.textContent = registrar ? `Registrar: ${registrar}` : 'Registrar: nicht verfügbar';
-                    card.append(eyebrow, title, subtitle);
+                    const heading = document.createElement('div');
+                    heading.className = 'flex items-start justify-between gap-3';
+                    const headingText = document.createElement('div');
+                    headingText.append(eyebrow, title, subtitle);
+                    const settingsButton = this.createCredentialAction('', 'settings', null, !group.structure);
+                    settingsButton.classList.add('shrink-0', 'px-2.5');
+                    settingsButton.title = 'Einfache SIP-Einstellungen';
+                    settingsButton.setAttribute('aria-label', `${title.textContent} Einstellungen öffnen`);
+                    settingsButton.addEventListener('click', () => this.openSipSettingsDrawer(group, title.textContent, registrar));
+                    heading.append(headingText, settingsButton);
+                    card.append(heading);
 
                     const fields = document.createElement('div');
                     fields.className = 'space-y-3 mt-4';
@@ -2277,6 +2535,221 @@
                 });
             }
 
+            getWireGuardProjection() {
+                const document = this.configDocumentApi.parse(this.state.workingText);
+                return { document, model: this.wireGuardApi.project(document) };
+            }
+
+            getWireGuardNodeSecrets(node, secrets, model) {
+                return secrets.filter(secret => this.wireGuardApi.findBySecret(model, secret)?.id === node?.id);
+            }
+
+            appendWireGuardSecrets(card, secrets) {
+                if (secrets.length === 0) return;
+                const fields = document.createElement('div');
+                fields.className = 'mt-4 space-y-3 border-t border-teal-100 pt-4';
+                secrets.forEach(secret => {
+                    const field = document.createElement('div');
+                    const label = document.createElement('p');
+                    label.className = 'text-xs font-semibold text-slate-500';
+                    label.textContent = secret.displayLabel;
+                    field.append(label, this.createSecretLocationLink(secret, 'mt-0.5 mb-1'), this.createMaskedCredential(secret));
+                    fields.appendChild(field);
+                });
+                card.appendChild(fields);
+            }
+
+            appendWireGuardDetails(card, details) {
+                const visible = details.filter(([, value]) => value != null && String(value).trim() !== '');
+                if (visible.length === 0) return;
+                const list = document.createElement('dl');
+                list.className = 'mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3';
+                visible.forEach(([labelText, valueText]) => {
+                    const item = document.createElement('div');
+                    item.className = 'min-w-0 rounded-lg bg-teal-50/70 px-3 py-2';
+                    const label = document.createElement('dt');
+                    label.className = 'text-[11px] font-semibold uppercase tracking-wide text-teal-700';
+                    label.textContent = labelText;
+                    const value = document.createElement('dd');
+                    value.className = 'mt-0.5 break-all font-mono text-xs text-slate-700';
+                    value.textContent = valueText;
+                    item.append(label, value);
+                    list.appendChild(item);
+                });
+                card.appendChild(list);
+            }
+
+            createWireGuardSettingsPanel(connection) {
+                const panel = document.createElement('div');
+                panel.className = 'space-y-5';
+                const intro = document.createElement('div');
+                const title = document.createElement('p');
+                title.className = 'text-sm font-bold text-slate-800';
+                title.textContent = 'Einfache WireGuard-Einstellungen';
+                const hint = document.createElement('p');
+                hint.className = 'mt-1 text-xs text-slate-500';
+                hint.textContent = 'Schlüssel und technische VPN-Parameter bleiben separat geschützt.';
+                intro.append(title, hint);
+                const grid = document.createElement('div');
+                grid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-4';
+                const definitions = [
+                    ['enabled', 'Verbindung aktiv', 'checkbox'],
+                    ['name', 'Anzeigename', 'text'],
+                    ['wg_dyndns', 'Endpoint / Domain', 'text'],
+                    ['wg_allowed_ips', 'Erlaubte Netze', 'text'],
+                    ['wg_persistent_keepalive', 'Persistent Keepalive', 'text'],
+                    ['wg_fulltunnel', 'Gesamten Verkehr tunneln', 'checkbox']
+                ];
+                const dnsField = connection.fields.dns_servers ? 'dns_servers' : connection.fields.wg_dnsserver ? 'wg_dnsserver' : null;
+                if (dnsField) definitions.push([dnsField, 'DNS-Server', 'text']);
+                definitions.forEach(([field, labelText, type]) => {
+                    const assignment = connection.fields[field];
+                    if (!assignment || String(assignment.value).startsWith('$$$$')) return;
+                    const label = document.createElement('label');
+                    label.className = type === 'checkbox'
+                        ? 'flex items-center gap-2 rounded-lg border border-teal-100 bg-white px-3 py-2 text-sm font-semibold text-slate-700'
+                        : 'text-xs font-semibold text-slate-600';
+                    const input = document.createElement('input');
+                    input.type = type;
+                    input.dataset.wireguardSetting = field;
+                    if (type === 'checkbox') {
+                        input.checked = /^(?:yes|1|true|on)$/i.test(assignment.value);
+                        input.className = 'h-4 w-4 rounded border-slate-300 text-teal-600';
+                        label.append(input, document.createTextNode(labelText));
+                    } else {
+                        input.value = assignment.value;
+                        input.className = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800';
+                        label.append(document.createTextNode(labelText), input);
+                    }
+                    grid.appendChild(label);
+                });
+                const technicalValues = [
+                    ['Lokale IP', connection.values.localip || connection.values.local_virtualip_v4 || connection.values.local_virtualip],
+                    ['Entfernte IP', connection.values.remoteip || connection.values.remote_virtualip_v4 || connection.values.remote_virtualip],
+                    ['Lokale IPv6', connection.values.local_virtualip_v6],
+                    ['Entfernte IPv6', connection.values.remote_virtualip_v6],
+                    ['Gegenstellen-Netz', connection.values.wg_slave_network_4v && connection.values.wg_slave_mask_4v
+                        ? `${connection.values.wg_slave_network_4v} / ${connection.values.wg_slave_mask_4v}`
+                        : connection.values.wg_slave_network && connection.values.wg_slave_mask
+                            ? `${connection.values.wg_slave_network} / ${connection.values.wg_slave_mask}`
+                            : connection.values.wg_slave_network_4v || connection.values.wg_slave_network],
+                    ['IPv6-Gegenstellen-Netz', connection.values.wg_slave_network_6v && connection.values.wg_slave_prefixlen_6v
+                        ? `${connection.values.wg_slave_network_6v} / ${connection.values.wg_slave_prefixlen_6v}`
+                        : connection.values.wg_slave_network_6v],
+                    ['DNS-Domains', connection.values.dns_domains]
+                ].filter(([, value]) => value != null && String(value).trim() !== '');
+                const technical = document.createElement('div');
+                technical.className = technicalValues.length ? '' : 'hidden';
+                const technicalTitle = document.createElement('p');
+                technicalTitle.className = 'text-xs font-bold uppercase tracking-wider text-slate-500';
+                technicalTitle.textContent = 'Technische Werte';
+                const technicalGrid = document.createElement('dl');
+                technicalGrid.className = 'mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3';
+                technicalValues.forEach(([labelText, valueText]) => {
+                    const item = document.createElement('div');
+                    item.className = 'rounded-lg bg-slate-50 px-3 py-2';
+                    const label = document.createElement('dt');
+                    label.className = 'text-[11px] font-semibold text-slate-500';
+                    label.textContent = labelText;
+                    const value = document.createElement('dd');
+                    value.className = 'mt-0.5 break-all font-mono text-xs text-slate-700';
+                    value.textContent = valueText;
+                    item.append(label, value);
+                    technicalGrid.appendChild(item);
+                });
+                technical.append(technicalTitle, technicalGrid);
+                panel.append(intro, grid, technical);
+                return panel;
+            }
+
+            saveWireGuardSettings(documentModel, connection, panel) {
+                const changes = {};
+                panel.querySelectorAll('[data-wireguard-setting]').forEach(input => {
+                    changes[input.dataset.wireguardSetting] = input.type === 'checkbox' ? (input.checked ? 'yes' : 'no') : input.value;
+                });
+                try {
+                    const updatedText = this.wireGuardApi.update(documentModel, connection, changes);
+                    this.closeSipSettingsDrawer();
+                    this.applyStructuredConfigText(updatedText, `${connection.values.name || 'WireGuard-Verbindung'}: Einstellungen übernommen.`);
+                } catch (error) {
+                    this.showStatus(`WireGuard-Einstellungen konnten nicht übernommen werden: ${error.message}`, 'error');
+                }
+            }
+
+            openWireGuardSettingsDrawer(documentModel, connection) {
+                this.sipSettingsPreviousFocus = document.activeElement;
+                this.settingsDrawerEyebrow.textContent = 'WireGuard';
+                this.settingsDrawerEyebrow.className = 'text-xs font-bold uppercase tracking-wider text-teal-600';
+                this.sipSettingsDrawerTitle.textContent = connection.values.name || 'WireGuard-Verbindung';
+                this.sipSettingsDrawerSubtitle.textContent = connection.values.wg_dyndns || `vpn.cfg · Zeile ${connection.line}`;
+                this.sipSettingsDrawerBody.innerHTML = '';
+                this.sipSettingsDrawerActions.innerHTML = '';
+                const panel = this.createWireGuardSettingsPanel(connection);
+                const cancel = this.createCredentialAction('Abbrechen', 'x', () => this.closeSipSettingsDrawer(), false);
+                const save = this.createCredentialAction('Einstellungen übernehmen', 'save', () => this.saveWireGuardSettings(documentModel, connection, panel), false);
+                save.classList.add('border-teal-600', 'bg-teal-600', 'text-white', 'hover:bg-teal-700');
+                this.sipSettingsDrawerBody.appendChild(panel);
+                this.sipSettingsDrawerActions.append(cancel, save);
+                this.sipSettingsDrawer.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+                requestAnimationFrame(() => this.btnCloseSipSettings.focus());
+                lucide.createIcons();
+            }
+
+            renderWireGuardCards(secrets, projection = this.getWireGuardProjection()) {
+                this.vpnCards.innerHTML = '';
+                const { document: documentModel, model } = projection;
+                if (model.global) {
+                    const card = document.createElement('article');
+                    card.className = 'rounded-2xl border border-teal-200 bg-white p-5 shadow-sm';
+                    const eyebrow = document.createElement('p');
+                    eyebrow.className = 'text-xs font-bold uppercase tracking-wider text-teal-600';
+                    eyebrow.textContent = 'WireGuard-Basis';
+                    const title = document.createElement('h4');
+                    title.className = 'mt-1 text-lg font-black text-slate-900';
+                    title.textContent = 'FRITZ!Box WireGuard-Identität';
+                    const subtitle = document.createElement('p');
+                    subtitle.className = 'mt-1 text-sm text-slate-500';
+                    subtitle.textContent = `vpn.cfg · Zeile ${model.global.line}`;
+                    card.append(eyebrow, title, subtitle);
+                    this.appendWireGuardDetails(card, [
+                        ['Öffentlicher Schlüssel', model.global.values.wg_public_key],
+                        ['Listen-Port', model.global.values.wg_listen_port]
+                    ]);
+                    this.appendWireGuardSecrets(card, this.getWireGuardNodeSecrets(model.global, secrets, model));
+                    this.vpnCards.appendChild(card);
+                }
+                model.connections.forEach(connection => {
+                    const card = document.createElement('article');
+                    card.className = 'rounded-2xl border border-teal-200 bg-white p-5 shadow-sm';
+                    const heading = document.createElement('div');
+                    heading.className = 'flex items-start justify-between gap-3';
+                    const text = document.createElement('div');
+                    const eyebrow = document.createElement('p');
+                    eyebrow.className = 'text-xs font-bold uppercase tracking-wider text-teal-600';
+                    eyebrow.textContent = /^(?:yes|1|true|on)$/i.test(connection.values.enabled || '') ? 'WireGuard · aktiv' : 'WireGuard · deaktiviert';
+                    const title = document.createElement('h4');
+                    title.className = 'mt-1 text-lg font-black text-slate-900 break-words';
+                    title.textContent = connection.values.name || 'WireGuard-Gegenstelle';
+                    const subtitle = document.createElement('p');
+                    subtitle.className = 'mt-1 text-sm text-slate-500 break-words';
+                    subtitle.textContent = connection.values.wg_dyndns || `vpn.cfg · Zeile ${connection.line}`;
+                    text.append(eyebrow, title, subtitle);
+                    const settings = this.createCredentialAction('', 'settings', () => this.openWireGuardSettingsDrawer(documentModel, connection), false);
+                    settings.classList.add('shrink-0', 'px-2.5');
+                    settings.title = 'Einfache WireGuard-Einstellungen';
+                    settings.setAttribute('aria-label', `${title.textContent} Einstellungen öffnen`);
+                    heading.append(text, settings);
+                    card.appendChild(heading);
+                    this.appendWireGuardDetails(card, [
+                        ['Erlaubte Netze', connection.values.wg_allowed_ips],
+                        ['DNS-Server', connection.values.dns_servers || connection.values.wg_dnsserver],
+                    ]);
+                    this.appendWireGuardSecrets(card, this.getWireGuardNodeSecrets(connection, secrets, model));
+                    this.vpnCards.appendChild(card);
+                });
+            }
+
             groupStructuredCredentials(secrets) {
                 const groups = new Map();
                 secrets.forEach(secret => {
@@ -2489,6 +2962,8 @@
                 const onlineServiceSecrets = this.state.secrets.filter(secret => ['email', 'myfritz', 'dyndns'].includes(secret.category));
                 const providerAccessSecrets = this.state.secrets.filter(secret => ['provider', 'remote-management', 'avm-remote-ddns'].includes(secret.category));
                 const vpnSecrets = this.state.secrets.filter(secret => secret.category === 'vpn');
+                const wireGuardProjection = this.getWireGuardProjection();
+                const hasWireGuard = Boolean(wireGuardProjection.model.global || wireGuardProjection.model.connections.length > 0);
                 this.wifiCardsSection.classList.toggle('hidden', wifiCredentials.length === 0);
                 this.sipCardsSection.classList.toggle('hidden', sipSecrets.length === 0);
                 this.internalTelephonyCardsSection.classList.toggle('hidden', internalTelephonySecrets.length === 0);
@@ -2496,9 +2971,9 @@
                 this.fritzAccessCardsSection.classList.toggle('hidden', fritzAccessSecrets.length === 0);
                 this.onlineServiceCardsSection.classList.toggle('hidden', onlineServiceSecrets.length === 0);
                 this.providerAccessCardsSection.classList.toggle('hidden', providerAccessSecrets.length === 0);
-                this.vpnCardsSection.classList.toggle('hidden', vpnSecrets.length === 0);
+                this.vpnCardsSection.classList.toggle('hidden', !hasWireGuard);
                 const hasCards = wifiCredentials.length > 0 || sipSecrets.length > 0 || internalTelephonySecrets.length > 0 || phonebookSecrets.length > 0 ||
-                    fritzAccessSecrets.length > 0 || onlineServiceSecrets.length > 0 || providerAccessSecrets.length > 0 || vpnSecrets.length > 0;
+                    fritzAccessSecrets.length > 0 || onlineServiceSecrets.length > 0 || providerAccessSecrets.length > 0 || hasWireGuard;
                 this.credentialCards.classList.toggle('hidden', !hasCards);
                 this.renderWifiCards(wifiSecrets);
                 this.renderSipCards(sipSecrets);
@@ -2507,7 +2982,7 @@
                 this.renderStructuredCredentialCards(this.fritzAccessCards, fritzAccessSecrets);
                 this.renderStructuredCredentialCards(this.onlineServiceCards, onlineServiceSecrets);
                 this.renderStructuredCredentialCards(this.providerAccessCards, providerAccessSecrets);
-                this.renderStructuredCredentialCards(this.vpnCards, vpnSecrets);
+                this.renderWireGuardCards(vpnSecrets, wireGuardProjection);
                 this.renderSipPhoneAccounts(sipSecrets);
             }
 
@@ -2741,6 +3216,7 @@
             }
 
             clearAll() {
+                this.closeSipSettingsDrawer();
                 this.cancelAutoValidation();
                 void this.sipPhone.disconnect();
                 this.editor.value = '';
@@ -3149,6 +3625,18 @@
             if (typeof window.FritzDecryptedEditor?.buildDocument !== 'function' ||
                 typeof window.FritzDecryptedEditor?.applyEdit !== 'function') {
                 missingCapabilities.unshift('FritzDecryptedEditor');
+            }
+            if (window.FritzConfigDocument?.API_VERSION !== '1' ||
+                typeof window.FritzConfigDocument?.parse !== 'function' ||
+                window.FritzSipAccounts?.API_VERSION !== '1' ||
+                typeof window.FritzSipAccounts?.project !== 'function' ||
+                typeof window.FritzSipAccounts?.clone !== 'function') {
+                missingCapabilities.unshift('SIP-Konfigurationsmodell API v1');
+            }
+            if (window.FritzWireGuardConnections?.API_VERSION !== '1' ||
+                typeof window.FritzWireGuardConnections?.project !== 'function' ||
+                typeof window.FritzWireGuardConnections?.update !== 'function') {
+                missingCapabilities.unshift('WireGuard-Konfigurationsmodell API v1');
             }
             if (window.FritzEmbeddedFiles?.API_VERSION !== '1' ||
                 typeof window.FritzEmbeddedFiles?.extractPhonebooks !== 'function' ||
