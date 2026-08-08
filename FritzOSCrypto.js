@@ -1047,18 +1047,18 @@
           }
           if (normalizedSection.includes('tr069') && pathContains('ddns')) {
               const labels = {
-                  username: 'Fernwartungs-DDNS: Benutzername',
-                  password: 'Fernwartungs-DDNS: Kennwort',
-                  domain_name: 'Fernwartungs-DDNS: Domain'
+                  username: 'AVM-Fernkonfig-DDNS: Benutzername',
+                  password: 'AVM-Fernkonfig-DDNS: Kennwort',
+                  domain_name: 'AVM-Fernkonfig-DDNS: Domain'
               };
-              return { category: 'remote-management', label: labels[normalizedField] || this.humanizeField(field) };
+              return { category: 'avm-remote-ddns', label: labels[normalizedField] || this.humanizeField(field) };
           }
           if (normalizedSection.includes('tr069') && /^cr(?:username|password)$/.test(normalizedField)) {
               return {
                   category: 'remote-management',
                   label: normalizedField === 'crusername'
-                      ? 'TR-069 Connection Request: Benutzername'
-                      : 'TR-069 Connection Request: Kennwort'
+                      ? 'AVM-Fernkonfiguration: Benutzername'
+                      : 'AVM-Fernkonfiguration: Kennwort'
               };
           }
           if (normalizedSection.includes('ar7') && pathContains('boxusers')) {
@@ -1078,7 +1078,7 @@
           if (normalizedSection.includes('ar7') && pathContains('jasonii')) {
               const labels = {
                   user_email: 'MyFRITZ!-E-Mail-Adresse',
-                  dyn_dns_name: 'MyFRITZ!-Adresse',
+                  dyn_dns_name: 'MyFRITZ!-Domain (AVM-DynDNS)',
                   oauth_client_id: 'MyFRITZ!-OAuth-Client-ID',
                   oauth_client_secret: 'MyFRITZ!-OAuth-Client-Secret'
               };
@@ -1086,10 +1086,10 @@
           }
           if (normalizedSection.includes('ar7') && pathContains('ddns') && pathContains('accounts')) {
               const labels = {
-                  domain: 'DynDNS-Domain',
-                  username: 'DynDNS-Benutzername',
-                  passwd: 'DynDNS-Passwort',
-                  password: 'DynDNS-Passwort'
+                  domain: 'Eigener DynDNS: Domain',
+                  username: 'Eigener DynDNS: Benutzername',
+                  passwd: 'Eigener DynDNS: Kennwort',
+                  password: 'Eigener DynDNS: Kennwort'
               };
               return { category: 'dyndns', label: labels[normalizedField] || this.humanizeField(field) };
           }
@@ -1156,6 +1156,7 @@
               if (category === 'myfritz') return findLast('jasonii');
               if (category === 'dyndns') return findLast('accounts') || findLast('ddns');
               if (category === 'remote-management') return findLast('lab');
+              if (category === 'avm-remote-ddns') return findLast('ddns');
               if (category === 'online-phonebook') return blocks[blocks.length - 1] || null;
               if (category === 'internal-telephony') return findLast('extensions');
               if (category === 'vpn') return findLast('connections') || findLast('global');

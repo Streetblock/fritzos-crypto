@@ -105,12 +105,12 @@ assert.match(html, /this\.exportEditor\.verifyExportChecksum\(content\)/, 'final
 for (const status of ['pending', 'decrypted', 'changed', 'failed']) {
   assert.equal(html.includes(`<option value="${status}">`), true, `secret status filter ${status} is missing`);
 }
-for (const category of ['fritz-user', 'app-access', 'email', 'myfritz', 'dyndns', 'remote-management', 'online-phonebook', 'telephony', 'internal-telephony']) {
+for (const category of ['fritz-user', 'app-access', 'email', 'myfritz', 'dyndns', 'remote-management', 'avm-remote-ddns', 'online-phonebook', 'telephony', 'internal-telephony']) {
   assert.equal(html.includes(`<option value="${category}">`), true, `secret category filter ${category} is missing`);
 }
 assert.match(html, /box_admin_rights/, 'FRITZ!Box administrator accounts must be identified in credential cards');
-assert.equal(html.includes('E-Mail, MyFRITZ! &amp; DynDNS'), true, 'online service cards are missing');
-assert.equal(html.includes('Internetzugang &amp; Provider-Fernwartung'), true, 'provider access cards are missing');
+assert.equal(html.includes('E-Mail, MyFRITZ! &amp; eigener DynDNS'), true, 'online service cards are missing');
+assert.equal(html.includes('Internetzugang &amp; AVM-Fernkonfiguration'), true, 'remote configuration cards are missing');
 assert.equal(html.includes('Online-Telefonbücher'), true, 'online phonebook cards are missing');
 assert.equal(html.includes('Interne Nebenstellen &amp; FRITZ!App Fon'), true, 'internal telephony cards are missing');
 assert.match(html, /Registrar: \$\{registrar\}/, 'SIP cards must label the registrar explicitly');
@@ -119,9 +119,11 @@ assert.equal(html.includes('Mobilfunkzugang'), true, 'mobile access cards need a
 assert.match(html, /APN: \$\{metadata\.provider\}/, 'mobile access cards must label the APN source field');
 assert.equal(html.includes('PPPoE-Internetzugang'), true, 'PPPoE access cards need a descriptive title');
 assert.match(html, /Profil: \$\{metadata\.name\}/, 'PPPoE cards must expose the target profile name');
-assert.equal(html.includes('TR-069 / CWMP-Fernwartung'), true, 'remote management card needs an explicit title');
-assert.equal(html.includes('TR-069 Connection Request'), true, 'remote management credentials need their own subsection');
-assert.equal(html.includes('DDNS-Erreichbarkeit'), true, 'TR-069 helper DDNS needs its own subsection');
+assert.equal(html.includes('TR-069 / CWMP'), true, 'remote configuration card needs an explicit title');
+assert.equal(html.includes('Erreichbarkeit für Fernkonfiguration'), true, 'AVM remote DDNS needs a separate card');
+assert.equal(html.includes('Interne dynamische Adresse unter acpe.avm.de'), true, 'AVM remote DDNS purpose is missing');
+assert.equal(html.includes('Benutzerdefinierter DynDNS-Zugang'), true, 'independent DynDNS must stay separate from AVM services');
+assert.equal(html.includes('AVM-DynDNS-Adresse und OAuth-Zugang'), true, 'MyFRITZ must be identified as its own AVM service');
 assert.equal(html.includes('FRITZ!Box WireGuard-Identität'), true, 'WireGuard global key card is missing');
 assert.equal(html.includes('WireGuard-Gegenstelle'), true, 'WireGuard connection card is missing');
 for (const label of ['Gegenstellen-Domain', 'Lokale IP', 'Entfernte IP', 'Erlaubte Netze', 'Öffentlicher Schlüssel der Gegenstelle']) {

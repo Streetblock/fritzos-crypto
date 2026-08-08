@@ -169,18 +169,18 @@ assert.notEqual(
 assert.equal(byFieldAndValue('accountname', '$$$$SMTPUSER').category, 'email');
 assert.equal(byFieldAndValue('passwd', '$$$$SMTPPASS').displayLabel, 'SMTP-Passwort');
 assert.equal(byFieldAndValue('user_email', '$$$$MYFRITZEMAIL').category, 'myfritz');
-assert.equal(byFieldAndValue('dyn_dns_name', '$$$$MYFRITZDOMAIN').displayLabel, 'MyFRITZ!-Adresse');
+assert.equal(byFieldAndValue('dyn_dns_name', '$$$$MYFRITZDOMAIN').displayLabel, 'MyFRITZ!-Domain (AVM-DynDNS)');
 assert.equal(byFieldAndValue('CRUsername', '$$$$CRUSER').category, 'remote-management');
-assert.equal(byFieldAndValue('CRPassword', '$$$$CRPASS').displayLabel, 'TR-069 Connection Request: Kennwort');
-assert.equal(byFieldAndValue('username', '$$$$DDNSUSER').category, 'remote-management');
-assert.equal(byFieldAndValue('domain_name', '$$$$DDNSDOMAIN').displayLabel, 'Fernwartungs-DDNS: Domain');
-assert.equal(
+assert.equal(byFieldAndValue('CRPassword', '$$$$CRPASS').displayLabel, 'AVM-Fernkonfiguration: Kennwort');
+assert.equal(byFieldAndValue('username', '$$$$DDNSUSER').category, 'avm-remote-ddns');
+assert.equal(byFieldAndValue('domain_name', '$$$$DDNSDOMAIN').displayLabel, 'AVM-Fernkonfig-DDNS: Domain');
+assert.notEqual(
   byFieldAndValue('CRUsername', '$$$$CRUSER').credentialGroup.id,
   byFieldAndValue('username', '$$$$DDNSUSER').credentialGroup.id,
-  'TR-069 connection request and its DDNS helper belong to one remote-management card'
+  'AVM remote configuration and its DDNS helper need separate cards'
 );
 assert.equal(byFieldAndValue('domain', '$$$$USERDDNSDOMAIN').category, 'dyndns');
-assert.equal(byFieldAndValue('username', '$$$$USERDDNSUSER').displayLabel, 'DynDNS-Benutzername');
+assert.equal(byFieldAndValue('username', '$$$$USERDDNSUSER').displayLabel, 'Eigener DynDNS: Benutzername');
 assert.equal(byFieldAndValue('name', '$$$$NOTPROVIDER').category, 'other', 'unknown ar7 fields must not default to provider');
 
 const phonebookSource = [

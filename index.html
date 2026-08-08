@@ -257,14 +257,14 @@
                             <section id="onlineServiceCardsSection" class="hidden">
                                 <div class="flex items-center gap-2 mb-3">
                                     <i data-lucide="cloud" class="w-5 h-5 text-cyan-600"></i>
-                                    <h3 class="font-bold text-slate-800">E-Mail, MyFRITZ! &amp; DynDNS</h3>
+                                    <h3 class="font-bold text-slate-800">E-Mail, MyFRITZ! &amp; eigener DynDNS</h3>
                                 </div>
                                 <div id="onlineServiceCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
                             </section>
                             <section id="providerAccessCardsSection" class="hidden">
                                 <div class="flex items-center gap-2 mb-3">
                                     <i data-lucide="network" class="w-5 h-5 text-amber-600"></i>
-                                    <h3 class="font-bold text-slate-800">Internetzugang &amp; Provider-Fernwartung</h3>
+                                    <h3 class="font-bold text-slate-800">Internetzugang &amp; AVM-Fernkonfiguration</h3>
                                 </div>
                                 <div id="providerAccessCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
                             </section>
@@ -318,8 +318,9 @@
                                         <option value="app-access">FRITZ!App</option>
                                         <option value="email">E-Mail / SMTP</option>
                                         <option value="myfritz">MyFRITZ!</option>
-                                        <option value="dyndns">DynDNS</option>
-                                        <option value="remote-management">Provider-Fernwartung</option>
+                                        <option value="dyndns">Eigener DynDNS-Anbieter</option>
+                                        <option value="remote-management">AVM-Fernkonfiguration</option>
+                                        <option value="avm-remote-ddns">AVM-Fernkonfig-DDNS</option>
                                         <option value="provider">Provider</option>
                                         <option value="system">System</option>
                                         <option value="other">Weitere</option>
@@ -1208,13 +1209,13 @@
                     myfritz: {
                         eyebrow: 'MyFRITZ!',
                         title: 'MyFRITZ!-Konto',
-                        subtitle: 'Adresse und OAuth-Zugang',
+                        subtitle: 'AVM-DynDNS-Adresse und OAuth-Zugang',
                         color: 'cyan'
                     },
                     dyndns: {
-                        eyebrow: 'Dynamisches DNS',
-                        title: 'DynDNS-Zugang',
-                        subtitle: 'Domain und Aktualisierungszugang',
+                        eyebrow: 'Eigener DynDNS-Anbieter',
+                        title: 'Benutzerdefinierter DynDNS-Zugang',
+                        subtitle: 'Unabhängig von MyFRITZ! und AVM-Fernkonfiguration',
                         color: 'cyan'
                     },
                     provider: {
@@ -1232,9 +1233,15 @@
                         color: 'amber'
                     },
                     'remote-management': {
-                        eyebrow: 'Provider-Fernwartung',
-                        title: 'TR-069 / CWMP-Fernwartung',
-                        subtitle: 'Connection Request mit DDNS-Erreichbarkeit',
+                        eyebrow: 'AVM-Fernkonfiguration',
+                        title: 'TR-069 / CWMP',
+                        subtitle: 'AVM-Fernkonfiguration mit interner DDNS-Erreichbarkeit',
+                        color: 'amber'
+                    },
+                    'avm-remote-ddns': {
+                        eyebrow: 'AVM-DDNS',
+                        title: 'Erreichbarkeit für Fernkonfiguration',
+                        subtitle: 'Interne dynamische Adresse unter acpe.avm.de',
                         color: 'amber'
                     },
                     'online-phonebook': {
@@ -1267,13 +1274,6 @@
                     subtitle: '',
                     color: 'slate'
                 };
-            }
-
-            getStructuredCredentialFieldSection(group, secret) {
-                if (group.category !== 'remote-management') return null;
-                return String(secret.contextPath || '').toLowerCase().split('/').includes('ddns')
-                    ? 'DDNS-Erreichbarkeit'
-                    : 'TR-069 Connection Request';
             }
 
             renderStructuredCredentialCards(container, secrets) {
@@ -1324,16 +1324,7 @@
 
                     const fields = document.createElement('div');
                     fields.className = 'space-y-3 mt-4';
-                    let currentFieldSection = null;
                     group.secrets.forEach(secret => {
-                        const fieldSection = this.getStructuredCredentialFieldSection(group, secret);
-                        if (fieldSection && fieldSection !== currentFieldSection) {
-                            const sectionTitle = document.createElement('p');
-                            sectionTitle.className = 'pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400';
-                            sectionTitle.textContent = fieldSection;
-                            fields.appendChild(sectionTitle);
-                            currentFieldSection = fieldSection;
-                        }
                         const field = document.createElement('div');
                         const label = document.createElement('p');
                         label.className = 'text-xs font-semibold text-slate-500 mb-1';
@@ -1365,7 +1356,7 @@
                 const phonebookSecrets = this.state.secrets.filter(secret => secret.category === 'online-phonebook');
                 const fritzAccessSecrets = this.state.secrets.filter(secret => ['fritz-user', 'app-access'].includes(secret.category));
                 const onlineServiceSecrets = this.state.secrets.filter(secret => ['email', 'myfritz', 'dyndns'].includes(secret.category));
-                const providerAccessSecrets = this.state.secrets.filter(secret => ['provider', 'remote-management'].includes(secret.category));
+                const providerAccessSecrets = this.state.secrets.filter(secret => ['provider', 'remote-management', 'avm-remote-ddns'].includes(secret.category));
                 const vpnSecrets = this.state.secrets.filter(secret => secret.category === 'vpn');
                 this.wifiCardsSection.classList.toggle('hidden', wifiCredentials.length === 0);
                 this.sipCardsSection.classList.toggle('hidden', sipSecrets.length === 0);
@@ -1435,8 +1426,9 @@
                     'app-access': 'FRITZ!App',
                     email: 'E-Mail / SMTP',
                     myfritz: 'MyFRITZ!',
-                    dyndns: 'DynDNS',
-                    'remote-management': 'Provider-Fernwartung',
+                    dyndns: 'Eigener DynDNS-Anbieter',
+                    'remote-management': 'AVM-Fernkonfiguration',
+                    'avm-remote-ddns': 'AVM-Fernkonfig-DDNS',
                     provider: 'Provider',
                     system: 'System',
                     other: 'Weitere'
