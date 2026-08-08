@@ -18,6 +18,8 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 
 * **Secrets gezielt bearbeiten:** Entschlüsselte Typ-4- und Typ-5-Werte können einzeln geändert und in der Arbeitskopie neu verschlüsselt werden. Jeder neue Wert wird per Entschlüsselungs-Roundtrip geprüft. Daraus folgt noch keine Garantie, dass eine beliebig strukturell veränderte Sicherungsdatei importierbar ist.
 
+* **Sicherungskennwort ändern:** Bei modernen Exporten kann der vorhandene Export-Master-Key unverändert mit einem neuen Sicherungskennwort geschützt werden. Master-Key-Roundtrip, gebundene Nutz-Secrets und CRC32 werden vor dem Download geprüft. Gemischte Exporte mit noch direkt kennwortgebundenen Secrets werden sicher abgelehnt.
+
 * **AVM-Prüfsumme:** Nach der Neuverschlüsselung und vor dem Speichern einer Exportdatei wird die CRC32-Prüfsumme am `END OF EXPORT` nach dem AVM-Sektionsverfahren aktualisiert und erneut geprüft.
 
 * **Modular:** Krypto, Export-Prüfsumme und der atomare Bearbeitungsablauf sind voneinander getrennt und können in eigenen Node.js-Projekten genutzt werden.
@@ -29,7 +31,7 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 * `FritzExportEditor.js`: Änderungen atomar anwenden. Der Dienst prüft zuerst den vorhandenen Chiffretext, verschlüsselt den neuen Wert, führt den Secret-Roundtrip aus und aktualisiert anschließend CRC32.
 * `ConfigState.js`: UI-Zustand wie offene und validierte Änderungen; keine Kryptografie.
 
-`FritzExportEditor.applySecretChanges()` gibt nur dann einen neuen Exporttext zurück, wenn alle Prüfschritte erfolgreich waren. Bei einem Fehler bleibt der übergebene Text unverändert.
+`FritzExportEditor.applySecretChanges()` und `FritzExportEditor.changeExportPassword()` geben nur dann einen neuen Exporttext zurück, wenn alle Prüfschritte erfolgreich waren. Bei einem Fehler bleibt der übergebene Text unverändert.
 
 ## 🚀 Nutzung im Browser (UI)
 

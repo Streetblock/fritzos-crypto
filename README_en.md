@@ -18,6 +18,8 @@ The absolute highlight: This tool supports the modern **FRITZ!OS 7.50+ Master-Ke
 
 * **Edit secrets selectively:** Decrypted Type 4 and Type 5 values can be changed individually and re-encrypted in the working copy. Every new value is verified through a decryption roundtrip. This does not guarantee that an arbitrarily restructured backup file is importable.
 
+* **Change the export password:** For modern exports, the existing export master key can be protected with a new password without changing the key itself. The master-key roundtrip, bound payload secrets, and CRC32 are verified before download. Mixed exports containing secrets still bound directly to the old password are rejected safely.
+
 * **AVM checksum:** After re-encryption and before saving an export, the CRC32 value at `END OF EXPORT` is updated using AVM's section-aware procedure and verified again.
 
 * **Modular:** Crypto, export checksums, and the atomic editing workflow are separated and can be used directly in Node.js projects.
@@ -29,7 +31,7 @@ The absolute highlight: This tool supports the modern **FRITZ!OS 7.50+ Master-Ke
 * `FritzExportEditor.js`: Apply edits atomically. It verifies the existing ciphertext, encrypts the new value, performs the secret roundtrip, and then updates CRC32.
 * `ConfigState.js`: UI state for pending and validated changes; no cryptography.
 
-`FritzExportEditor.applySecretChanges()` returns a new export text only when every verification step succeeds. The provided text remains unchanged on failure.
+`FritzExportEditor.applySecretChanges()` and `FritzExportEditor.changeExportPassword()` return a new export text only when every verification step succeeds. The provided text remains unchanged on failure.
 
 ## 🚀 Usage in Browser (UI)
 

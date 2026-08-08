@@ -20,6 +20,14 @@ for (const id of [
   'exportSafetyPanel',
   'exportMasterKeySection',
   'exportMasterKeyCard',
+  'btnTogglePasswordChange',
+  'passwordChangePanel',
+  'currentExportPassword',
+  'newExportPassword',
+  'confirmExportPassword',
+  'passwordChangeStatus',
+  'btnCancelPasswordChange',
+  'btnChangeExportPassword',
   'downloadGateStatus',
   'roundtripCheck',
   'roundtripCheckMessage',
@@ -88,6 +96,14 @@ assert.equal(cryptoSource.includes('System-Master-Key'), false, 'the misleading 
 assert.equal(cryptoSource.includes('Export-Master-Key'), true, 'the export master key needs its precise label');
 assert.match(html, /exportSafetyPanel[\s\S]*exportMasterKeySection[\s\S]*credentialCards/, 'export master key card must appear between export safety and credential cards');
 assert.match(html, /this\.isExportMasterKey\(secret\) \? this\.exportMasterKeyCard : this\.secretEditorList/, 'export master key must render in its dedicated top card');
+assert.equal(cryptoSource.includes('encryptExportKey'), true, 'crypto library must support rewrapping the export master key');
+assert.equal(html.includes('Kennwort ändern und prüfen'), true, 'password change needs one explicit verified action');
+assert.equal(html.includes('Der Export-Master-Key bleibt unverändert'), true, 'password change UI must explain that the master key is preserved');
+assert.match(html, /const editable = supported && !this\.isExportMasterKey\(secret\)/, 'the export master key itself must stay read-only');
+assert.match(html, /this\.exportEditor\.changeExportPassword\(/, 'password changes must delegate to the atomic export service');
+assert.match(html, /newPassword !== confirmation/, 'the new export password must be confirmed');
+assert.match(html, /FritzExportEditor\.js\?v=20260808-1/, 'password change service needs a deployment cache key');
+assert.match(html, /typeof window\.FritzExportEditor\?\.FritzExportEditor\?\.changeExportPassword/, 'partial deployments must reject a missing password change service');
 assert.match(html, /plaintext:\s*mkResult\.exportKeyHex/, 'decrypted master key must be available to the masked secret field');
 assert.match(html, /input\.type\s*=\s*this\.revealedSecrets\.has\(secret\.stableKey\)\s*\?\s*'text'\s*:\s*'password'/, 'plaintext fields must be masked by default');
 for (const action of ['Anzeigen', 'Kopieren', 'Bearbeiten', 'Zurücksetzen']) {
