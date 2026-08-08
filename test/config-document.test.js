@@ -17,6 +17,7 @@ const source = [
   '    transport_type = 0;',
   '  }',
   '  ua5 { enabled = no; username = "plain"; passwd = "$$$$OTHER"; registrar = "second.example"; }',
+  '  connections { name = "first"; wg_allowed_ips = "10.0.0.0/24", } { name = "second"; wg_allowed_ips = "10.1.0.0/24", }',
   '  extensions { username = "phone"; passwd = "$$$$INTERNAL"; }',
   '}',
   '**** END OF FILE ****',
@@ -35,6 +36,10 @@ assert.equal(accounts[0].line, 5);
 assert.equal(accounts[0].values.registrar, 'sip.example.net');
 assert.equal(accounts[1].values.enabled, 'no');
 assert.equal(accounts.some(account => account.name === 'extensions'), false);
+const connectionBlocks = document.getBlocks(document.getSection('voip.cfg'), block => block.name === 'connections');
+assert.equal(connectionBlocks.length, 2, 'anonymous sibling blocks must become separate instances');
+assert.deepEqual(connectionBlocks.map(block => document.getAssignments(block).find(item => item.name === 'name').value), ['first', 'second']);
+assert.deepEqual(connectionBlocks.map(block => document.getAssignments(block).find(item => item.name === 'wg_allowed_ips').value), ['10.0.0.0/24', '10.1.0.0/24']);
 
 const changed = Sip.update(document, accounts[0], { enabled: 'no', registrar: 'new.example.net' });
 assert.match(changed, /ua4 \{[\s\S]*enabled = no;[\s\S]*registrar = "new\.example\.net";/);

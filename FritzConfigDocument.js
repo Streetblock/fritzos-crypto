@@ -67,7 +67,7 @@
         tokens.push({ type: "identifier", start: tokenStart, end: index, value: text.slice(tokenStart, index) });
         continue;
       }
-      const punctuation = "{}=;".includes(char);
+      const punctuation = "{}=;,".includes(char);
       tokens.push({ type: punctuation ? char : "raw", start: index, end: index + 1, value: char });
       index += 1;
     }
@@ -145,11 +145,38 @@
       while ((index = nextSignificant(tokens, index)) < tokens.length) {
         const token = tokens[index];
         if (token.type === "}") {
+          let closedBlock = null;
           if (stack.length > 1) {
-            const block = stack.pop();
-            block.closeStart = token.start;
-            block.closeEnd = token.end;
-            block.end = token.end;
+            closedBlock = stack.pop();
+            closedBlock.closeStart = token.start;
+            closedBlock.closeEnd = token.end;
+            closedBlock.end = token.end;
+          }
+          const siblingIndex = nextSignificant(tokens, index + 1);
+          if (closedBlock && tokens[siblingIndex]?.type === "{") {
+            const parent = closedBlock.parent;
+            const sibling = {
+              type: "block",
+              id: `${section.id}-block-${++nodeCounter}`,
+              name: closedBlock.name,
+              anonymous: true,
+              start: tokens[siblingIndex].start,
+              nameStart: null,
+              nameEnd: null,
+              openStart: tokens[siblingIndex].start,
+              openEnd: tokens[siblingIndex].end,
+              closeStart: null,
+              closeEnd: null,
+              end: section.contentEnd,
+              line: lineAt(this.lineStarts, tokens[siblingIndex].start),
+              parent,
+              children: []
+            };
+            parent.children.push(sibling);
+            this.nodes.set(sibling.id, sibling);
+            stack.push(sibling);
+            index = siblingIndex + 1;
+            continue;
           }
           index += 1;
           continue;
@@ -164,7 +191,7 @@
           let valueIndex = nextSignificant(tokens, nextIndex + 1);
           const valueStart = tokens[valueIndex]?.start ?? next.end;
           let cursor = valueIndex;
-          while (cursor < tokens.length && tokens[cursor].type !== ";" && tokens[cursor].type !== "}") cursor += 1;
+          while (cursor < tokens.length && ![";", ",", "}"].includes(tokens[cursor].type)) cursor += 1;
           const terminator = tokens[cursor];
           const valueEnd = terminator ? terminator.start : section.contentEnd;
           const rawValue = this.source.slice(valueStart, valueEnd).trimEnd();
@@ -175,7 +202,7 @@
             id: `${section.id}-assignment-${++nodeCounter}`,
             name: token.value,
             start: token.start,
-            end: terminator?.type === ";" ? terminator.end : trimmedEnd,
+            end: [";", ","].includes(terminator?.type) ? terminator.end : trimmedEnd,
             valueStart,
             valueEnd: trimmedEnd,
             rawValue,
@@ -186,12 +213,12 @@
           };
           assignment.parent.children.push(assignment);
           this.nodes.set(assignment.id, assignment);
-          index = terminator?.type === ";" ? cursor + 1 : cursor;
+          index = [";", ","].includes(terminator?.type) ? cursor + 1 : cursor;
           continue;
         }
 
         let cursor = nextIndex;
-        while (cursor < tokens.length && !["{", "=", ";", "}"].includes(tokens[cursor].type)) cursor += 1;
+        while (cursor < tokens.length && !["{", "=", ";", ",", "}"].includes(tokens[cursor].type)) cursor += 1;
         if (tokens[cursor]?.type === "{") {
           const parent = stack[stack.length - 1];
           const block = {
