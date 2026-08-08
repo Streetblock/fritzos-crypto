@@ -1,5 +1,11 @@
 # Third-party notices
 
+## TweetNaCl.js
+
+WireGuard public-key derivation uses
+[TweetNaCl.js](https://github.com/dchest/tweetnacl-js), version 1.0.3.
+TweetNaCl.js is released into the public domain under The Unlicense.
+
 ## fritzbox-checksum-fixer
 
 `lib/FritzExportChecksum.js` is adapted from

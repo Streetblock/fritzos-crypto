@@ -32,6 +32,7 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 
 * `lib/FritzOSCrypto.js`: Secret-Ver- und Entschlüsselung sowie strukturierte Fundstellenerkennung.
 * `lib/FritzExportChecksum.js`: AVM-CRC32 berechnen, ersetzen und prüfen.
+* `lib/FritzWireGuardKeys.js`: WireGuard Private Keys streng prüfen und den zugehörigen öffentlichen Curve25519-Schlüssel über TweetNaCl ableiten.
 * `src/FritzExportEditor.js`: Änderungen atomar anwenden. Der Dienst prüft zuerst den vorhandenen Chiffretext, verschlüsselt den neuen Wert, führt den Secret-Roundtrip aus und aktualisiert anschließend CRC32.
 * `src/ConfigState.js`: UI-Zustand wie offene und validierte Änderungen; keine Kryptografie.
 * `src/FritzEmbeddedFiles.js`: Eingebettete B64-Dateien erkennen und unterstützte Inhalte wie Telefonbücher schreibgeschützt auslesen.

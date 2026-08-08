@@ -32,6 +32,7 @@ The absolute highlight: This tool supports the modern **FRITZ!OS 7.50+ Master-Ke
 
 * `lib/FritzOSCrypto.js`: Secret encryption/decryption and structured occurrence detection.
 * `lib/FritzExportChecksum.js`: Calculate, replace, and verify the AVM CRC32.
+* `lib/FritzWireGuardKeys.js`: Strictly validate WireGuard private keys and derive the matching Curve25519 public key through TweetNaCl.
 * `src/FritzExportEditor.js`: Apply edits atomically. It verifies the existing ciphertext, encrypts the new value, performs the secret roundtrip, and then updates CRC32.
 * `src/ConfigState.js`: UI state for pending and validated changes; no cryptography.
 * `src/FritzEmbeddedFiles.js`: Detect embedded B64 files and read supported content such as phonebooks without modifying it.

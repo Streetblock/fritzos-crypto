@@ -145,6 +145,12 @@ assert.match(html, /inset-y-0 right-0[\s\S]*max-w-xl/, 'desktop SIP settings mus
 assert.match(html, /sipSettingsDrawerBody[\s\S]*overflow-y-auto/, 'the SIP settings drawer body must scroll independently');
 assert.match(html, /sipSettingsDrawerActions[\s\S]*shrink-0/, 'drawer actions must remain visible below the scroll area');
 assert.match(html, /FritzWireGuardConnections\.js\?v=\d{8}-\d+/, 'WireGuard projection needs a deployment cache key');
+assert.match(html, /tweetnacl@1\.0\.3\/nacl-fast\.min\.js/, 'TweetNaCl must be loaded from the pinned browser CDN dependency');
+assert.match(html, /lib\/FritzWireGuardKeys\.js\?v=\d{8}-\d+/, 'WireGuard key adapter needs a deployment cache key');
+assert.match(html, /this\.wireGuardKeys\.derivePublicKey\(privateKeyChange\.editedPlaintext\)/, 'private key edits must derive the matching public key');
+assert.match(html, /this\.wireGuardApi\.update\(documentModel, model\.global, \{ wg_public_key: publicKey \}\)/, 'only the global WireGuard public key may be updated');
+assert.match(html, /transformText,/, 'linked public-key changes must stay inside the atomic export transaction');
+assert.equal(html.includes('muss danach aber in allen Gegenstellen aktualisiert werden'), true, 'private-key edits require a peer update warning');
 assert.match(html, /this\.wireGuardApi\.project\(document\)/, 'WireGuard cards must use the lossless document projection');
 assert.match(html, /this\.wireGuardApi\.update\(documentModel, connection, changes\)/, 'WireGuard settings must update the shared config document');
 assert.match(html, /renderWireGuardCards\(vpnSecrets, wireGuardProjection\)/, 'VPN secrets must render through complete WireGuard connection cards');

@@ -276,10 +276,6 @@
           });
         }
 
-        this.emit(onStep, "roundtrip", "success", `${replacements.length} Secrets erfolgreich zurückentschlüsselt`, {
-          count: replacements.length
-        });
-
         let updatedText = originalText;
         replacements
           .slice()
@@ -297,6 +293,29 @@
           });
         assertFresh();
 
+        let linkedChanges = [];
+        if (typeof settings.transformText === "function") {
+          const transformed = await settings.transformText(updatedText, { replacements: replacements.slice() });
+          assertFresh();
+          if (typeof transformed === "string") {
+            updatedText = transformed;
+          } else if (transformed && typeof transformed.text === "string") {
+            updatedText = transformed.text;
+            linkedChanges = Array.isArray(transformed.linkedChanges) ? transformed.linkedChanges.slice() : [];
+          } else {
+            throw new FritzExportEditorError(
+              "INVALID_TEXT_TRANSFORM",
+              "roundtrip",
+              "Die gekoppelte Konfigurationsänderung lieferte keinen gültigen Exporttext"
+            );
+          }
+        }
+
+        this.emit(onStep, "roundtrip", "success", `${replacements.length} Secrets erfolgreich zurückentschlüsselt`, {
+          count: replacements.length,
+          linkedChanges
+        });
+
         activeStage = "checksum";
         this.emit(onStep, "checksum", "running", "CRC32 wird aktualisiert und geprüft");
         const checksumResult = FritzExportChecksum.fromText(updatedText).replaceChecksum();
@@ -307,6 +326,7 @@
         return {
           updatedText: checksumResult.updatedText,
           replacements,
+          linkedChanges,
           roundtrip: { valid: true, count: replacements.length },
           checksum: {
             valid: true,

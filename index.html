@@ -11,6 +11,9 @@
     <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
     <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode_UTF8.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sip.js/0.20.0/sip.min.js"></script>
+    <script src="https://unpkg.com/tweetnacl@1.0.3/nacl-fast.min.js"
+            integrity="sha384-05+sicyRJQ56XpL4U9HJ8YbtSzFDvAg7apPKOGV6A0JsAJKFM68jp5oLnUjG5mEp"
+            crossorigin="anonymous"></script>
     
     <!-- ========================================== -->
     <!-- Crypto-/Checksum-Bibliotheken und Anwendung -->
@@ -22,6 +25,7 @@
     <script src="./src/FritzSipAccounts.js?v=20260808-2"></script>
     <script src="./src/FritzWireGuardConnections.js?v=20260808-2"></script>
     <script src="./lib/FritzExportChecksum.js?v=20260808-1"></script>
+    <script src="./lib/FritzWireGuardKeys.js?v=20260808-1"></script>
     <script src="./src/FritzExportEditor.js?v=20260808-3"></script>
     <script src="./src/FritzEmbeddedFiles.js?v=20260808-3"></script>
     <script src="./src/SipWebPhoneProviders.js?v=20260808-2"></script>
@@ -757,6 +761,7 @@
                 this.configDocumentApi = window.FritzConfigDocument;
                 this.sipAccountsApi = window.FritzSipAccounts;
                 this.wireGuardApi = window.FritzWireGuardConnections;
+                this.wireGuardKeys = window.FritzWireGuardKeys;
                 this.state = new window.FritzConfigState.ConfigState(this.parser);
                 this.sipPhone = new this.sipWebPhoneApi.SipWebPhone({
                     SIP: window.SIP,
@@ -1211,6 +1216,14 @@
                     title.textContent = secret.displayLabel;
                     const location = this.createSecretLocationLink(secret, 'mt-0.5');
                     details.append(title, location);
+                    if (this.isWireGuardPrivateKey(secret)) {
+                        const linkedChange = document.createElement('p');
+                        linkedChange.className = 'mt-1 text-[11px] font-medium text-amber-700';
+                        linkedChange.textContent = pending
+                            ? 'Gekoppelt: Öffentlicher FRITZ!Box-Schlüssel wird neu berechnet'
+                            : 'Gekoppelt: Öffentlicher FRITZ!Box-Schlüssel wurde validiert aktualisiert';
+                        details.appendChild(linkedChange);
+                    }
                     const length = document.createElement('span');
                     length.className = 'text-[11px] font-medium text-amber-700 whitespace-nowrap';
                     length.textContent = `${previousValue?.length ?? '?'} → ${currentValue?.length ?? '?'} Zeichen · ${pending ? 'ausstehend' : 'validiert'}`;
@@ -1856,6 +1869,53 @@
                 return button;
             }
 
+            isWireGuardPrivateKey(secret) {
+                return String(secret?.section || '').toLowerCase() === 'vpn.cfg' &&
+                    String(secret?.field || '').toLowerCase() === 'wg_private_key';
+            }
+
+            confirmWireGuardPrivateKeyEdit(secret) {
+                if (!this.isWireGuardPrivateKey(secret)) return true;
+                return window.confirm(
+                    'WireGuard Private Key ändern?\n\n' +
+                    'Dadurch erhält die FRITZ!Box eine neue WireGuard-Identität. Der öffentliche Schlüssel wird automatisch neu berechnet, muss danach aber in allen Gegenstellen aktualisiert werden.'
+                );
+            }
+
+            createWireGuardKeyTransform(changedSecrets) {
+                const privateKeyChanges = changedSecrets.filter(secret => this.isWireGuardPrivateKey(secret));
+                if (privateKeyChanges.length === 0) return null;
+                if (privateKeyChanges.length > 1) throw new Error('Es kann nur eine FRITZ!Box-WireGuard-Identität gleichzeitig geändert werden.');
+
+                const privateKeyChange = privateKeyChanges[0];
+                const currentProjection = this.getWireGuardProjection();
+                const sourceNode = this.wireGuardApi.findBySecret(currentProjection.model, privateKeyChange);
+                if (!sourceNode || sourceNode.kind !== 'global') {
+                    throw new Error('Der geänderte WireGuard Private Key gehört nicht zur globalen FRITZ!Box-Identität.');
+                }
+                const publicKey = this.wireGuardKeys.derivePublicKey(privateKeyChange.editedPlaintext);
+
+                return updatedText => {
+                    const documentModel = this.configDocumentApi.parse(updatedText);
+                    const model = this.wireGuardApi.project(documentModel);
+                    if (!model.global?.fields?.wg_public_key) {
+                        throw new Error('Das Feld global.wg_public_key wurde in vpn.cfg nicht gefunden.');
+                    }
+                    const previousPublicKey = model.global.values.wg_public_key;
+                    const text = this.wireGuardApi.update(documentModel, model.global, { wg_public_key: publicKey });
+                    return {
+                        text,
+                        linkedChanges: [{
+                            kind: 'wireguard-public-key',
+                            field: 'wg_public_key',
+                            previousValue: previousPublicKey,
+                            value: publicKey,
+                            line: model.global.fields.wg_public_key.line
+                        }]
+                    };
+                };
+            }
+
             createMaskedCredential(secret, options = {}) {
                 const editInInputRow = options.editInInputRow !== false;
                 const wrap = document.createElement('div');
@@ -1890,6 +1950,7 @@
                 toggle.title = 'Anzeigen oder verbergen';
 
                 const edit = this.createCredentialAction('', 'pencil', () => {
+                    if (!this.confirmWireGuardPrivateKeyEdit(secret)) return;
                     this.revealedSecrets.add(secret.stableKey);
                     value.type = 'text';
                     value.readOnly = false;
@@ -2557,6 +2618,12 @@
                     label.className = 'text-xs font-semibold text-slate-500';
                     label.textContent = secret.displayLabel;
                     field.append(label, this.createSecretLocationLink(secret, 'mt-0.5 mb-1'), this.createMaskedCredential(secret));
+                    if (this.isWireGuardPrivateKey(secret)) {
+                        const warning = document.createElement('p');
+                        warning.className = 'mt-2 text-[11px] font-medium leading-4 text-amber-700';
+                        warning.textContent = 'Änderungen erzeugen einen neuen öffentlichen FRITZ!Box-Schlüssel. Dieser muss anschließend in allen Gegenstellen aktualisiert werden.';
+                        field.appendChild(warning);
+                    }
                     fields.appendChild(field);
                 });
                 card.appendChild(fields);
@@ -3141,6 +3208,7 @@
                     );
                     const copyButton = makeAction('Kopieren', 'copy', () => this.copySecretPlaintext(secret), !decrypted);
                     const editButton = makeAction('Bearbeiten', 'pencil', () => {
+                        if (!this.confirmWireGuardPrivateKeyEdit(secret)) return;
                         this.revealedSecrets.add(secret.stableKey);
                         input.type = 'text';
                         input.readOnly = false;
@@ -3181,6 +3249,11 @@
                         const hint = document.createElement('p');
                         hint.className = 'text-[11px] text-blue-700 mt-2';
                         hint.textContent = 'Der Export-Master-Key selbst bleibt schreibgeschützt. Geändert wird nur sein Sicherungskennwort.';
+                        valueArea.appendChild(hint);
+                    } else if (decrypted && this.isWireGuardPrivateKey(secret)) {
+                        const hint = document.createElement('p');
+                        hint.className = 'text-[11px] font-medium leading-4 text-amber-700 mt-2';
+                        hint.textContent = 'Der öffentliche FRITZ!Box-Schlüssel wird automatisch neu berechnet. Danach müssen alle WireGuard-Gegenstellen aktualisiert werden.';
                         valueArea.appendChild(hint);
                     } else if (displayStatus === 'failed' && secret.error) {
                         const hint = document.createElement('p');
@@ -3396,10 +3469,12 @@
                 this.state.invalidateVerification();
 
                 try {
+                    const transformText = this.createWireGuardKeyTransform(changedSecrets);
                     const result = await this.exportEditor.applySecretChanges({
                         text: this.state.workingText,
                         changes: changedSecrets,
                         password,
+                        transformText,
                         assertFresh: ensureFresh,
                         onStep: event => {
                             if (expectedGeneration !== this.autoValidationGeneration) return;
@@ -3426,9 +3501,16 @@
                     this.autoValidationRunning = false;
                     this.setAutoValidationStatus('Automatisch geprüft', 'success');
 
+                    const wireGuardKeyChange = result.linkedChanges?.find(change => change.kind === 'wireguard-public-key');
+
                     if (keepPreviewVisible) this.showDecryptedPreview();
                     else this.showWorkingCopy();
-                    this.showStatus('Beide Prüfungen waren erfolgreich. Der geprüfte Export kann jetzt heruntergeladen werden.', 'success');
+                    this.showStatus(wireGuardKeyChange
+                        ? 'Private und öffentliche WireGuard-Schlüssel wurden gemeinsam aktualisiert und geprüft. Aktualisiere jetzt den öffentlichen FRITZ!Box-Schlüssel in allen Gegenstellen.'
+                        : 'Beide Prüfungen waren erfolgreich. Der geprüfte Export kann jetzt heruntergeladen werden.', 'success');
+                    if (wireGuardKeyChange) {
+                        this.log(`> WireGuard: global.wg_public_key automatisch neu abgeleitet (${wireGuardKeyChange.previousValue} → ${wireGuardKeyChange.value}).`, 'success');
+                    }
                     this.log(`> Prüfschritt 2/2 erfolgreich: CRC32 ${result.checksum.oldCrc} → ${result.checksum.newCrc}.`, 'success');
                 } catch (error) {
                     if (error.message === 'AUTO_VALIDATION_STALE') {
@@ -3640,6 +3722,10 @@
                 typeof window.FritzWireGuardConnections?.project !== 'function' ||
                 typeof window.FritzWireGuardConnections?.update !== 'function') {
                 missingCapabilities.unshift('WireGuard-Konfigurationsmodell API v1');
+            }
+            if (window.FritzWireGuardKeys?.API_VERSION !== '1' ||
+                typeof window.FritzWireGuardKeys?.derivePublicKey !== 'function') {
+                missingCapabilities.unshift('WireGuard-Schlüsselableitung API v1');
             }
             if (window.FritzEmbeddedFiles?.API_VERSION !== '1' ||
                 typeof window.FritzEmbeddedFiles?.extractPhonebooks !== 'function' ||
