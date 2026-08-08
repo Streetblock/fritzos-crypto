@@ -150,6 +150,8 @@ assert.match(html, /this\.wireGuardApi\.update\(documentModel, connection, chang
 assert.match(html, /renderWireGuardCards\(vpnSecrets, wireGuardProjection\)/, 'VPN secrets must render through complete WireGuard connection cards');
 assert.match(html, /\['wg_dyndns', 'Endpoint \/ Domain', 'text'\]/, 'WireGuard simple settings must expose the endpoint');
 assert.match(html, /\['wg_allowed_ips', 'Erlaubte Netze', 'text'\]/, 'WireGuard simple settings must expose allowed networks');
+assert.match(html, /connection\.fields\.dns_servers[\s\S]*connection\.fields\.wg_dnsserver/, 'WireGuard settings must support v4 and v3 DNS field names');
+assert.match(html, /connection\.values\.wg_slave_network[\s\S]*connection\.values\.wg_slave_mask/, 'WireGuard cards must support v3 peer network fields');
 assert.match(html, /this\.jumpToEditorLine\(secret\.line\)/, 'secret location links must navigate to the exact source line');
 assert.equal((html.match(/this\.createSecretLocationLink\(secret/g) || []).length >= 5, true, 'secret list, audit and credential cards must expose source links');
 assert.equal(html.includes('<Binärer Master-Key (entschlüsselt)>'), false, 'master key placeholder must not hide the actual decrypted key');

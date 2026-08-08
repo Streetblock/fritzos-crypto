@@ -25,7 +25,11 @@
 
   function project(document) {
     const section = document.getSection("vpn.cfg");
-    if (!section) return { global: null, connections: [] };
+    if (!section) return { version: null, global: null, connections: [] };
+    const rootBlock = document.getBlocks(section, block => block.name.toLowerCase() === "vpncfg")[0] || null;
+    const rootValues = rootBlock
+      ? Object.fromEntries(document.getAssignments(rootBlock).map(assignment => [assignment.name, assignment.value]))
+      : {};
     const globalBlock = document.getBlocks(section, block => block.name.toLowerCase() === "global")[0] || null;
     const candidates = document.getBlocks(section, block => block.name.toLowerCase() === "connections");
     const connections = candidates.map((block, index) => projectNode(document, block, "connection", index))
@@ -34,6 +38,7 @@
           connection.values[field] != null && String(connection.values[field]).trim() !== ""
         ));
     return {
+      version: rootValues.vpncfg_version || null,
       global: globalBlock ? projectNode(document, globalBlock, "global", 0) : null,
       connections
     };

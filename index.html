@@ -2600,6 +2600,8 @@
                     ['wg_persistent_keepalive', 'Persistent Keepalive', 'text'],
                     ['wg_fulltunnel', 'Gesamten Verkehr tunneln', 'checkbox']
                 ];
+                const dnsField = connection.fields.dns_servers ? 'dns_servers' : connection.fields.wg_dnsserver ? 'wg_dnsserver' : null;
+                if (dnsField) definitions.push([dnsField, 'DNS-Server', 'text']);
                 definitions.forEach(([field, labelText, type]) => {
                     const assignment = connection.fields[field];
                     if (!assignment || String(assignment.value).startsWith('$$$$')) return;
@@ -2711,7 +2713,11 @@
                         ['Entfernte IP', connection.values.remoteip || connection.values.remote_virtualip_v4 || connection.values.remote_virtualip],
                         ['Gegenstellen-Netz', connection.values.wg_slave_network_4v && connection.values.wg_slave_mask_4v
                             ? `${connection.values.wg_slave_network_4v} / ${connection.values.wg_slave_mask_4v}`
-                            : connection.values.wg_slave_network_4v],
+                            : connection.values.wg_slave_network && connection.values.wg_slave_mask
+                                ? `${connection.values.wg_slave_network} / ${connection.values.wg_slave_mask}`
+                                : connection.values.wg_slave_network_4v || connection.values.wg_slave_network],
+                        ['DNS-Server', connection.values.dns_servers || connection.values.wg_dnsserver],
+                        ['DNS-Domains', connection.values.dns_domains],
                         ['Persistent Keepalive', connection.values.wg_persistent_keepalive]
                     ]);
                     this.appendWireGuardSecrets(card, this.getWireGuardNodeSecrets(connection, secrets, model));
