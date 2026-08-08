@@ -186,6 +186,13 @@ const phonebookSource = [
   'username = "$$$$PHONEBOOKUSER";',
   'passwd = "$$$$PHONEBOOKPASS";',
   '}',
+  'extensions {',
+  'username = "$$$$INTERNALUSER";',
+  'passwd = "$$$$INTERNALPASS";',
+  'clientid = "$$$$INTERNALCLIENT";',
+  'extension_number = 620;',
+  'appid = 20;',
+  '}',
   'service {',
   'username = "$$$$NONSIPTELEPHONY";',
   '}',
@@ -196,6 +203,12 @@ const phonebookByValue = value => phonebookInventory.find(item => item.value ===
 assert.equal(phonebookByValue('$$$$REALSIPUSER').category, 'sip');
 assert.equal(phonebookByValue('$$$$PHONEBOOKUSER').category, 'online-phonebook');
 assert.equal(phonebookByValue('$$$$PHONEBOOKPASS').displayLabel, 'Online-Telefonbuch: Kennwort');
+assert.equal(phonebookByValue('$$$$INTERNALUSER').category, 'internal-telephony');
+assert.equal(phonebookByValue('$$$$INTERNALPASS').displayLabel, 'Interne Nebenstelle: Kennwort');
+assert.equal(phonebookByValue('$$$$INTERNALCLIENT').displayLabel, 'FRITZ!App-Fon-Geräte-ID');
+assert.equal(phonebookByValue('$$$$INTERNALUSER').account, null, 'internal extensions must not be grouped as provider SIP accounts');
+assert.equal(phonebookByValue('$$$$INTERNALUSER').credentialGroup.id, phonebookByValue('$$$$INTERNALPASS').credentialGroup.id);
+assert.equal(phonebookByValue('$$$$INTERNALUSER').credentialGroup.metadata.extension_number, '620');
 assert.equal(phonebookByValue('$$$$NONSIPTELEPHONY').category, 'telephony', 'voip.cfg alone must not imply a SIP account');
 
 console.log('Structured secret inventory tests passed.');

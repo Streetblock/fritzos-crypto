@@ -1019,6 +1019,16 @@
               }
               return { category: 'online-phonebook', label: this.humanizeField(field) };
           }
+          if (normalizedSection.includes('voip') && pathContains('extensions')) {
+              const labels = {
+                  username: 'Interne Nebenstelle: Benutzername',
+                  authname: 'Interne Nebenstelle: Anmeldename',
+                  passwd: 'Interne Nebenstelle: Kennwort',
+                  password: 'Interne Nebenstelle: Kennwort',
+                  clientid: 'FRITZ!App-Fon-Geräte-ID'
+              };
+              return { category: 'internal-telephony', label: labels[normalizedField] || this.humanizeField(field) };
+          }
           const sipAccountContext = normalizedSection.includes('voip') &&
               (pathSegments.some(segment => /^ua\d*$/i.test(segment)) || /registrar|sipserver|sip_server/.test(normalizedField));
           if (sipAccountContext) {
@@ -1135,6 +1145,7 @@
               if (category === 'dyndns') return findLast('accounts') || findLast('ddns');
               if (category === 'remote-management') return findLast('lab');
               if (category === 'online-phonebook') return blocks[blocks.length - 1] || null;
+              if (category === 'internal-telephony') return findLast('extensions');
               if (category === 'provider') return findLast('local') || findLast('serialcfg');
               if (category === 'app-access') return findLast('apps');
               return null;
@@ -1317,7 +1328,7 @@
                       item.network.ssidSecretId = item.id;
                   }
 
-                  if (activeSipBlock) {
+                  if (activeSipBlock && item.category === 'sip') {
                       activeSipBlock.secrets.push(item);
                       if (field.toLowerCase() === 'username') activeSipBlock.usernameSecretId = item.id;
                       if (field.toLowerCase().includes('registrar')) activeSipBlock.registrarSecretId = item.id;
