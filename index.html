@@ -1094,7 +1094,7 @@
 
                 for (const group of groups.values()) {
                     const decryptedUsername = this.getSipAccountValue(group, /^(?:username|user)$/);
-                    const decryptedRegistrar = this.getSipAccountValue(group, /registrar/);
+                    const decryptedRegistrar = this.getSipAccountValue(group, /^registrar$/);
                     const username = group.account.username || decryptedUsername;
                     const registrar = group.account.registrar || decryptedRegistrar;
                     const card = document.createElement('article');

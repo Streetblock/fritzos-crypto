@@ -1034,7 +1034,7 @@
           if (sipAccountContext) {
               if (normalizedField.includes('username') || normalizedField === 'user') return { category: 'sip', label: 'SIP-Benutzername' };
               if (normalizedField === 'authname') return { category: 'sip', label: 'SIP-Anmeldename' };
-              if (normalizedField.includes('registrar')) return { category: 'sip', label: 'SIP-Registrar' };
+              if (normalizedField === 'registrar') return { category: 'sip', label: 'SIP-Registrar' };
               return { category: 'sip', label: 'SIP-Passwort' };
           }
           if (normalizedSection.includes('voip')) {
@@ -1338,7 +1338,7 @@
               if (activeSipBlock && assignmentField && assignmentValue && !assignmentValue.startsWith('$$$$')) {
                   const normalizedField = assignmentField.toLowerCase();
                   if (normalizedField === 'username' || normalizedField === 'user') activeSipBlock.username = assignmentValue;
-                  if (normalizedField.includes('registrar')) activeSipBlock.registrar = assignmentValue;
+                  if (normalizedField === 'registrar') activeSipBlock.registrar = assignmentValue;
               }
 
               if (inSipSection && /^\s*}/.test(line)) {
