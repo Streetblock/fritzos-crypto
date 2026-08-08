@@ -328,6 +328,66 @@
         throw wrapped;
       }
     }
+
+    static async verifyWorkingCopy(options) {
+      this.assertDependencies();
+      const settings = options || {};
+      const originalText = String(settings.text || "");
+      if (!originalText) throw new FritzExportEditorError("EMPTY_EXPORT", "setup", "Der Export ist leer");
+      const password = String(settings.password || "");
+      const secrets = (settings.secrets || []).filter(secret =>
+        secret.status === "decrypted" && (secret.type === 4 || secret.type === 5)
+      );
+      const onStep = settings.onStep;
+      const assertFresh = typeof settings.assertFresh === "function" ? settings.assertFresh : function () {};
+      const masterKeyBytes = this.resolveMasterKey(originalText, password, secrets, settings.masterKeyBytes || null);
+      let activeStage = "roundtrip";
+
+      this.emit(onStep, "roundtrip", "running", `${secrets.length} unveränderte Secrets werden geprüft`);
+      try {
+        for (const secret of secrets) {
+          assertFresh();
+          const verification = await FritzOSCrypto.AVMCrypto.decryptSecret(
+            secret.value,
+            password,
+            secret.type === 5 ? masterKeyBytes : null
+          );
+          if (verification.plaintext !== String(secret.plaintext ?? "")) {
+            throw new FritzExportEditorError(
+              "SOURCE_SECRET_MISMATCH",
+              "roundtrip",
+              `Verschlüsselter Wert für ${secret.id || secret.stableKey || "Secret"} stimmt nicht mehr überein`
+            );
+          }
+        }
+        assertFresh();
+        this.emit(onStep, "roundtrip", "success", `${secrets.length} Secrets unverändert und lesbar`, { count: secrets.length });
+
+        activeStage = "checksum";
+        this.emit(onStep, "checksum", "running", "CRC32 wird aktualisiert und geprüft");
+        const checksumResult = FritzExportChecksum.fromText(originalText).replaceChecksum();
+        this.verifyExportChecksum(checksumResult.updatedText);
+        assertFresh();
+        this.emit(onStep, "checksum", "success", `CRC32 ${checksumResult.newCrc} ist gültig`, checksumResult);
+        return {
+          updatedText: checksumResult.updatedText,
+          roundtrip: { valid: true, count: secrets.length },
+          checksum: { valid: true, oldCrc: checksumResult.oldCrc, newCrc: checksumResult.newCrc }
+        };
+      } catch (error) {
+        if (error && error.message === "AUTO_VALIDATION_STALE") throw error;
+        const wrapped = error instanceof FritzExportEditorError
+          ? error
+          : new FritzExportEditorError(
+            activeStage === "checksum" ? "CHECKSUM_FAILED" : "ROUNDTRIP_FAILED",
+            activeStage,
+            error && error.message ? error.message : String(error),
+            error
+          );
+        this.emit(onStep, wrapped.stage || activeStage, "failed", wrapped.message, { code: wrapped.code });
+        throw wrapped;
+      }
+    }
   }
 
   return {

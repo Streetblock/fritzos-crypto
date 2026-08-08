@@ -18,8 +18,9 @@
     <!-- ========================================== -->
     <script src="./FritzOSCrypto.js?v=20260808-6"></script>
     <script src="./ConfigState.js?v=20260807-4"></script>
+    <script src="./DecryptedEditor.js?v=20260808-1"></script>
     <script src="./FritzExportChecksum.js?v=20260807-4"></script>
-    <script src="./FritzExportEditor.js?v=20260808-1"></script>
+    <script src="./FritzExportEditor.js?v=20260808-2"></script>
     <script src="./FritzEmbeddedFiles.js?v=20260808-2"></script>
     <script src="./SipWebPhoneProviders.js?v=20260808-1"></script>
     <script src="./FritzSipWebPhone.js?v=20260808-1"></script>
@@ -523,9 +524,14 @@
                                         <span id="viewModeBadge" class="text-xs font-medium bg-slate-100 text-slate-500 px-2 py-1 rounded-full">Arbeitskopie</span>
                                     </h2>
                                 </div>
-                                <button id="btnToggleView" class="hidden items-center gap-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl border border-slate-200">
-                                    <i data-lucide="eye" class="w-4 h-4"></i> Entschlüsselte Vorschau
-                                </button>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <button id="btnEditorTheme" class="hidden items-center gap-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl border border-slate-200">
+                                        <i data-lucide="panel-top" class="w-4 h-4"></i> Editor-Look
+                                    </button>
+                                    <button id="btnToggleView" class="hidden items-center gap-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl border border-slate-200">
+                                        <i data-lucide="file-lock-2" class="w-4 h-4"></i> Original anzeigen
+                                    </button>
+                                </div>
                             </div>
                             <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">Direkte Strukturänderungen können eine Sicherung unbrauchbar machen. Beim Speichern wird die Prüfsumme aktualisiert, nicht jedoch die fachliche Gültigkeit jeder Einstellung geprüft.</p>
                             <nav aria-label="Abschnitte der Exportdatei" class="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
@@ -562,6 +568,7 @@
         class ConfigToolApp {
             constructor() {
                 this.editor = document.getElementById('editorContent');
+                this.editorShell = document.getElementById('editorShell');
                 this.editorLineNumbers = document.getElementById('editorLineNumbers');
                 this.editorSectionNav = document.getElementById('editorSectionNav');
                 this.welcomeSection = document.getElementById('welcomeSection');
@@ -577,6 +584,7 @@
                 this.btnClear = document.getElementById('btnClear');
                 this.btnChangeFile = document.getElementById('btnChangeFile');
                 this.btnToggleView = document.getElementById('btnToggleView');
+                this.btnEditorTheme = document.getElementById('btnEditorTheme');
                 this.btnToggleAllSecrets = document.getElementById('btnToggleAllSecrets');
                 this.autoValidationBadge = document.getElementById('autoValidationBadge');
                 this.btnClearLog = document.getElementById('btnClearLog');
@@ -688,6 +696,8 @@
                 this.compatibleSipAccounts = [];
                 this.sipPhoneState = 'idle';
                 this.selectedSipContact = null;
+                this.editorTheme = 'console';
+                this.decryptedEditorModel = null;
                 this.library = window.FritzOSCrypto;
                 this.parser = FritzBoxParser;
                 this.crypto = AVMCrypto;
@@ -717,6 +727,7 @@
                 this.btnClear?.addEventListener('click', () => this.clearAll());
                 this.btnChangeFile?.addEventListener('click', () => this.fileInput.click());
                 this.btnToggleView?.addEventListener('click', () => this.toggleView());
+                this.btnEditorTheme?.addEventListener('click', () => this.toggleEditorTheme());
                 this.btnToggleAllSecrets?.addEventListener('click', () => this.toggleAllSecrets());
                 this.btnTogglePasswordChange?.addEventListener('click', () => this.togglePasswordChangePanel());
                 this.btnCancelPasswordChange?.addEventListener('click', () => this.closePasswordChangePanel());
@@ -774,7 +785,36 @@
             }
 
             handleEditorInput() {
-                if (this.state.viewMode === 'preview') return;
+                if (this.state.viewMode === 'preview') {
+                    const selection = this.editor.selectionStart;
+                    let edit;
+                    try {
+                        edit = window.FritzDecryptedEditor.applyEdit(
+                            this.decryptedEditorModel,
+                            this.editor.value,
+                            this.state.workingText
+                        );
+                    } catch (error) {
+                        this.showStatus(`Änderung nicht übernommen: ${error.message}`, 'warning');
+                        this.renderPreviewText(selection);
+                        return;
+                    }
+                    if (edit.kind === 'conflict') {
+                        this.showStatus(`${edit.message} Bitte Secret und Struktur nacheinander bearbeiten.`, 'warning');
+                        this.renderPreviewText(selection);
+                        return;
+                    }
+                    if (edit.kind === 'secret') {
+                        this.state.setEditedPlaintext(edit.secretId, edit.plaintext);
+                    } else if (edit.kind === 'structure') {
+                        this.state.setWorkingText(edit.workingText);
+                    }
+                    this.renderPreviewText(selection);
+                    this.updateChangedButton();
+                    this.scheduleAutoValidation();
+                    this.renderState();
+                    return;
+                }
                 this.cancelAutoValidation();
                 this.hideReencryptSummary();
                 this.state.setWorkingText(this.editor.value);
@@ -863,7 +903,7 @@
 
             jumpToEditorLine(lineNumber) {
                 if (!this.state.originalText) return;
-                if (this.state.viewMode === 'preview') this.showWorkingCopy();
+                if (this.state.viewMode !== 'preview' && this.state.getCounts().decrypted > 0) this.showDecryptedPreview();
                 this.switchView('editor');
                 requestAnimationFrame(() => {
                     const range = this.getEditorLineRange(lineNumber);
@@ -961,9 +1001,9 @@
                     this.cancelAutoValidation();
                     this.hideReencryptSummary();
                     this.editor.value = text;
-                    this.editor.readOnly = false;
-                    this.editor.classList.remove('bg-slate-900', 'text-green-400');
-                    this.editor.classList.add('bg-slate-50', 'text-slate-700');
+                    this.editor.readOnly = true;
+                    this.decryptedEditorModel = null;
+                    this.applyEditorTheme();
                     this.updateCharCount();
                     this.renderState();
                     this.renderPhonebookViewer();
@@ -1164,8 +1204,10 @@
                 this.autoValidationGeneration += 1;
                 const generation = this.autoValidationGeneration;
                 const changedSecrets = this.state.getChangedSecrets().filter(secret => secret.type === 4 || secret.type === 5);
+                const structuralEditPending = changedSecrets.length === 0 &&
+                    this.state.hasUnsavedChanges() && !this.state.isDownloadReady();
                 this.showReencryptSummary();
-                if (changedSecrets.length === 0) {
+                if (changedSecrets.length === 0 && !structuralEditPending) {
                     this.setAutoValidationStatus(
                         this.state.isDownloadReady() ? 'Automatisch geprüft' : 'Automatische Prüfung bereit',
                         this.state.isDownloadReady() ? 'success' : 'idle'
@@ -1182,8 +1224,12 @@
                 this.autoValidationTimer = setTimeout(() => {
                     this.clearAutoValidationTimer();
                     this.autoValidationRunning = true;
-                    this.setAutoValidationStatus('Neuverschlüsselung und Prüfung laufen…', 'running');
-                    this.reencryptChangedSecrets(generation);
+                    this.setAutoValidationStatus(
+                        changedSecrets.length > 0 ? 'Neuverschlüsselung und Prüfung laufen…' : 'Arbeitskopie und CRC32 werden geprüft…',
+                        'running'
+                    );
+                    if (changedSecrets.length > 0) this.reencryptChangedSecrets(generation);
+                    else this.validateWorkingCopy(generation);
                 }, this.autoValidationDelay);
             }
 
@@ -1197,9 +1243,9 @@
                 if (this.originalExportPassword !== null) this.passwordInput.value = this.originalExportPassword;
                 this.closePasswordChangePanel();
                 this.editor.value = original;
-                this.editor.readOnly = false;
-                this.editor.classList.remove('bg-slate-900', 'text-green-400');
-                this.editor.classList.add('bg-slate-50', 'text-slate-700');
+                this.editor.readOnly = true;
+                this.decryptedEditorModel = null;
+                this.applyEditorTheme();
                 this.revealedSecrets.clear();
                 this.cancelAutoValidation();
                 this.hideReencryptSummary();
@@ -1486,13 +1532,15 @@
                 this.secretNavCount.textContent = counts.total;
 
                 const isPreview = this.state.viewMode === 'preview';
-                this.viewModeBadge.textContent = isPreview ? 'Entschlüsselte Vorschau' : 'Arbeitskopie';
+                this.viewModeBadge.textContent = isPreview ? 'Entschlüsselte Arbeitsansicht' : 'Original · schreibgeschützt';
                 const hasDecryptedResults = counts.decrypted > 0;
                 this.btnToggleView.classList.toggle('hidden', !hasDecryptedResults);
                 this.btnToggleView.classList.toggle('flex', hasDecryptedResults);
+                this.btnEditorTheme.classList.toggle('hidden', !isPreview);
+                this.btnEditorTheme.classList.toggle('flex', isPreview);
                 this.btnToggleView.innerHTML = isPreview
-                    ? '<i data-lucide="file-lock-2" class="w-4 h-4"></i> Arbeitskopie anzeigen'
-                    : '<i data-lucide="eye" class="w-4 h-4"></i> Entschlüsselte Vorschau anzeigen';
+                    ? '<i data-lucide="file-lock-2" class="w-4 h-4"></i> Original anzeigen'
+                    : '<i data-lucide="file-pen-line" class="w-4 h-4"></i> Entschlüsselt bearbeiten';
 
                 const decryptable = counts.pending + counts.failed;
                 this.btnDecrypt.disabled = decryptable === 0 || !this.state.workingText.trim();
@@ -1677,7 +1725,7 @@
                     this.state.setVerificationStep('checksum', 'success', `CRC32 ${result.checksum.newCrc} ist gültig`);
                     this.passwordInput.value = newPassword;
                     this.setPasswordChangeBusy(false);
-                    this.showWorkingCopy();
+                    this.showDecryptedPreview();
                     this.closePasswordChangePanel();
                     this.showStatus('Sicherungskennwort geändert. Export-Master-Key und CRC32 wurden erfolgreich geprüft.', 'success');
                     this.log(`> Sicherungskennwort geändert: Master-Key unverändert, ${result.roundtrip.payloadSecretsVerified} Nutz-Secrets und CRC32 ${result.checksum.newCrc} geprüft.`, 'success');
@@ -2693,7 +2741,8 @@
                 this.cancelAutoValidation();
                 void this.sipPhone.disconnect();
                 this.editor.value = '';
-                this.editor.readOnly = false;
+                this.editor.readOnly = true;
+                this.decryptedEditorModel = null;
                 this.currentFileName = '';
                 this.fileNameLabel.textContent = 'Keine Datei geladen';
                 this.dashboardSection.classList.add('hidden');
@@ -2707,8 +2756,7 @@
                 this.selectedSipContact = null;
                 this.renderPhonebookViewer();
                 this.renderState();
-                this.editor.classList.remove('bg-slate-900', 'text-green-400');
-                this.editor.classList.add('bg-slate-50', 'text-slate-700');
+                this.applyEditorTheme();
                 this.updateCharCount();
                 this.hideStatus();
                 this.passwordInput.value = '';
@@ -2727,28 +2775,58 @@
                 else this.showDecryptedPreview();
             }
 
-            renderPreviewText() {
-                this.editor.value = this.state.createPreview((text, secret, plaintext) => this.replaceSecretAt(text, secret, plaintext));
+            renderPreviewText(selection = null) {
+                this.state.createPreview((text, secret, plaintext) => this.replaceSecretAt(text, secret, plaintext));
+                this.decryptedEditorModel = window.FritzDecryptedEditor.buildDocument(this.state.workingText, this.state.secrets);
+                this.editor.value = this.decryptedEditorModel.text;
                 this.updateCharCount();
+                if (selection !== null) this.editor.setSelectionRange(selection, selection);
             }
 
             showDecryptedPreview() {
                 this.renderPreviewText();
-                this.editor.readOnly = true;
-                this.editor.classList.remove('bg-slate-50', 'text-slate-700');
-                this.editor.classList.add('bg-slate-900', 'text-green-400');
+                this.editor.readOnly = false;
+                this.applyEditorTheme();
                 this.renderState();
-                this.showStatus('Entschlüsselte Vorschau angezeigt. Änderungen erfolgen im Secret-Editor.', 'info');
+                this.showStatus('Entschlüsselte Arbeitsansicht geöffnet. Secrets werden sicher zurückgeführt; Klartext wird nie direkt exportiert.', 'info');
             }
 
             showWorkingCopy() {
-                this.editor.value = this.state.showWorkingCopy();
-                this.editor.readOnly = false;
-                this.editor.classList.remove('bg-slate-900', 'text-green-400');
-                this.editor.classList.add('bg-slate-50', 'text-slate-700');
+                this.state.showWorkingCopy();
+                this.decryptedEditorModel = null;
+                this.editor.value = this.state.originalText;
+                this.editor.readOnly = true;
+                this.applyEditorTheme();
                 this.updateCharCount();
                 this.renderState();
-                this.showStatus('Verschlüsselte Arbeitskopie angezeigt. Die Vorschau bleibt verfügbar.', 'info');
+                this.showStatus('Unveränderter geladener Originalstand angezeigt.', 'info');
+            }
+
+            toggleEditorTheme() {
+                this.editorTheme = this.editorTheme === 'console' ? 'light' : 'console';
+                this.applyEditorTheme();
+                this.renderState();
+            }
+
+            applyEditorTheme() {
+                const consoleTheme = this.state.viewMode === 'preview' && this.editorTheme === 'console';
+                this.editor.classList.toggle('bg-slate-900', consoleTheme);
+                this.editor.classList.toggle('text-green-400', consoleTheme);
+                this.editor.classList.toggle('bg-slate-50', !consoleTheme);
+                this.editor.classList.toggle('text-slate-700', !consoleTheme);
+                this.editorLineNumbers.classList.toggle('bg-slate-950', consoleTheme);
+                this.editorLineNumbers.classList.toggle('text-green-700', consoleTheme);
+                this.editorLineNumbers.classList.toggle('border-slate-700', consoleTheme);
+                this.editorLineNumbers.classList.toggle('bg-slate-100', !consoleTheme);
+                this.editorLineNumbers.classList.toggle('text-slate-400', !consoleTheme);
+                this.editorLineNumbers.classList.toggle('border-slate-200', !consoleTheme);
+                this.editorShell.classList.toggle('bg-slate-900', consoleTheme);
+                this.editorShell.classList.toggle('border-slate-700', consoleTheme);
+                this.editorShell.classList.toggle('bg-slate-50', !consoleTheme);
+                this.editorShell.classList.toggle('border-slate-300', !consoleTheme);
+                this.btnEditorTheme.innerHTML = consoleTheme
+                    ? '<i data-lucide="panel-top" class="w-4 h-4"></i> Editor-Look'
+                    : '<i data-lucide="terminal" class="w-4 h-4"></i> Konsolen-Look';
             }
 
             escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -2766,6 +2844,52 @@
                     replacement = `"${this.escapeForDoubleQuotedString(plaintext)}"`;
                 }
                 return text.slice(0, secret.start) + replacement + text.slice(secret.end);
+            }
+
+            async validateWorkingCopy(expectedGeneration = this.autoValidationGeneration) {
+                const sourceText = this.state.workingText;
+                const ensureFresh = () => {
+                    if (expectedGeneration !== this.autoValidationGeneration || sourceText !== this.state.workingText) {
+                        throw new Error('AUTO_VALIDATION_STALE');
+                    }
+                };
+                try {
+                    const result = await this.exportEditor.verifyWorkingCopy({
+                        text: sourceText,
+                        password: this.passwordInput.value,
+                        secrets: this.state.secrets,
+                        assertFresh: ensureFresh,
+                        onStep: event => {
+                            if (expectedGeneration !== this.autoValidationGeneration) return;
+                            this.state.setVerificationStep(event.step, event.status, event.message);
+                            this.renderSafetyState();
+                        }
+                    });
+                    ensureFresh();
+                    const keepPreviewVisible = this.state.viewMode === 'preview';
+                    this.state.setWorkingText(result.updatedText);
+                    this.state.setVerificationStep('roundtrip', 'success', `${result.roundtrip.count} verschlüsselte Secrets unverändert und lesbar`);
+                    this.state.setVerificationStep('checksum', 'success', `CRC32 ${result.checksum.newCrc} ist gültig`);
+                    this.autoValidationRunning = false;
+                    this.setAutoValidationStatus('Automatisch geprüft', 'success');
+                    if (keepPreviewVisible) this.showDecryptedPreview();
+                    else this.showWorkingCopy();
+                    this.showStatus('Strukturänderungen und verschlüsselte Werte wurden geprüft. Der Download ist freigegeben.', 'success');
+                    this.log(`> Strukturänderung geprüft: ${result.roundtrip.count} Secrets unverändert, CRC32 ${result.checksum.newCrc} gültig.`, 'success');
+                } catch (error) {
+                    if (error.message === 'AUTO_VALIDATION_STALE') {
+                        this.autoValidationRunning = false;
+                        return;
+                    }
+                    this.autoValidationRunning = false;
+                    if (['roundtrip', 'checksum'].includes(error.stage) &&
+                        this.state.verification[error.stage]?.status !== 'failed') {
+                        this.state.setVerificationStep(error.stage, 'failed', error.message);
+                    }
+                    this.setAutoValidationStatus('Automatische Prüfung fehlgeschlagen', 'error');
+                    this.showStatus(`Arbeitskopie konnte nicht validiert werden: ${error.message}`, 'error');
+                    this.renderState();
+                }
             }
 
             async reencryptChangedSecrets(expectedGeneration = this.autoValidationGeneration) {
@@ -2920,11 +3044,8 @@
                     }
                 }
 
-                this.editor.value = this.state.createPreview((text, secret, plaintext) => this.replaceSecretAt(text, secret, plaintext));
-                this.editor.readOnly = true;
-                this.editor.classList.remove('bg-slate-50', 'text-slate-700');
-                this.editor.classList.add('bg-slate-900', 'text-green-400');
-                this.updateCharCount();
+                if (successCount > 0) this.showDecryptedPreview();
+                else this.showWorkingCopy();
                 this.renderState();
                 if (successCount > 0) this.switchView('secrets');
 
@@ -3018,8 +3139,13 @@
             if (window.FritzConfigState?.API_VERSION !== '2') missingCapabilities.unshift('ConfigState API v2');
             if (window.FritzExportEditor?.API_VERSION !== '1' ||
                 typeof window.FritzExportEditor?.FritzExportEditor?.applySecretChanges !== 'function' ||
+                typeof window.FritzExportEditor?.FritzExportEditor?.verifyWorkingCopy !== 'function' ||
                 typeof window.FritzExportEditor?.FritzExportEditor?.changeExportPassword !== 'function') {
                 missingCapabilities.unshift('FritzExportEditor API v1');
+            }
+            if (typeof window.FritzDecryptedEditor?.buildDocument !== 'function' ||
+                typeof window.FritzDecryptedEditor?.applyEdit !== 'function') {
+                missingCapabilities.unshift('FritzDecryptedEditor');
             }
             if (window.FritzEmbeddedFiles?.API_VERSION !== '1' ||
                 typeof window.FritzEmbeddedFiles?.extractPhonebooks !== 'function' ||

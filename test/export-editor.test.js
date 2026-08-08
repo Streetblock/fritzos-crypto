@@ -65,6 +65,23 @@ async function run() {
     newCrc: crc.newCrc
   });
 
+  const structuralSource = result.updatedText.replace('FirmwareVersion=154.08.00', 'FirmwareVersion=154.08.01');
+  const structuralSecret = Object.assign({}, result.replacements[0].verification, {
+    id: 'structure-secret',
+    value: result.replacements[0].newValue,
+    plaintext: 'new value',
+    status: 'decrypted',
+    type: 4
+  });
+  const structuralResult = await FritzExportEditor.verifyWorkingCopy({
+    text: structuralSource,
+    password,
+    secrets: [structuralSecret]
+  });
+  assert.match(structuralResult.updatedText, /FirmwareVersion=154\.08\.01/);
+  assert.equal(structuralResult.roundtrip.count, 1);
+  assert.equal(FritzExportEditor.verifyExportChecksum(structuralResult.updatedText).valid, true);
+
   const masterKey = Uint8Array.from({ length: 16 }, (_, index) => index + 1);
   const type5Secret = await FritzOSCrypto.encryptSecretWithKey('type5 old', masterKey);
   const type5Unchecked = unchecked.replace(originalSecret, () => type5Secret);

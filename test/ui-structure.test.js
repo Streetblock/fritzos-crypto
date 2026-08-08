@@ -97,7 +97,8 @@ for (const id of [
   'editorShell',
   'editorLineNumbers',
   'editorSectionNav',
-  'editorContent'
+  'editorContent',
+  'btnEditorTheme'
 ]) {
   assert.equal(ids.includes(id), true, `required UI element #${id} is missing`);
 }
@@ -122,6 +123,11 @@ assert.match(html, /this\.editorLineNumbers\.scrollTop\s*=\s*this\.editor\.scrol
 assert.match(html, /CFGFILE\|\(\?:CRYPTED\)\?BINFILE\|\(\?:CRYPTED\)\?B64FILE/, 'editor section navigation must recognize export file markers');
 assert.match(html, /button\.addEventListener\('click', \(\) => this\.jumpToEditorLine\(section\.line\)\)/, 'section markers must navigate to their source line');
 assert.match(html, /createSecretLocationLink\(secret/, 'secret locations must use the shared editor navigation link');
+assert.match(html, /FritzDecryptedEditor\.applyEdit/, 'decrypted expert edits must pass through the plaintext mapping layer');
+assert.match(html, /FritzDecryptedEditor\.buildDocument/, 'decrypted expert view must be derived from encrypted state');
+assert.match(html, /Original · schreibgeschützt/, 'the immutable loaded original needs an explicit view state');
+assert.match(html, /this\.editorTheme === 'console'/, 'the expert editor needs an independent console/light theme toggle');
+assert.match(html, /this\.validateWorkingCopy\(generation\)/, 'structural edits need automatic roundtrip and checksum validation');
 assert.match(html, /this\.jumpToEditorLine\(secret\.line\)/, 'secret location links must navigate to the exact source line');
 assert.equal((html.match(/this\.createSecretLocationLink\(secret/g) || []).length >= 5, true, 'secret list, audit and credential cards must expose source links');
 assert.equal(html.includes('<Binärer Master-Key (entschlüsselt)>'), false, 'master key placeholder must not hide the actual decrypted key');
@@ -135,7 +141,7 @@ assert.equal(html.includes('Der Export-Master-Key bleibt unverändert'), true, '
 assert.match(html, /const editable = supported && !this\.isExportMasterKey\(secret\)/, 'the export master key itself must stay read-only');
 assert.match(html, /this\.exportEditor\.changeExportPassword\(/, 'password changes must delegate to the atomic export service');
 assert.match(html, /newPassword !== confirmation/, 'the new export password must be confirmed');
-assert.match(html, /FritzExportEditor\.js\?v=20260808-1/, 'password change service needs a deployment cache key');
+assert.match(html, /FritzExportEditor\.js\?v=20260808-2/, 'export editing service needs the current deployment cache key');
 assert.match(html, /typeof window\.FritzExportEditor\?\.FritzExportEditor\?\.changeExportPassword/, 'partial deployments must reject a missing password change service');
 assert.match(html, /plaintext:\s*mkResult\.exportKeyHex/, 'decrypted master key must be available to the masked secret field');
 assert.match(html, /input\.type\s*=\s*this\.revealedSecrets\.has\(secret\.stableKey\)\s*\?\s*'text'\s*:\s*'password'/, 'plaintext fields must be masked by default');
