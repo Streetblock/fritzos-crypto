@@ -88,6 +88,76 @@ async function run() {
     'type5 new'
   );
 
+  const oldExportPassword = 'altes-export-kennwort';
+  const newExportPassword = 'neues-export-kennwort';
+  const wrappedMasterKey = await FritzOSCrypto.encryptExportKey(masterKey, oldExportPassword);
+  const modernUnchecked = [
+    '**** FRITZ!Box 7590 CONFIGURATION EXPORT',
+    `Password=${wrappedMasterKey}`,
+    '**** CFGFILE: wlan.cfg',
+    `pskvalue = "${type5Secret}";`,
+    '**** END OF FILE ****',
+    '**** END OF EXPORT 00000000 ****',
+    ''
+  ].join('\r\n');
+  const modernSource = FritzExportChecksum.fromText(modernUnchecked).replaceChecksum().updatedText;
+  const passwordEvents = [];
+  const passwordResult = await FritzExportEditor.changeExportPassword({
+    text: modernSource,
+    oldPassword: oldExportPassword,
+    newPassword: newExportPassword,
+    onStep: event => passwordEvents.push(`${event.step}:${event.status}`)
+  });
+  assert.deepEqual(passwordEvents, [
+    'roundtrip:running',
+    'roundtrip:success',
+    'checksum:running',
+    'checksum:success'
+  ]);
+  const changedMasterMatch = passwordResult.updatedText.match(/^Password=(\$\$\$\$\S+)/m);
+  assert.ok(changedMasterMatch);
+  assert.notEqual(changedMasterMatch[1], wrappedMasterKey);
+  assert.equal(
+    FritzOSCrypto.toHex(FritzOSCrypto.decryptExportKey(changedMasterMatch[1], newExportPassword).exportKeyBytes),
+    FritzOSCrypto.toHex(masterKey)
+  );
+  assert.throws(() => FritzOSCrypto.decryptExportKey(changedMasterMatch[1], oldExportPassword));
+  assert.equal(FritzOSCrypto.decryptSecretWithKey(type5Secret, masterKey).text, 'type5 old');
+  assert.equal(passwordResult.roundtrip.payloadSecretsVerified, 1);
+  assert.equal(passwordResult.checksum.valid, true);
+  assert.deepEqual(FritzExportEditor.verifyExportChecksum(passwordResult.updatedText).valid, true);
+
+  await assert.rejects(
+    FritzExportEditor.changeExportPassword({
+      text: modernSource,
+      oldPassword: 'falsch',
+      newPassword: newExportPassword
+    }),
+    error => error.code === 'OLD_PASSWORD_INVALID' && error.stage === 'roundtrip'
+  );
+  await assert.rejects(
+    FritzExportEditor.changeExportPassword({
+      text: source,
+      oldPassword: password,
+      newPassword: newExportPassword
+    }),
+    error => error.code === 'MODERN_MASTER_KEY_MISSING' && error.stage === 'setup'
+  );
+  const mixedUnchecked = modernUnchecked.replace(
+    '**** END OF FILE ****',
+    () => `legacy_password = "${originalSecret}";\r\n**** END OF FILE ****`
+  );
+  const mixedSource = FritzExportChecksum.fromText(mixedUnchecked).replaceChecksum().updatedText;
+  assert.equal(FritzOSCrypto.FritzBoxParser.extractSecretInventory(mixedSource).length, 3);
+  await assert.rejects(
+    FritzExportEditor.changeExportPassword({
+      text: mixedSource,
+      oldPassword: oldExportPassword,
+      newPassword: newExportPassword
+    }),
+    error => error.code === 'PASSWORD_BOUND_SECRET_FOUND' && error.stage === 'roundtrip'
+  );
+
   await assert.rejects(
     FritzExportEditor.applySecretChanges({
       text: source,

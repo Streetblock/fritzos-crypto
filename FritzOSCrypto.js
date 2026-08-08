@@ -529,33 +529,27 @@
     };
   }
 
-  async function encryptSecretWithKey(value, key) {
-    if (typeof value !== "string") {
-      fail("value must be a string");
-    }
-
+  async function encryptRawSecretWithKey(rawValue, key) {
     var cryptoApi = getCrypto();
     if (!cryptoApi || !cryptoApi.subtle || !cryptoApi.getRandomValues) {
       fail("WebCrypto API is required for encryption");
     }
 
     var normalizedKey = normalizeAes256Key(key);
-    var valueBytes = utf8Bytes(value);
-    var rawValue = new Uint8Array(valueBytes.length + 1);
-    rawValue.set(valueBytes);
+    var normalizedValue = rawValue instanceof Uint8Array ? new Uint8Array(rawValue) : new Uint8Array(rawValue || []);
 
     // AVM Base32 requires the complete IV+ciphertext payload to be divisible
     // by five bytes. A ciphertext length of 64 + n*80 satisfies that rule.
     var ciphertextLength = 64;
-    while (ciphertextLength < 8 + rawValue.length + 1) {
+    while (ciphertextLength < 8 + normalizedValue.length + 1) {
       ciphertextLength += 80;
     }
 
     // WebCrypto appends one PKCS#7 byte because this input is one byte short
     // of a block boundary. The legacy digest covers that final padding byte.
     var plaintext = new Uint8Array(ciphertextLength - 1);
-    writeUint32BE(plaintext, 4, rawValue.length);
-    plaintext.set(rawValue, 8);
+    writeUint32BE(plaintext, 4, normalizedValue.length);
+    plaintext.set(normalizedValue, 8);
 
     var digestInput = new Uint8Array(ciphertextLength - 4);
     digestInput.set(plaintext.subarray(4));
@@ -584,6 +578,16 @@
     secretBytes.set(iv);
     secretBytes.set(encrypted, iv.length);
     return "$$$$" + encodeAvmBase32(secretBytes);
+  }
+
+  async function encryptSecretWithKey(value, key) {
+    if (typeof value !== "string") {
+      fail("value must be a string");
+    }
+    var valueBytes = utf8Bytes(value);
+    var rawValue = new Uint8Array(valueBytes.length + 1);
+    rawValue.set(valueBytes);
+    return encryptRawSecretWithKey(rawValue, key);
   }
 
   function derivePasswordKey(password) {
@@ -626,6 +630,18 @@
       aesKeyHex: toHex(aesKey),
       details: result
     };
+  }
+
+  async function encryptExportKey(exportKey, password) {
+    var keyBytes = exportKey instanceof Uint8Array ? new Uint8Array(exportKey) : new Uint8Array(exportKey || []);
+    if (keyBytes.length !== 16) {
+      fail("export key must contain exactly 16 bytes");
+    }
+    var duplicatedKey = new Uint8Array(32);
+    duplicatedKey.set(keyBytes, 0);
+    duplicatedKey.set(keyBytes, 16);
+    var passwordKey = derivePasswordKey(String(password));
+    return encryptRawSecretWithKey(duplicatedKey, passwordKey.bytes);
   }
 
   function decryptSecret(secret, keyOrPassword, options) {
@@ -1381,8 +1397,10 @@
     normalizeAes256Key: normalizeAes256Key,
     derivePasswordKey: derivePasswordKey,
     decryptSecretWithKey: decryptSecretWithKey,
+    encryptRawSecretWithKey: encryptRawSecretWithKey,
     encryptSecretWithKey: encryptSecretWithKey,
     decryptExportKey: decryptExportKey,
+    encryptExportKey: encryptExportKey,
     decryptSecret: decryptSecret,
     // Neue asynchrone High-Level Interfaces:
     AVMCrypto: AVMCrypto,
