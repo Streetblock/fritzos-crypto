@@ -103,4 +103,68 @@ assert.equal(ssidSecret.displayLabel, 'Haupt-WLAN-Name');
 assert.equal(passwordSecret.displayLabel, 'WLAN-Schlüssel');
 assert.equal(passwordSecret.network.ssidSecretId, ssidSecret.id, 'encrypted SSID must be linked to the WLAN credential');
 
+const accountSource = [
+  '**** CFGFILE: ar7.cfg',
+  'boxusers {',
+  'users {',
+  'id = 1;',
+  'name = "$$$$BOXUSER1";',
+  'password = "$$$$BOXPASS1";',
+  'box_admin_rights = 1;',
+  '} {',
+  'id = 2;',
+  'name = "$$$$BOXUSER2";',
+  'password = "$$$$BOXPASS2";',
+  'box_admin_rights = 0;',
+  '}',
+  '}',
+  'emailnotify {',
+  'From = "$$$$SMTPFROM";',
+  'To = "$$$$SMTPTO";',
+  'SMTPServer = "smtp.example.invalid";',
+  'accountname = "$$$$SMTPUSER";',
+  'passwd = "$$$$SMTPPASS";',
+  '}',
+  'jasonii {',
+  'user_email = "$$$$MYFRITZEMAIL";',
+  'dyn_dns_name = "$$$$MYFRITZDOMAIN";',
+  'oauth_client_id = "$$$$OAUTHID";',
+  'oauth_client_secret = "$$$$OAUTHSECRET";',
+  '}',
+  'unrelated {',
+  'name = "$$$$NOTPROVIDER";',
+  '}',
+  '**** END OF FILE ****',
+  '**** CFGFILE: tr069.cfg',
+  'lab {',
+  'CRUsername = "$$$$CRUSER";',
+  'CRPassword = "$$$$CRPASS";',
+  'DDNS {',
+  'username = "$$$$DDNSUSER";',
+  'password = "$$$$DDNSPASS";',
+  'domain_name = "$$$$DDNSDOMAIN";',
+  '}',
+  '}',
+  '**** END OF FILE ****'
+].join('\n');
+
+const accountInventory = FritzBoxParser.extractSecretInventory(accountSource);
+const byFieldAndValue = (field, value) => accountInventory.find(item => item.field === field && item.value === value);
+assert.equal(byFieldAndValue('name', '$$$$BOXUSER1').category, 'fritz-user');
+assert.equal(byFieldAndValue('password', '$$$$BOXPASS1').displayLabel, 'FRITZ!Box-Kennwort');
+assert.notEqual(
+  byFieldAndValue('name', '$$$$BOXUSER1').credentialGroup.id,
+  byFieldAndValue('name', '$$$$BOXUSER2').credentialGroup.id,
+  'repeated FRITZ!Box user blocks must remain separate accounts'
+);
+assert.equal(byFieldAndValue('accountname', '$$$$SMTPUSER').category, 'email');
+assert.equal(byFieldAndValue('passwd', '$$$$SMTPPASS').displayLabel, 'SMTP-Passwort');
+assert.equal(byFieldAndValue('user_email', '$$$$MYFRITZEMAIL').category, 'myfritz');
+assert.equal(byFieldAndValue('dyn_dns_name', '$$$$MYFRITZDOMAIN').displayLabel, 'MyFRITZ!-Adresse');
+assert.equal(byFieldAndValue('CRUsername', '$$$$CRUSER').category, 'remote-management');
+assert.equal(byFieldAndValue('CRPassword', '$$$$CRPASS').displayLabel, 'Provider-Fernwartung: Passwort');
+assert.equal(byFieldAndValue('username', '$$$$DDNSUSER').category, 'dyndns');
+assert.equal(byFieldAndValue('domain_name', '$$$$DDNSDOMAIN').displayLabel, 'DynDNS-Domain');
+assert.equal(byFieldAndValue('name', '$$$$NOTPROVIDER').category, 'other', 'unknown ar7 fields must not default to provider');
+
 console.log('Structured secret inventory tests passed.');

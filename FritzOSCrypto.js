@@ -984,9 +984,11 @@
           return `WIFI:T:${authentication};S:${this.escapeWifiQrValue(details.ssid)};P:${this.escapeWifiQrValue(password)};H:${details.hidden ? 'true' : 'false'};;`;
       }
 
-      static classifySecret(section, field) {
+      static classifySecret(section, field, context = {}) {
           const normalizedSection = String(section || '').toLowerCase();
           const normalizedField = String(field || '').toLowerCase();
+          const normalizedPath = String(context.path || '').toLowerCase();
+          const pathContains = block => normalizedPath.split('/').includes(block);
 
           if (section === 'Header' && normalizedField === 'password') {
               return { category: 'system', label: 'System-Master-Key' };
@@ -1003,11 +1005,67 @@
           }
           if (normalizedSection.includes('voip')) {
               if (normalizedField.includes('username') || normalizedField === 'user') return { category: 'sip', label: 'SIP-Benutzername' };
+              if (normalizedField === 'authname') return { category: 'sip', label: 'SIP-Anmeldename' };
               if (normalizedField.includes('registrar')) return { category: 'sip', label: 'SIP-Registrar' };
               return { category: 'sip', label: 'SIP-Passwort' };
           }
-          if (normalizedSection.includes('vpn')) return { category: 'vpn', label: 'VPN-Schlüssel' };
-          if (normalizedSection.includes('ar7') || normalizedField.includes('provider')) return { category: 'provider', label: 'Provider-Zugangsdaten' };
+          if (normalizedSection.includes('vpn')) {
+              if (normalizedField.includes('private')) return { category: 'vpn', label: 'WireGuard Private Key' };
+              if (normalizedField.includes('preshared')) return { category: 'vpn', label: 'WireGuard Pre-Shared Key' };
+              return { category: 'vpn', label: 'VPN-Schlüssel' };
+          }
+          if (normalizedSection.includes('tr069') && pathContains('ddns')) {
+              if (normalizedField === 'username') return { category: 'dyndns', label: 'DynDNS-Benutzername' };
+              if (normalizedField === 'password') return { category: 'dyndns', label: 'DynDNS-Passwort' };
+              if (normalizedField === 'domain_name') return { category: 'dyndns', label: 'DynDNS-Domain' };
+              return { category: 'dyndns', label: this.humanizeField(field) };
+          }
+          if (normalizedSection.includes('tr069') && /^cr(?:username|password)$/.test(normalizedField)) {
+              return {
+                  category: 'remote-management',
+                  label: normalizedField === 'crusername'
+                      ? 'Provider-Fernwartung: Benutzername'
+                      : 'Provider-Fernwartung: Passwort'
+              };
+          }
+          if (normalizedSection.includes('ar7') && pathContains('boxusers')) {
+              if (normalizedField === 'name') return { category: 'fritz-user', label: 'FRITZ!Box-Benutzername' };
+              if (normalizedField === 'password') return { category: 'fritz-user', label: 'FRITZ!Box-Kennwort' };
+              return { category: 'fritz-user', label: this.humanizeField(field) };
+          }
+          if (normalizedSection.includes('ar7') && pathContains('emailnotify')) {
+              const labels = {
+                  from: 'SMTP-Absenderadresse',
+                  to: pathContains('securitymail') ? 'Sicherheitsmail-Empfänger' : 'E-Mail-Empfänger',
+                  accountname: 'SMTP-Benutzername',
+                  passwd: 'SMTP-Passwort'
+              };
+              return { category: 'email', label: labels[normalizedField] || this.humanizeField(field) };
+          }
+          if (normalizedSection.includes('ar7') && pathContains('jasonii')) {
+              const labels = {
+                  user_email: 'MyFRITZ!-E-Mail-Adresse',
+                  dyn_dns_name: 'MyFRITZ!-Adresse',
+                  oauth_client_id: 'MyFRITZ!-OAuth-Client-ID',
+                  oauth_client_secret: 'MyFRITZ!-OAuth-Client-Secret'
+              };
+              return { category: 'myfritz', label: labels[normalizedField] || this.humanizeField(field) };
+          }
+          if (normalizedSection.includes('ar7') && pathContains('apps')) {
+              const labels = {
+                  username: 'FRITZ!App-Benutzername',
+                  password: 'FRITZ!App-Kennwort',
+                  appavmpwdhash: 'FRITZ!App-Kennwort-Hash',
+                  enc_secret: 'FRITZ!App-Verbindungsschlüssel'
+              };
+              return { category: 'app-access', label: labels[normalizedField] || this.humanizeField(field) };
+          }
+          const providerPath = pathContains('serialcfg') || (pathContains('targets') && pathContains('local'));
+          if ((normalizedSection.includes('ar7') && providerPath) || normalizedField.includes('provider')) {
+              if (/user/.test(normalizedField)) return { category: 'provider', label: 'Internetzugang: Benutzername' };
+              if (/pass/.test(normalizedField)) return { category: 'provider', label: 'Internetzugang: Passwort' };
+              return { category: 'provider', label: 'Provider-Zugangsdaten' };
+          }
           if (normalizedField.includes('pass') || normalizedField.includes('secret') || normalizedField.includes('key')) {
               return { category: 'system', label: this.humanizeField(field) };
           }
@@ -1025,6 +1083,29 @@
           let sipAccountCounter = 0;
           let sipBlocks = [];
           let fallbackSipBlock = null;
+          let configBlockCounter = 0;
+          let configBlocks = [];
+
+          const createConfigBlock = name => ({
+              id: `config-block-${++configBlockCounter}`,
+              name,
+              values: Object.create(null)
+          });
+          const currentConfigContext = () => ({
+              path: configBlocks.map(block => block.name).join('/'),
+              blocks: configBlocks
+          });
+          const selectCredentialBlock = (category, blocks) => {
+              const findLast = name => [...blocks].reverse().find(block => block.name.toLowerCase() === name);
+              if (category === 'fritz-user') return findLast('users') || findLast('boxusers');
+              if (category === 'email') return findLast('emailnotify');
+              if (category === 'myfritz') return findLast('jasonii');
+              if (category === 'dyndns') return findLast('ddns');
+              if (category === 'remote-management') return findLast('lab');
+              if (category === 'provider') return findLast('local') || findLast('serialcfg');
+              if (category === 'app-access') return findLast('apps');
+              return null;
+          };
 
           const createWifiNetwork = kind => ({
               id: `wifi-${kind}`,
@@ -1082,6 +1163,7 @@
               if (sectionMatch) {
                   finalizeSipContext();
                   section = sectionMatch[1];
+                  configBlocks = [];
                   wifiNetworks = section.toLowerCase().includes('wlan') ? wifiRegistry : null;
                   absoluteOffset += originalLine.length;
                   continue;
@@ -1089,9 +1171,22 @@
               if (/^\*+\s+END OF FILE\s+\*+/i.test(line)) {
                   finalizeSipContext();
                   section = 'Header';
+                  configBlocks = [];
                   wifiNetworks = null;
                   absoluteOffset += originalLine.length;
                   continue;
+              }
+
+              const structuralLine = line.replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, '');
+              const siblingBlock = structuralLine.match(/^\s*}\s*{/);
+              if (siblingBlock) {
+                  const previous = configBlocks.pop();
+                  if (previous) configBlocks.push(createConfigBlock(previous.name));
+              } else {
+                  const leadingClosures = structuralLine.match(/^\s*(}+)(?!\s*{)/)?.[1].length || 0;
+                  for (let i = 0; i < leadingClosures && configBlocks.length; i++) configBlocks.pop();
+                  const configBlockStart = structuralLine.match(/^\s*([A-Za-z_][A-Za-z0-9_-]*)(?:\s+\d+)?\s*{/);
+                  if (configBlockStart) configBlocks.push(createConfigBlock(configBlockStart[1]));
               }
 
               const inSipSection = section.toLowerCase().includes('voip');
@@ -1108,6 +1203,9 @@
               const assignmentValue = assignment
                   ? this.decodeConfigString(assignment[2] ?? assignment[3] ?? assignment[4] ?? '')
                   : null;
+              if (assignmentField && assignmentValue !== null && !assignmentValue.startsWith('$$$$') && configBlocks.length) {
+                  configBlocks[configBlocks.length - 1].values[assignmentField] = assignmentValue;
+              }
 
               if (wifiNetworks && assignmentField && assignmentValue !== null && !assignmentValue.startsWith('$$$$')) {
                   const normalizedField = assignmentField.toLowerCase();
@@ -1146,7 +1244,9 @@
                   const beforeSecret = line.slice(0, secretMatch.index);
                   const fieldMatches = [...beforeSecret.matchAll(/([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*["']?/g)];
                   const field = fieldMatches.length ? fieldMatches[fieldMatches.length - 1][1] : (section === 'Header' ? 'Password' : 'unknown');
-                  const classification = this.classifySecret(section, field);
+                  const configContext = currentConfigContext();
+                  const classification = this.classifySecret(section, field, configContext);
+                  const credentialBlock = selectCredentialBlock(classification.category, configContext.blocks);
                   const occurrenceBase = `${section.toLowerCase()}|${field.toLowerCase()}`;
                   const occurrence = (occurrenceCounts.get(occurrenceBase) || 0) + 1;
                   occurrenceCounts.set(occurrenceBase, occurrence);
@@ -1163,6 +1263,13 @@
                       occurrence,
                       category: classification.category,
                       displayLabel: classification.label,
+                      contextPath: configContext.path,
+                      credentialGroup: credentialBlock ? {
+                          id: `${section.toLowerCase()}|${credentialBlock.id}`,
+                          category: classification.category,
+                          path: configContext.path,
+                          metadata: credentialBlock.values
+                      } : null,
                       account: null,
                       network: classification.category === 'wlan'
                           ? wifiNetworks?.main || null
