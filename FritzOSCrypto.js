@@ -992,7 +992,7 @@
           const pathContains = block => pathSegments.includes(block);
 
           if (section === 'Header' && normalizedField === 'password') {
-              return { category: 'system', label: 'System-Master-Key' };
+              return { category: 'system', label: 'Export-Master-Key' };
           }
           if (normalizedSection.includes('wlan') || normalizedField.includes('psk')) {
               const guest = normalizedField.includes('guest') || normalizedField.includes('gast');

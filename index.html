@@ -203,6 +203,9 @@
                                 </div>
                             </div>
                         </section>
+                        <section id="exportMasterKeySection" class="hidden bg-white rounded-2xl shadow-sm border border-blue-200 overflow-hidden">
+                            <div id="exportMasterKeyCard"></div>
+                        </section>
                         <details id="reencryptSummary" class="hidden group bg-amber-50 border border-amber-200 rounded-2xl shadow-sm overflow-hidden">
                             <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-4">
                                 <div class="min-w-0">
@@ -426,6 +429,8 @@
                 this.dashboardSection = document.getElementById('dashboardSection');
                 this.secretEditorSection = document.getElementById('secretEditorSection');
                 this.credentialCards = document.getElementById('credentialCards');
+                this.exportMasterKeySection = document.getElementById('exportMasterKeySection');
+                this.exportMasterKeyCard = document.getElementById('exportMasterKeyCard');
                 this.wifiCardsSection = document.getElementById('wifiCardsSection');
                 this.wifiCards = document.getElementById('wifiCards');
                 this.sipCardsSection = document.getElementById('sipCardsSection');
@@ -1021,6 +1026,10 @@
                 ].filter(Boolean).join(' ').toLocaleLowerCase('de');
             }
 
+            isExportMasterKey(secret) {
+                return secret.section === 'Header' && String(secret.field).toLowerCase() === 'password';
+            }
+
             async copyText(value, successMessage) {
                 try {
                     await navigator.clipboard.writeText(value);
@@ -1501,20 +1510,24 @@
 
             renderSecretEditor() {
                 this.secretEditorList.innerHTML = '';
+                this.exportMasterKeyCard.innerHTML = '';
                 this.renderCredentialCards();
                 const allSecrets = this.state.secrets;
+                const exportMasterKey = allSecrets.find(secret => this.isExportMasterKey(secret));
+                const regularSecrets = allSecrets.filter(secret => !this.isExportMasterKey(secret));
                 const query = (this.secretSearch?.value || '').trim().toLocaleLowerCase('de');
                 const category = this.secretCategoryFilter?.value || 'all';
                 const status = this.secretStatusFilter?.value || 'all';
-                const visibleSecrets = allSecrets.filter(secret =>
+                const visibleSecrets = regularSecrets.filter(secret =>
                     (!query || this.getSecretSearchText(secret).includes(query)) &&
                     (category === 'all' || secret.category === category) &&
                     (status === 'all' || this.getSecretDisplayStatus(secret) === status)
                 );
 
-                this.secretEditorSection.classList.toggle('hidden', allSecrets.length === 0);
+                this.exportMasterKeySection.classList.toggle('hidden', !exportMasterKey);
+                this.secretEditorSection.classList.toggle('hidden', regularSecrets.length === 0);
                 this.secretEmptyState.classList.toggle('hidden', allSecrets.length > 0);
-                this.secretResultsSummary.textContent = `${visibleSecrets.length} von ${allSecrets.length} Fundstellen angezeigt`;
+                this.secretResultsSummary.textContent = `${visibleSecrets.length} von ${regularSecrets.length} Fundstellen angezeigt`;
                 const decryptedSecrets = allSecrets.filter(secret => secret.status === 'decrypted');
                 const allRevealed = decryptedSecrets.length > 0 &&
                     decryptedSecrets.every(secret => this.revealedSecrets.has(secret.stableKey));
@@ -1558,14 +1571,15 @@
                     return button;
                 };
 
-                if (visibleSecrets.length === 0 && allSecrets.length > 0) {
+                if (visibleSecrets.length === 0 && regularSecrets.length > 0) {
                     const noResults = document.createElement('div');
                     noResults.className = 'p-10 text-center text-sm text-slate-500';
                     noResults.textContent = 'Keine Fundstelle passt zu Suche und Filtern.';
                     this.secretEditorList.appendChild(noResults);
                 }
 
-                for (const secret of visibleSecrets) {
+                const renderedSecrets = exportMasterKey ? [exportMasterKey, ...visibleSecrets] : visibleSecrets;
+                for (const secret of renderedSecrets) {
                     const decrypted = secret.status === 'decrypted';
                     const supported = decrypted && (secret.type === 4 || secret.type === 5);
                     const displayStatus = this.getSecretDisplayStatus(secret);
@@ -1675,7 +1689,8 @@
                     }
 
                     row.append(description, valueArea);
-                    this.secretEditorList.appendChild(row);
+                    const target = this.isExportMasterKey(secret) ? this.exportMasterKeyCard : this.secretEditorList;
+                    target.appendChild(row);
                 }
                 this.updateChangedButton();
                 lucide.createIcons();

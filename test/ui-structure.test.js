@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 const html = fs.readFileSync(require.resolve('../index.html'), 'utf8');
+const cryptoSource = fs.readFileSync(require.resolve('../FritzOSCrypto.js'), 'utf8');
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
 
@@ -17,6 +18,8 @@ for (const id of [
   'viewOverview',
   'viewSecrets',
   'exportSafetyPanel',
+  'exportMasterKeySection',
+  'exportMasterKeyCard',
   'downloadGateStatus',
   'roundtripCheck',
   'roundtripCheckMessage',
@@ -81,6 +84,10 @@ assert.match(html, /createSecretLocationLink\(secret/, 'secret locations must us
 assert.match(html, /this\.jumpToEditorLine\(secret\.line\)/, 'secret location links must navigate to the exact source line');
 assert.equal((html.match(/this\.createSecretLocationLink\(secret/g) || []).length >= 5, true, 'secret list, audit and credential cards must expose source links');
 assert.equal(html.includes('<Binärer Master-Key (entschlüsselt)>'), false, 'master key placeholder must not hide the actual decrypted key');
+assert.equal(cryptoSource.includes('System-Master-Key'), false, 'the misleading system master key label must not return');
+assert.equal(cryptoSource.includes('Export-Master-Key'), true, 'the export master key needs its precise label');
+assert.match(html, /exportSafetyPanel[\s\S]*exportMasterKeySection[\s\S]*credentialCards/, 'export master key card must appear between export safety and credential cards');
+assert.match(html, /this\.isExportMasterKey\(secret\) \? this\.exportMasterKeyCard : this\.secretEditorList/, 'export master key must render in its dedicated top card');
 assert.match(html, /plaintext:\s*mkResult\.exportKeyHex/, 'decrypted master key must be available to the masked secret field');
 assert.match(html, /input\.type\s*=\s*this\.revealedSecrets\.has\(secret\.stableKey\)\s*\?\s*'text'\s*:\s*'password'/, 'plaintext fields must be masked by default');
 for (const action of ['Anzeigen', 'Kopieren', 'Bearbeiten', 'Zurücksetzen']) {
