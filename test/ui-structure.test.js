@@ -144,6 +144,12 @@ assert.match(html, /Zugangsdaten der gewählten Vorlage zuerst entschlüsseln/, 
 assert.match(html, /inset-y-0 right-0[\s\S]*max-w-xl/, 'desktop SIP settings must use a right-side drawer');
 assert.match(html, /sipSettingsDrawerBody[\s\S]*overflow-y-auto/, 'the SIP settings drawer body must scroll independently');
 assert.match(html, /sipSettingsDrawerActions[\s\S]*shrink-0/, 'drawer actions must remain visible below the scroll area');
+assert.match(html, /FritzWireGuardConnections\.js\?v=\d{8}-\d+/, 'WireGuard projection needs a deployment cache key');
+assert.match(html, /this\.wireGuardApi\.project\(document\)/, 'WireGuard cards must use the lossless document projection');
+assert.match(html, /this\.wireGuardApi\.update\(documentModel, connection, changes\)/, 'WireGuard settings must update the shared config document');
+assert.match(html, /renderWireGuardCards\(vpnSecrets, wireGuardProjection\)/, 'VPN secrets must render through complete WireGuard connection cards');
+assert.match(html, /\['wg_dyndns', 'Endpoint \/ Domain', 'text'\]/, 'WireGuard simple settings must expose the endpoint');
+assert.match(html, /\['wg_allowed_ips', 'Erlaubte Netze', 'text'\]/, 'WireGuard simple settings must expose allowed networks');
 assert.match(html, /this\.jumpToEditorLine\(secret\.line\)/, 'secret location links must navigate to the exact source line');
 assert.equal((html.match(/this\.createSecretLocationLink\(secret/g) || []).length >= 5, true, 'secret list, audit and credential cards must expose source links');
 assert.equal(html.includes('<Binärer Master-Key (entschlüsselt)>'), false, 'master key placeholder must not hide the actual decrypted key');
