@@ -171,9 +171,14 @@ assert.equal(byFieldAndValue('passwd', '$$$$SMTPPASS').displayLabel, 'SMTP-Passw
 assert.equal(byFieldAndValue('user_email', '$$$$MYFRITZEMAIL').category, 'myfritz');
 assert.equal(byFieldAndValue('dyn_dns_name', '$$$$MYFRITZDOMAIN').displayLabel, 'MyFRITZ!-Adresse');
 assert.equal(byFieldAndValue('CRUsername', '$$$$CRUSER').category, 'remote-management');
-assert.equal(byFieldAndValue('CRPassword', '$$$$CRPASS').displayLabel, 'Provider-Fernwartung: Passwort');
+assert.equal(byFieldAndValue('CRPassword', '$$$$CRPASS').displayLabel, 'TR-069 Connection Request: Kennwort');
 assert.equal(byFieldAndValue('username', '$$$$DDNSUSER').category, 'remote-management');
-assert.equal(byFieldAndValue('domain_name', '$$$$DDNSDOMAIN').displayLabel, 'Provider-Fernwartungsadresse');
+assert.equal(byFieldAndValue('domain_name', '$$$$DDNSDOMAIN').displayLabel, 'Fernwartungs-DDNS: Domain');
+assert.equal(
+  byFieldAndValue('CRUsername', '$$$$CRUSER').credentialGroup.id,
+  byFieldAndValue('username', '$$$$DDNSUSER').credentialGroup.id,
+  'TR-069 connection request and its DDNS helper belong to one remote-management card'
+);
 assert.equal(byFieldAndValue('domain', '$$$$USERDDNSDOMAIN').category, 'dyndns');
 assert.equal(byFieldAndValue('username', '$$$$USERDDNSUSER').displayLabel, 'DynDNS-Benutzername');
 assert.equal(byFieldAndValue('name', '$$$$NOTPROVIDER').category, 'other', 'unknown ar7 fields must not default to provider');
@@ -243,5 +248,37 @@ assert.equal(providerByValue('$$$$PPPUSER').displayLabel, 'PPPoE: Benutzername')
 assert.equal(providerByValue('$$$$PPPPASS').displayLabel, 'PPPoE: Kennwort');
 assert.equal(providerByValue('$$$$PPPUSER').credentialGroup.metadata.name, 'internet');
 assert.match(providerByValue('$$$$PPPUSER').credentialGroup.path, /targets\/local$/);
+
+const wireguardSource = [
+  '**** CFGFILE: vpn.cfg',
+  'vpncfg {',
+  'global {',
+  'wg_private_key = "$$$$WGPRIVATE";',
+  'wg_public_key = "public-key";',
+  'wg_listen_port = 51820;',
+  '}',
+  'connections {',
+  'name = "Remote Site";',
+  'localip = "192.0.2.1";',
+  'remoteip = "192.0.2.2";',
+  'wg_public_key = "peer-public-key";',
+  'wg_preshared_key = "$$$$WGPRESHARED";',
+  'wg_allowed_ips = "10.0.0.0/24";',
+  'wg_dyndns = "vpn.example.invalid";',
+  '}',
+  '}',
+  '**** END OF FILE ****'
+].join('\n');
+const wireguardInventory = FritzBoxParser.extractSecretInventory(wireguardSource);
+const privateKey = wireguardInventory.find(item => item.value === '$$$$WGPRIVATE');
+const presharedKey = wireguardInventory.find(item => item.value === '$$$$WGPRESHARED');
+assert.equal(privateKey.category, 'vpn');
+assert.equal(privateKey.credentialGroup.metadata.wg_public_key, 'public-key');
+assert.equal(privateKey.credentialGroup.metadata.wg_listen_port, '51820');
+assert.equal(presharedKey.category, 'vpn');
+assert.equal(presharedKey.credentialGroup.metadata.name, 'Remote Site');
+assert.equal(presharedKey.credentialGroup.metadata.wg_dyndns, 'vpn.example.invalid');
+assert.equal(presharedKey.credentialGroup.metadata.wg_allowed_ips, '10.0.0.0/24');
+assert.notEqual(privateKey.credentialGroup.id, presharedKey.credentialGroup.id);
 
 console.log('Structured secret inventory tests passed.');

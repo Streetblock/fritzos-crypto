@@ -1047,9 +1047,9 @@
           }
           if (normalizedSection.includes('tr069') && pathContains('ddns')) {
               const labels = {
-                  username: 'Provider-Fernwartung: DDNS-Benutzername',
-                  password: 'Provider-Fernwartung: DDNS-Passwort',
-                  domain_name: 'Provider-Fernwartungsadresse'
+                  username: 'Fernwartungs-DDNS: Benutzername',
+                  password: 'Fernwartungs-DDNS: Kennwort',
+                  domain_name: 'Fernwartungs-DDNS: Domain'
               };
               return { category: 'remote-management', label: labels[normalizedField] || this.humanizeField(field) };
           }
@@ -1057,8 +1057,8 @@
               return {
                   category: 'remote-management',
                   label: normalizedField === 'crusername'
-                      ? 'Provider-Fernwartung: Benutzername'
-                      : 'Provider-Fernwartung: Passwort'
+                      ? 'TR-069 Connection Request: Benutzername'
+                      : 'TR-069 Connection Request: Kennwort'
               };
           }
           if (normalizedSection.includes('ar7') && pathContains('boxusers')) {
@@ -1158,6 +1158,7 @@
               if (category === 'remote-management') return findLast('lab');
               if (category === 'online-phonebook') return blocks[blocks.length - 1] || null;
               if (category === 'internal-telephony') return findLast('extensions');
+              if (category === 'vpn') return findLast('connections') || findLast('global');
               if (category === 'provider') return findLast('serialcfg') || findLast('targets') || findLast('local');
               if (category === 'app-access') return findLast('apps');
               return null;
