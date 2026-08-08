@@ -1854,6 +1854,11 @@
                 reset.setAttribute('aria-label', `${secret.displayLabel} Änderung zurücksetzen`);
                 reset.title = 'Änderung zurücksetzen';
 
+                const actionRow = document.createElement('div');
+                actionRow.dataset.credentialActions = '';
+                actionRow.className = 'flex flex-wrap items-center gap-2';
+                actionRow.append(edit, reset);
+
                 const status = document.createElement('p');
                 const updateCardStatus = () => {
                     const changed = this.getSecretDisplayStatus(secret) === 'changed';
@@ -1879,8 +1884,8 @@
                     }
                 });
 
-                inputRow.append(value, toggle, edit, reset);
-                wrap.append(inputRow, status);
+                inputRow.append(value, toggle);
+                wrap.append(inputRow, actionRow, status);
                 updateCardStatus();
                 return wrap;
             }
@@ -1929,23 +1934,21 @@
                     const passwordLabel = document.createElement('p');
                     passwordLabel.className = 'text-xs font-semibold text-slate-500 mt-4';
                     passwordLabel.textContent = 'WLAN-Passwort';
+                    const credential = this.createMaskedCredential(secret);
+                    const copyPassword = this.createCredentialAction(
+                        'Passwort kopieren',
+                        'copy',
+                        () => this.copySecretPlaintext(secret),
+                        secret.status !== 'decrypted'
+                    );
+                    credential.querySelector('[data-credential-actions]')?.prepend(copyPassword);
                     details.append(
                         eyebrow,
                         ssid,
                         passwordLabel,
                         this.createSecretLocationLink(secret, 'mt-0.5 mb-1.5'),
-                        this.createMaskedCredential(secret)
+                        credential
                     );
-
-                    const actions = document.createElement('div');
-                    actions.className = 'flex flex-wrap gap-2 mt-3';
-                    actions.appendChild(this.createCredentialAction(
-                        'Passwort kopieren',
-                        'copy',
-                        () => this.copySecretPlaintext(secret),
-                        secret.status !== 'decrypted'
-                    ));
-                    details.appendChild(actions);
                     layout.appendChild(details);
 
                     if (secret.status === 'decrypted' && resolvedSsid) {

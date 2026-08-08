@@ -154,6 +154,8 @@ assert.equal(html.includes('In Zwischenablage kopieren'), true, 'SIP clipboard a
 const cardEditor = html.match(/createMaskedCredential\(secret\)\s*\{[\s\S]*?(?=\n\s*isWifiPasswordSecret\()/)?.[0] || '';
 assert.match(cardEditor, /createCredentialAction\('', 'pencil'/, 'credential cards need a direct edit action');
 assert.match(cardEditor, /createCredentialAction\('', 'undo-2'/, 'credential cards need a per-field reset action');
+assert.match(cardEditor, /inputRow\.append\(value, toggle\)/, 'only the reveal action may reduce the credential input width');
+assert.match(cardEditor, /actionRow\.append\(edit, reset\)/, 'edit and reset actions belong on the second credential row');
 assert.match(cardEditor, /this\.state\.setEditedPlaintext\(secret\.id, value\.value\)/, 'card edits must use the shared config state');
 assert.match(cardEditor, /this\.scheduleAutoValidation\(\)/, 'card edits must schedule the verified re-encryption flow');
 assert.match(cardEditor, /this\.syncSecretEditorRow\(secret\)/, 'card edits must keep the detailed secret row synchronized');
