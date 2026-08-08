@@ -988,7 +988,8 @@
           const normalizedSection = String(section || '').toLowerCase();
           const normalizedField = String(field || '').toLowerCase();
           const normalizedPath = String(context.path || '').toLowerCase();
-          const pathContains = block => normalizedPath.split('/').includes(block);
+          const pathSegments = normalizedPath.split('/').filter(Boolean);
+          const pathContains = block => pathSegments.includes(block);
 
           if (section === 'Header' && normalizedField === 'password') {
               return { category: 'system', label: 'System-Master-Key' };
@@ -1003,11 +1004,31 @@
                       : (guest ? 'Gast-WLAN-Schlüssel' : 'WLAN-Schlüssel')
               };
           }
-          if (normalizedSection.includes('voip')) {
+          const phonebookContext = /phonebook|telefonbuch|carddav|online[-_]?book|online[-_]?phone/.test(
+              `${normalizedSection}/${normalizedPath}`
+          );
+          if (phonebookContext) {
+              if (/^(?:username|user|accountname)$/.test(normalizedField)) {
+                  return { category: 'online-phonebook', label: 'Online-Telefonbuch: Benutzername' };
+              }
+              if (/pass|secret|token/.test(normalizedField)) {
+                  return { category: 'online-phonebook', label: 'Online-Telefonbuch: Kennwort' };
+              }
+              if (/url|server/.test(normalizedField)) {
+                  return { category: 'online-phonebook', label: 'Online-Telefonbuch: Server' };
+              }
+              return { category: 'online-phonebook', label: this.humanizeField(field) };
+          }
+          const sipAccountContext = normalizedSection.includes('voip') &&
+              (pathSegments.some(segment => /^ua\d*$/i.test(segment)) || /registrar|sipserver|sip_server/.test(normalizedField));
+          if (sipAccountContext) {
               if (normalizedField.includes('username') || normalizedField === 'user') return { category: 'sip', label: 'SIP-Benutzername' };
               if (normalizedField === 'authname') return { category: 'sip', label: 'SIP-Anmeldename' };
               if (normalizedField.includes('registrar')) return { category: 'sip', label: 'SIP-Registrar' };
               return { category: 'sip', label: 'SIP-Passwort' };
+          }
+          if (normalizedSection.includes('voip')) {
+              return { category: 'telephony', label: `Telefonie: ${this.humanizeField(field)}` };
           }
           if (normalizedSection.includes('vpn')) {
               if (normalizedField.includes('private')) return { category: 'vpn', label: 'WireGuard Private Key' };
@@ -1015,10 +1036,12 @@
               return { category: 'vpn', label: 'VPN-Schlüssel' };
           }
           if (normalizedSection.includes('tr069') && pathContains('ddns')) {
-              if (normalizedField === 'username') return { category: 'dyndns', label: 'DynDNS-Benutzername' };
-              if (normalizedField === 'password') return { category: 'dyndns', label: 'DynDNS-Passwort' };
-              if (normalizedField === 'domain_name') return { category: 'dyndns', label: 'DynDNS-Domain' };
-              return { category: 'dyndns', label: this.humanizeField(field) };
+              const labels = {
+                  username: 'Provider-Fernwartung: DDNS-Benutzername',
+                  password: 'Provider-Fernwartung: DDNS-Passwort',
+                  domain_name: 'Provider-Fernwartungsadresse'
+              };
+              return { category: 'remote-management', label: labels[normalizedField] || this.humanizeField(field) };
           }
           if (normalizedSection.includes('tr069') && /^cr(?:username|password)$/.test(normalizedField)) {
               return {
@@ -1050,6 +1073,15 @@
                   oauth_client_secret: 'MyFRITZ!-OAuth-Client-Secret'
               };
               return { category: 'myfritz', label: labels[normalizedField] || this.humanizeField(field) };
+          }
+          if (normalizedSection.includes('ar7') && pathContains('ddns') && pathContains('accounts')) {
+              const labels = {
+                  domain: 'DynDNS-Domain',
+                  username: 'DynDNS-Benutzername',
+                  passwd: 'DynDNS-Passwort',
+                  password: 'DynDNS-Passwort'
+              };
+              return { category: 'dyndns', label: labels[normalizedField] || this.humanizeField(field) };
           }
           if (normalizedSection.includes('ar7') && pathContains('apps')) {
               const labels = {
@@ -1100,8 +1132,9 @@
               if (category === 'fritz-user') return findLast('users') || findLast('boxusers');
               if (category === 'email') return findLast('emailnotify');
               if (category === 'myfritz') return findLast('jasonii');
-              if (category === 'dyndns') return findLast('ddns');
+              if (category === 'dyndns') return findLast('accounts') || findLast('ddns');
               if (category === 'remote-management') return findLast('lab');
+              if (category === 'online-phonebook') return blocks[blocks.length - 1] || null;
               if (category === 'provider') return findLast('local') || findLast('serialcfg');
               if (category === 'app-access') return findLast('apps');
               return null;

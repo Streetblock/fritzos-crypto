@@ -134,6 +134,13 @@ const accountSource = [
   'unrelated {',
   'name = "$$$$NOTPROVIDER";',
   '}',
+  'ddns {',
+  'accounts {',
+  'domain = "$$$$USERDDNSDOMAIN";',
+  'username = "$$$$USERDDNSUSER";',
+  'passwd = "$$$$USERDDNSPASS";',
+  '}',
+  '}',
   '**** END OF FILE ****',
   '**** CFGFILE: tr069.cfg',
   'lab {',
@@ -163,8 +170,32 @@ assert.equal(byFieldAndValue('user_email', '$$$$MYFRITZEMAIL').category, 'myfrit
 assert.equal(byFieldAndValue('dyn_dns_name', '$$$$MYFRITZDOMAIN').displayLabel, 'MyFRITZ!-Adresse');
 assert.equal(byFieldAndValue('CRUsername', '$$$$CRUSER').category, 'remote-management');
 assert.equal(byFieldAndValue('CRPassword', '$$$$CRPASS').displayLabel, 'Provider-Fernwartung: Passwort');
-assert.equal(byFieldAndValue('username', '$$$$DDNSUSER').category, 'dyndns');
-assert.equal(byFieldAndValue('domain_name', '$$$$DDNSDOMAIN').displayLabel, 'DynDNS-Domain');
+assert.equal(byFieldAndValue('username', '$$$$DDNSUSER').category, 'remote-management');
+assert.equal(byFieldAndValue('domain_name', '$$$$DDNSDOMAIN').displayLabel, 'Provider-Fernwartungsadresse');
+assert.equal(byFieldAndValue('domain', '$$$$USERDDNSDOMAIN').category, 'dyndns');
+assert.equal(byFieldAndValue('username', '$$$$USERDDNSUSER').displayLabel, 'DynDNS-Benutzername');
 assert.equal(byFieldAndValue('name', '$$$$NOTPROVIDER').category, 'other', 'unknown ar7 fields must not default to provider');
+
+const phonebookSource = [
+  '**** CFGFILE: voip.cfg',
+  'ua1 {',
+  'username = "$$$$REALSIPUSER";',
+  'passwd = "$$$$REALSIPPASS";',
+  '}',
+  'online_phonebook {',
+  'username = "$$$$PHONEBOOKUSER";',
+  'passwd = "$$$$PHONEBOOKPASS";',
+  '}',
+  'service {',
+  'username = "$$$$NONSIPTELEPHONY";',
+  '}',
+  '**** END OF FILE ****'
+].join('\n');
+const phonebookInventory = FritzBoxParser.extractSecretInventory(phonebookSource);
+const phonebookByValue = value => phonebookInventory.find(item => item.value === value);
+assert.equal(phonebookByValue('$$$$REALSIPUSER').category, 'sip');
+assert.equal(phonebookByValue('$$$$PHONEBOOKUSER').category, 'online-phonebook');
+assert.equal(phonebookByValue('$$$$PHONEBOOKPASS').displayLabel, 'Online-Telefonbuch: Kennwort');
+assert.equal(phonebookByValue('$$$$NONSIPTELEPHONY').category, 'telephony', 'voip.cfg alone must not imply a SIP account');
 
 console.log('Structured secret inventory tests passed.');
