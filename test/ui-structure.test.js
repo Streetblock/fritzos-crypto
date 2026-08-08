@@ -32,6 +32,8 @@ for (const id of [
   'wifiCards',
   'sipCardsSection',
   'sipCards',
+  'internalTelephonyCardsSection',
+  'internalTelephonyCards',
   'phonebookCardsSection',
   'phonebookCards',
   'fritzAccessCardsSection',
@@ -101,12 +103,14 @@ assert.match(html, /this\.exportEditor\.verifyExportChecksum\(content\)/, 'final
 for (const status of ['pending', 'decrypted', 'changed', 'failed']) {
   assert.equal(html.includes(`<option value="${status}">`), true, `secret status filter ${status} is missing`);
 }
-for (const category of ['fritz-user', 'app-access', 'email', 'myfritz', 'dyndns', 'remote-management', 'online-phonebook', 'telephony']) {
+for (const category of ['fritz-user', 'app-access', 'email', 'myfritz', 'dyndns', 'remote-management', 'online-phonebook', 'telephony', 'internal-telephony']) {
   assert.equal(html.includes(`<option value="${category}">`), true, `secret category filter ${category} is missing`);
 }
 assert.match(html, /box_admin_rights/, 'FRITZ!Box administrator accounts must be identified in credential cards');
 assert.equal(html.includes('E-Mail, MyFRITZ! &amp; DynDNS'), true, 'online service cards are missing');
 assert.equal(html.includes('Internetzugang &amp; Provider-Fernwartung'), true, 'provider access cards are missing');
 assert.equal(html.includes('Online-Telefonbücher'), true, 'online phonebook cards are missing');
+assert.equal(html.includes('Interne Nebenstellen &amp; FRITZ!App Fon'), true, 'internal telephony cards are missing');
+assert.match(html, /Registrar: \$\{registrar\}/, 'SIP cards must label the registrar explicitly');
 
 console.log('UI structure regression tests passed.');

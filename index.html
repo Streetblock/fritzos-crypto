@@ -15,7 +15,7 @@
     <!-- Externe FritzOSCrypto.js Bibliothek        -->
     <!-- (Muss im selben Ordner liegen!)            -->
     <!-- ========================================== -->
-    <script src="./FritzOSCrypto.js?v=20260808-2"></script>
+    <script src="./FritzOSCrypto.js?v=20260808-3"></script>
     <script src="./ConfigState.js?v=20260807-4"></script>
     <script src="./FritzExportChecksum.js?v=20260807-4"></script>
     <script src="./FritzExportEditor.js?v=20260807-4"></script>
@@ -233,6 +233,13 @@
                                 </div>
                                 <div id="sipCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
                             </section>
+                            <section id="internalTelephonyCardsSection" class="hidden">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <i data-lucide="smartphone" class="w-5 h-5 text-indigo-600"></i>
+                                    <h3 class="font-bold text-slate-800">Interne Nebenstellen &amp; FRITZ!App Fon</h3>
+                                </div>
+                                <div id="internalTelephonyCards" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+                            </section>
                             <section id="phonebookCardsSection" class="hidden">
                                 <div class="flex items-center gap-2 mb-3">
                                     <i data-lucide="book-user" class="w-5 h-5 text-fuchsia-600"></i>
@@ -296,6 +303,7 @@
                                         <option value="wlan">WLAN</option>
                                         <option value="guest-wlan">Gast-WLAN</option>
                                         <option value="sip">SIP</option>
+                                        <option value="internal-telephony">Interne Nebenstelle</option>
                                         <option value="online-phonebook">Online-Telefonbuch</option>
                                         <option value="telephony">Weitere Telefonie</option>
                                         <option value="vpn">VPN</option>
@@ -401,6 +409,8 @@
                 this.wifiCards = document.getElementById('wifiCards');
                 this.sipCardsSection = document.getElementById('sipCardsSection');
                 this.sipCards = document.getElementById('sipCards');
+                this.internalTelephonyCardsSection = document.getElementById('internalTelephonyCardsSection');
+                this.internalTelephonyCards = document.getElementById('internalTelephonyCards');
                 this.phonebookCardsSection = document.getElementById('phonebookCardsSection');
                 this.phonebookCards = document.getElementById('phonebookCards');
                 this.fritzAccessCardsSection = document.getElementById('fritzAccessCardsSection');
@@ -1097,7 +1107,7 @@
                     title.textContent = username || group.account.name || 'Unbekanntes Konto';
                     const subtitle = document.createElement('p');
                     subtitle.className = 'text-sm text-slate-500 mt-1 break-words';
-                    subtitle.textContent = registrar || 'Registrar noch nicht verfügbar';
+                    subtitle.textContent = registrar ? `Registrar: ${registrar}` : 'Registrar: nicht verfügbar';
                     card.append(eyebrow, title, subtitle);
 
                     const fields = document.createElement('div');
@@ -1197,6 +1207,12 @@
                         title: metadata.displayname || metadata.name || 'Telefonbuch-Zugang',
                         subtitle: metadata.server || metadata.url || 'Synchronisierter Kontaktbestand',
                         color: 'fuchsia'
+                    },
+                    'internal-telephony': {
+                        eyebrow: 'Interne IP-Nebenstelle',
+                        title: metadata.extension_number ? `Nebenstelle ${metadata.extension_number}` : 'FRITZ!App Fon / IP-Telefon',
+                        subtitle: metadata.appid ? `Interne App-Kennung ${metadata.appid}` : 'Lokaler Telefoniezugang',
+                        color: 'indigo'
                     }
                 };
                 return definitions[group.category] || {
@@ -1214,6 +1230,7 @@
                     cyan: ['border-cyan-200', 'text-cyan-700', 'bg-cyan-50'],
                     amber: ['border-amber-200', 'text-amber-700', 'bg-amber-50'],
                     fuchsia: ['border-fuchsia-200', 'text-fuchsia-700', 'bg-fuchsia-50'],
+                    indigo: ['border-indigo-200', 'text-indigo-700', 'bg-indigo-50'],
                     slate: ['border-slate-200', 'text-slate-600', 'bg-slate-50']
                 };
                 this.groupStructuredCredentials(secrets).forEach(group => {
@@ -1262,21 +1279,24 @@
                 const wifiSecrets = this.state.secrets.filter(secret => secret.category === 'wlan' || secret.category === 'guest-wlan');
                 const wifiCredentials = wifiSecrets.filter(secret => this.isWifiPasswordSecret(secret));
                 const sipSecrets = this.state.secrets.filter(secret => secret.category === 'sip');
+                const internalTelephonySecrets = this.state.secrets.filter(secret => secret.category === 'internal-telephony');
                 const phonebookSecrets = this.state.secrets.filter(secret => secret.category === 'online-phonebook');
                 const fritzAccessSecrets = this.state.secrets.filter(secret => ['fritz-user', 'app-access'].includes(secret.category));
                 const onlineServiceSecrets = this.state.secrets.filter(secret => ['email', 'myfritz', 'dyndns'].includes(secret.category));
                 const providerAccessSecrets = this.state.secrets.filter(secret => ['provider', 'remote-management'].includes(secret.category));
                 this.wifiCardsSection.classList.toggle('hidden', wifiCredentials.length === 0);
                 this.sipCardsSection.classList.toggle('hidden', sipSecrets.length === 0);
+                this.internalTelephonyCardsSection.classList.toggle('hidden', internalTelephonySecrets.length === 0);
                 this.phonebookCardsSection.classList.toggle('hidden', phonebookSecrets.length === 0);
                 this.fritzAccessCardsSection.classList.toggle('hidden', fritzAccessSecrets.length === 0);
                 this.onlineServiceCardsSection.classList.toggle('hidden', onlineServiceSecrets.length === 0);
                 this.providerAccessCardsSection.classList.toggle('hidden', providerAccessSecrets.length === 0);
-                const hasCards = wifiCredentials.length > 0 || sipSecrets.length > 0 || phonebookSecrets.length > 0 ||
+                const hasCards = wifiCredentials.length > 0 || sipSecrets.length > 0 || internalTelephonySecrets.length > 0 || phonebookSecrets.length > 0 ||
                     fritzAccessSecrets.length > 0 || onlineServiceSecrets.length > 0 || providerAccessSecrets.length > 0;
                 this.credentialCards.classList.toggle('hidden', !hasCards);
                 this.renderWifiCards(wifiSecrets);
                 this.renderSipCards(sipSecrets);
+                this.renderStructuredCredentialCards(this.internalTelephonyCards, internalTelephonySecrets);
                 this.renderStructuredCredentialCards(this.phonebookCards, phonebookSecrets);
                 this.renderStructuredCredentialCards(this.fritzAccessCards, fritzAccessSecrets);
                 this.renderStructuredCredentialCards(this.onlineServiceCards, onlineServiceSecrets);
@@ -1322,6 +1342,7 @@
                     wlan: 'WLAN',
                     'guest-wlan': 'Gast-WLAN',
                     sip: 'SIP',
+                    'internal-telephony': 'Interne Nebenstelle',
                     'online-phonebook': 'Online-Telefonbuch',
                     telephony: 'Weitere Telefonie',
                     vpn: 'VPN',
