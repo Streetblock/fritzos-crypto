@@ -158,6 +158,9 @@ FirmwareVersion=154.07.57
     try {
         console.log("\n▶ TEST 7: Export-Master-Key mit neuem Kennwort verpacken");
         const exportKey = Uint8Array.from({ length: 16 }, (_, index) => index + 17);
+        const generatedExportKey = FritzOSCrypto.generateExportKey();
+        assert(generatedExportKey instanceof Uint8Array, 'Zufälliger Export-Master-Key muss binär vorliegen');
+        assert(generatedExportKey.length === 16, 'Zufälliger Export-Master-Key muss exakt 16 Byte enthalten');
         const wrappedExportKey = await FritzOSCrypto.encryptExportKey(exportKey, 'neues-sicherungskennwort');
         const unwrappedExportKey = FritzOSCrypto.decryptExportKey(wrappedExportKey, 'neues-sicherungskennwort');
 

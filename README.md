@@ -20,6 +20,8 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 
 * **Sicherungskennwort ändern:** Bei modernen Exporten kann der vorhandene Export-Master-Key unverändert mit einem neuen Sicherungskennwort geschützt werden. Master-Key-Roundtrip, gebundene Nutz-Secrets und CRC32 werden vor dem Download geprüft. Gemischte Exporte mit noch direkt kennwortgebundenen Secrets werden sicher abgelehnt.
 
+* **Export-Master-Key rotieren:** Ein neuer 128-Bit-Master-Key kann über `crypto.getRandomValues()` sicher vom Betriebssystem erzeugt oder im Expertenmodus als 32-stelliger Hexwert vorgegeben werden. Alle gebundenen Typ-5-Secrets werden bytegenau neu verschlüsselt und geprüft; kennwortgebundene Legacy-Secrets bleiben unverändert.
+
 * **AVM-Prüfsumme:** Nach der Neuverschlüsselung und vor dem Speichern einer Exportdatei wird die CRC32-Prüfsumme am `END OF EXPORT` nach dem AVM-Sektionsverfahren aktualisiert und erneut geprüft.
 
 * **Modular:** Krypto, Export-Prüfsumme und der atomare Bearbeitungsablauf sind voneinander getrennt und können in eigenen Node.js-Projekten genutzt werden.

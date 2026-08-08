@@ -158,6 +158,94 @@ async function run() {
     error => error.code === 'PASSWORD_BOUND_SECRET_FOUND' && error.stage === 'roundtrip'
   );
 
+  const binaryRawValue = Uint8Array.from([0, 255, 16, 32, 0, 127]);
+  const binaryType5Secret = await FritzOSCrypto.encryptRawSecretWithKey(binaryRawValue, masterKey);
+  const passwordBoundSecret = await FritzOSCrypto.AVMCrypto.encryptSecret('bleibt am Sicherungskennwort', oldExportPassword);
+  const rotationUnchecked = [
+    '**** FRITZ!Box 7590 CONFIGURATION EXPORT',
+    `Password=${wrappedMasterKey}`,
+    '**** CFGFILE: wlan.cfg',
+    `pskvalue = "${type5Secret}";`,
+    `binary_value = "${binaryType5Secret}";`,
+    `legacy_value = "${passwordBoundSecret}";`,
+    '**** END OF FILE ****',
+    '**** END OF EXPORT 00000000 ****',
+    ''
+  ].join('\r\n');
+  const rotationSource = FritzExportChecksum.fromText(rotationUnchecked).replaceChecksum().updatedText;
+  const manualMasterKey = Uint8Array.from({ length: 16 }, (_, index) => index + 33);
+  const rotationEvents = [];
+  const rotationResult = await FritzExportEditor.rotateExportMasterKey({
+    text: rotationSource,
+    password: oldExportPassword,
+    newExportKeyBytes: manualMasterKey,
+    onStep: event => rotationEvents.push(`${event.step}:${event.status}`)
+  });
+  assert.deepEqual(rotationEvents, [
+    'roundtrip:running',
+    'roundtrip:success',
+    'checksum:running',
+    'checksum:success'
+  ]);
+  assert.equal(rotationResult.roundtrip.rotatedSecrets, 2);
+  assert.equal(rotationResult.roundtrip.passwordBoundSecretsVerified, 1);
+  assert.equal(rotationResult.newExportKeyHex, FritzOSCrypto.toHex(manualMasterKey));
+  const rotatedInventory = FritzOSCrypto.FritzBoxParser.extractSecretInventory(rotationResult.updatedText);
+  const rotatedMaster = rotatedInventory.find(secret => secret.field === 'Password');
+  const rotatedString = rotatedInventory.find(secret => secret.field === 'pskvalue');
+  const rotatedBinary = rotatedInventory.find(secret => secret.field === 'binary_value');
+  const unchangedPasswordBound = rotatedInventory.find(secret => secret.field === 'legacy_value');
+  assert.equal(
+    FritzOSCrypto.toHex(FritzOSCrypto.decryptExportKey(rotatedMaster.value, oldExportPassword).exportKeyBytes),
+    FritzOSCrypto.toHex(manualMasterKey)
+  );
+  assert.equal(FritzOSCrypto.decryptSecretWithKey(rotatedString.value, manualMasterKey).text, 'type5 old');
+  assert.deepEqual(
+    [...FritzOSCrypto.decryptSecretWithKey(rotatedBinary.value, manualMasterKey).rawBytes],
+    [...binaryRawValue]
+  );
+  assert.equal(unchangedPasswordBound.value, passwordBoundSecret);
+  assert.equal((await FritzOSCrypto.AVMCrypto.decryptSecret(unchangedPasswordBound.value, oldExportPassword)).plaintext, 'bleibt am Sicherungskennwort');
+  assert.equal(FritzExportEditor.verifyExportChecksum(rotationResult.updatedText).valid, true);
+
+  const randomRotation = await FritzExportEditor.rotateExportMasterKey({
+    text: rotationSource,
+    password: oldExportPassword
+  });
+  assert.equal(randomRotation.newExportKeyHex.length, 32);
+  assert.notEqual(randomRotation.newExportKeyHex, FritzOSCrypto.toHex(masterKey));
+  await assert.rejects(
+    FritzExportEditor.rotateExportMasterKey({
+      text: rotationSource,
+      password: oldExportPassword,
+      newExportKeyBytes: masterKey
+    }),
+    error => error.code === 'MASTER_KEY_UNCHANGED' && error.stage === 'roundtrip'
+  );
+  await assert.rejects(
+    FritzExportEditor.rotateExportMasterKey({
+      text: rotationSource,
+      password: oldExportPassword,
+      newExportKeyBytes: new Uint8Array(16)
+    }),
+    error => error.code === 'ZERO_MASTER_KEY'
+  );
+  await assert.rejects(
+    FritzExportEditor.rotateExportMasterKey({
+      text: rotationSource,
+      password: 'falsches-sicherungskennwort'
+    }),
+    error => error.code === 'PASSWORD_INVALID' && error.stage === 'roundtrip'
+  );
+  const unverifiableSource = rotationSource.replace(passwordBoundSecret, () => '$$$$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
+  await assert.rejects(
+    FritzExportEditor.rotateExportMasterKey({
+      text: unverifiableSource,
+      password: oldExportPassword
+    }),
+    error => error.code === 'UNVERIFIABLE_SECRET' && error.stage === 'roundtrip'
+  );
+
   await assert.rejects(
     FritzExportEditor.applySecretChanges({
       text: source,

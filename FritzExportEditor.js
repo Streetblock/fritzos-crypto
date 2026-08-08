@@ -213,6 +213,168 @@
       }
     }
 
+    static async rotateExportMasterKey(options) {
+      this.assertDependencies();
+      const settings = options || {};
+      const originalText = String(settings.text || "");
+      const password = String(settings.password || "");
+      const onStep = settings.onStep;
+      const assertFresh = typeof settings.assertFresh === "function" ? settings.assertFresh : function () {};
+      let activeStage = "roundtrip";
+
+      if (!originalText) throw new FritzExportEditorError("EMPTY_EXPORT", "setup", "Der Export ist leer");
+      if (!password) throw new FritzExportEditorError("PASSWORD_EMPTY", "setup", "Das Sicherungskennwort darf nicht leer sein");
+      const masterMatch = originalText.match(/^Password=(\$\$\$\$[A-Za-z0-9./+=_-]+)/m);
+      if (!masterMatch) {
+        throw new FritzExportEditorError(
+          "MODERN_MASTER_KEY_MISSING",
+          "setup",
+          "Der Export verwendet keinen unterstützten kennwortgeschützten Export-Master-Key"
+        );
+      }
+
+      const oldWrappedKey = masterMatch[1];
+      const newExportKeyBytes = settings.newExportKeyBytes == null
+        ? FritzOSCrypto.generateExportKey()
+        : new Uint8Array(settings.newExportKeyBytes);
+      if (newExportKeyBytes.length !== 16) {
+        throw new FritzExportEditorError("INVALID_MASTER_KEY_LENGTH", "setup", "Der neue Export-Master-Key muss genau 16 Byte enthalten");
+      }
+      if (newExportKeyBytes.every(byte => byte === 0)) {
+        throw new FritzExportEditorError("ZERO_MASTER_KEY", "setup", "Ein ausschließlich aus Nullen bestehender Master-Key ist nicht zulässig");
+      }
+
+      this.emit(onStep, "roundtrip", "running", "Master-Key und gebundene Secrets werden vollständig rotiert");
+      try {
+        let oldMasterKey;
+        try {
+          oldMasterKey = FritzOSCrypto.decryptExportKey(oldWrappedKey, password);
+        } catch (error) {
+          throw new FritzExportEditorError("PASSWORD_INVALID", "roundtrip", "Das Sicherungskennwort ist falsch", error);
+        }
+        if (this.equalBytes(oldMasterKey.exportKeyBytes, newExportKeyBytes)) {
+          throw new FritzExportEditorError("MASTER_KEY_UNCHANGED", "roundtrip", "Der neue Export-Master-Key ist mit dem bisherigen identisch");
+        }
+        assertFresh();
+
+        const inventory = FritzOSCrypto.FritzBoxParser.extractSecretInventory(originalText);
+        const payloadSecrets = inventory.filter(secret => secret.value !== oldWrappedKey);
+        const newAesKeyBytes = FritzOSCrypto.normalizeAes256Key(newExportKeyBytes);
+        const replacements = [];
+        let passwordBoundSecretsVerified = 0;
+
+        for (const secret of payloadSecrets) {
+          assertFresh();
+          let decrypted;
+          try {
+            decrypted = FritzOSCrypto.decryptSecretWithKey(secret.value, oldMasterKey.aesKeyBytes);
+          } catch (masterKeyError) {
+            try {
+              await FritzOSCrypto.AVMCrypto.decryptSecret(secret.value, password, null);
+              passwordBoundSecretsVerified += 1;
+              continue;
+            } catch (passwordError) {
+              throw new FritzExportEditorError(
+                "UNVERIFIABLE_SECRET",
+                "roundtrip",
+                `Die Fundstelle ${secret.section} · ${secret.field} konnte mit keinem gültigen Schlüssel geprüft werden`,
+                passwordError
+              );
+            }
+          }
+
+          const newValue = await FritzOSCrypto.encryptRawSecretWithKey(decrypted.rawBytes, newAesKeyBytes);
+          assertFresh();
+          const verification = FritzOSCrypto.decryptSecretWithKey(newValue, newAesKeyBytes);
+          if (!this.equalBytes(verification.rawBytes, decrypted.rawBytes)) {
+            throw new FritzExportEditorError(
+              "SECRET_ROTATION_MISMATCH",
+              "roundtrip",
+              `Der Roundtrip für ${secret.section} · ${secret.field} stimmt nicht überein`
+            );
+          }
+          replacements.push({
+            id: secret.id,
+            stableKey: secret.stableKey,
+            start: secret.start,
+            end: secret.end,
+            oldValue: secret.value,
+            newValue
+          });
+        }
+
+        const newWrappedKey = await FritzOSCrypto.encryptExportKey(newExportKeyBytes, password);
+        const wrapperVerification = FritzOSCrypto.decryptExportKey(newWrappedKey, password);
+        if (!this.equalBytes(wrapperVerification.exportKeyBytes, newExportKeyBytes)) {
+          throw new FritzExportEditorError(
+            "MASTER_KEY_ROUNDTRIP_MISMATCH",
+            "roundtrip",
+            "Der neue Export-Master-Key hat den Hüllen-Roundtrip nicht überstanden"
+          );
+        }
+        const masterValueStart = masterMatch.index + masterMatch[0].indexOf(oldWrappedKey);
+        replacements.push({
+          id: "export-master-key",
+          stableKey: "header|password|1",
+          start: masterValueStart,
+          end: masterValueStart + oldWrappedKey.length,
+          oldValue: oldWrappedKey,
+          newValue: newWrappedKey
+        });
+
+        let updatedText = originalText;
+        replacements.slice().sort((left, right) => right.start - left.start).forEach(replacement => {
+          if (updatedText.slice(replacement.start, replacement.end) !== replacement.oldValue) {
+            throw new FritzExportEditorError(
+              "SECRET_POSITION_MISMATCH",
+              "roundtrip",
+              "Eine Secret-Fundstelle hat sich während der Master-Key-Rotation verschoben"
+            );
+          }
+          updatedText = updatedText.slice(0, replacement.start) + replacement.newValue + updatedText.slice(replacement.end);
+        });
+        assertFresh();
+        this.emit(onStep, "roundtrip", "success", `${replacements.length - 1} Master-Key-Secrets erfolgreich neu verschlüsselt`, {
+          rotatedSecrets: replacements.length - 1,
+          passwordBoundSecretsVerified
+        });
+
+        activeStage = "checksum";
+        this.emit(onStep, "checksum", "running", "CRC32 wird aktualisiert und geprüft");
+        const checksumResult = FritzExportChecksum.fromText(updatedText).replaceChecksum();
+        updatedText = checksumResult.updatedText;
+        this.verifyExportChecksum(updatedText);
+        assertFresh();
+        this.emit(onStep, "checksum", "success", `CRC32 ${checksumResult.newCrc} ist gültig`, checksumResult);
+
+        return {
+          updatedText,
+          replacements,
+          oldExportKeyHex: oldMasterKey.exportKeyHex,
+          newExportKeyHex: FritzOSCrypto.toHex(newExportKeyBytes),
+          newMasterKeyBytes: new Uint8Array(newAesKeyBytes),
+          roundtrip: {
+            valid: true,
+            rotatedSecrets: replacements.length - 1,
+            passwordBoundSecretsVerified
+          },
+          checksum: { valid: true, oldCrc: checksumResult.oldCrc, newCrc: checksumResult.newCrc }
+        };
+      } catch (error) {
+        if (error && error.message === "MASTER_KEY_ROTATION_STALE") throw error;
+        const wrapped = error instanceof FritzExportEditorError
+          ? error
+          : new FritzExportEditorError(
+            activeStage === "checksum" ? "CHECKSUM_FAILED" : "ROUNDTRIP_FAILED",
+            activeStage,
+            error && error.message ? error.message : String(error),
+            error
+          );
+        this.emit(onStep, wrapped.stage || activeStage, "failed", wrapped.message, { code: wrapped.code });
+        throw wrapped;
+      }
+    }
+
     static async applySecretChanges(options) {
       this.assertDependencies();
       const settings = options || {};

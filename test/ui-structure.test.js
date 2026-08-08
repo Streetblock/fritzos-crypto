@@ -28,6 +28,19 @@ for (const id of [
   'passwordChangeStatus',
   'btnCancelPasswordChange',
   'btnChangeExportPassword',
+  'btnToggleMasterKeyRotation',
+  'masterKeyRotationPanel',
+  'masterKeyModeRandom',
+  'masterKeyModeManual',
+  'manualMasterKeyFields',
+  'manualMasterKey',
+  'confirmManualMasterKey',
+  'masterKeyRotationPassword',
+  'confirmMasterKeyRotation',
+  'masterKeyRotationStatus',
+  'masterKeyRotationResult',
+  'btnCancelMasterKeyRotation',
+  'btnRotateMasterKey',
   'downloadGateStatus',
   'roundtripCheck',
   'roundtripCheckMessage',
@@ -98,12 +111,28 @@ assert.match(html, /exportSafetyPanel[\s\S]*exportMasterKeySection[\s\S]*credent
 assert.match(html, /this\.isExportMasterKey\(secret\) \? this\.exportMasterKeyCard : this\.secretEditorList/, 'export master key must render in its dedicated top card');
 assert.equal(cryptoSource.includes('encryptExportKey'), true, 'crypto library must support rewrapping the export master key');
 assert.equal(html.includes('Kennwort ändern und prüfen'), true, 'password change needs one explicit verified action');
-assert.equal(html.includes('Der Export-Master-Key bleibt unverändert'), true, 'password change UI must explain that the master key is preserved');
+assert.equal(html.includes('Der Export-Master-Key selbst wird nicht verändert.'), true, 'password change UI must explain that the master key is preserved');
 assert.match(html, /const editable = supported && !this\.isExportMasterKey\(secret\)/, 'the export master key itself must stay read-only');
 assert.match(html, /this\.exportEditor\.changeExportPassword\(/, 'password changes must delegate to the atomic export service');
 assert.match(html, /newPassword !== confirmation/, 'the new export password must be confirmed');
-assert.match(html, /FritzExportEditor\.js\?v=20260808-1/, 'password change service needs a deployment cache key');
+assert.match(html, /FritzExportEditor\.js\?v=20260808-2/, 'export mutation service needs the current deployment cache key');
 assert.match(html, /typeof window\.FritzExportEditor\?\.FritzExportEditor\?\.changeExportPassword/, 'partial deployments must reject a missing password change service');
+assert.equal(cryptoSource.includes('generateExportKey'), true, 'crypto library must expose secure export key generation');
+assert.match(cryptoSource, /getRandomValues\(new Uint8Array\(16\)\)/, 'random master keys must come from the operating system CSPRNG');
+assert.equal(cryptoSource.includes('Math.random'), false, 'master key generation must never fall back to Math.random');
+assert.equal(html.includes('Sicher erzeugen'), true, 'secure random master key generation must be the recommended UI choice');
+assert.equal(html.includes('Der Export-Master-Key wird wirklich ersetzt'), true, 'master key rotation needs an explicit warning');
+assert.match(html, /\^\[0-9a-fA-F\]\{32\}\$/, 'manual master keys must contain exactly 32 hexadecimal characters');
+assert.match(html, /manualKey\.toLowerCase\(\) !== confirmation\.toLowerCase\(\)/, 'manual master keys must be confirmed');
+assert.match(html, /this\.exportEditor\.rotateExportMasterKey\(/, 'master key rotation must delegate to the atomic export service');
+assert.match(html, /this\.state\.markDecrypted\(masterSecret\.id,[\s\S]*plaintext: result\.newExportKeyHex/, 'the UI state must expose the newly rotated master key');
+assert.equal(html.includes('exportKeyHex.substring'), false, 'master key material must not be written to the technical log');
+assert.match(html, /typeof window\.FritzExportEditor\?\.FritzExportEditor\?\.rotateExportMasterKey/, 'partial deployments must reject a missing rotation service');
+assert.equal(
+  html.indexOf('if (decrypted && this.isExportMasterKey(secret))') < html.indexOf('else if (decrypted && !supported)'),
+  true,
+  'the dedicated master key guidance must take precedence over the generic unsupported-secret warning'
+);
 assert.match(html, /plaintext:\s*mkResult\.exportKeyHex/, 'decrypted master key must be available to the masked secret field');
 assert.match(html, /input\.type\s*=\s*this\.revealedSecrets\.has\(secret\.stableKey\)\s*\?\s*'text'\s*:\s*'password'/, 'plaintext fields must be masked by default');
 for (const action of ['Anzeigen', 'Kopieren', 'Bearbeiten', 'Zurücksetzen']) {
