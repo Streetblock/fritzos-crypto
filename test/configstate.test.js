@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { ConfigState, API_VERSION } = require('../ConfigState.js');
+const { ConfigState, API_VERSION } = require('../src/ConfigState.js');
 
 assert.equal(API_VERSION, '2', 'browser and state module must share an explicit API version');
 

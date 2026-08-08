@@ -2,7 +2,7 @@
 
 ## fritzbox-checksum-fixer
 
-`FritzExportChecksum.js` is adapted from
+`lib/FritzExportChecksum.js` is adapted from
 [Streetblock/fritzbox-checksum-fixer](https://github.com/Streetblock/fritzbox-checksum-fixer).
 
 MIT License

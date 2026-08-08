@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 const html = fs.readFileSync(require.resolve('../index.html'), 'utf8');
-const cryptoSource = fs.readFileSync(require.resolve('../FritzOSCrypto.js'), 'utf8');
+const cryptoSource = fs.readFileSync(require.resolve('../lib/FritzOSCrypto.js'), 'utf8');
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
 
@@ -172,7 +172,7 @@ assert.equal(html.includes('Der Export-Master-Key bleibt unverändert'), true, '
 assert.match(html, /const editable = supported && !this\.isExportMasterKey\(secret\)/, 'the export master key itself must stay read-only');
 assert.match(html, /this\.exportEditor\.changeExportPassword\(/, 'password changes must delegate to the atomic export service');
 assert.match(html, /newPassword !== confirmation/, 'the new export password must be confirmed');
-assert.match(html, /FritzExportEditor\.js\?v=20260808-2/, 'export editing service needs the current deployment cache key');
+assert.match(html, /src\/FritzExportEditor\.js\?v=20260808-3/, 'export editing service needs the current deployment cache key');
 assert.match(html, /typeof window\.FritzExportEditor\?\.FritzExportEditor\?\.changeExportPassword/, 'partial deployments must reject a missing password change service');
 assert.match(html, /plaintext:\s*mkResult\.exportKeyHex/, 'decrypted master key must be available to the masked secret field');
 assert.match(html, /input\.type\s*=\s*this\.revealedSecrets\.has\(secret\.stableKey\)\s*\?\s*'text'\s*:\s*'password'/, 'plaintext fields must be masked by default');
@@ -205,15 +205,15 @@ assert.equal(html.includes('Jetzt neu verschlüsseln und prüfen'), false, 'manu
 assert.match(html, /<details id="reencryptSummary"/, 'change overview must be collapsible');
 assert.match(html, /markReencrypted\(/, 'validated changes must retain their audit state');
 assert.equal(html.includes('Geändert · validiert'), true, 'validated change label is missing');
-assert.match(html, /ConfigState\.js\?v=\d{8}-\d+/, 'local state script needs a deployment cache key');
+assert.match(html, /src\/ConfigState\.js\?v=\d{8}-\d+/, 'local state script must load from src with a deployment cache key');
 assert.equal(html.includes("ConfigState API v2"), true, 'state compatibility guard is missing');
 assert.equal(html.includes('Die Programmdateien wurden nicht gemeinsam aktualisiert.'), true, 'partial deployment must fail with a useful message');
-assert.match(html, /FritzExportEditor\.js\?v=\d{8}-\d+/, 'atomic export editor needs a deployment cache key');
+assert.match(html, /src\/FritzExportEditor\.js\?v=\d{8}-\d+/, 'atomic export editor must load from src with a deployment cache key');
 assert.equal(html.includes('FritzExportEditor API v1'), true, 'export editor compatibility guard is missing');
-assert.match(html, /FritzEmbeddedFiles\.js\?v=\d{8}-\d+/, 'embedded file decoder needs a deployment cache key');
+assert.match(html, /src\/FritzEmbeddedFiles\.js\?v=\d{8}-\d+/, 'embedded file decoder must load from src with a deployment cache key');
 assert.equal(html.includes('FritzEmbeddedFiles API v1'), true, 'embedded file decoder compatibility guard is missing');
-assert.match(html, /FritzSipWebPhone\.js\?v=\d{8}-\d+/, 'SIP webphone service needs a deployment cache key');
-assert.match(html, /SipWebPhoneProviders\.js\?v=\d{8}-\d+/, 'generated SIP provider table needs a deployment cache key');
+assert.match(html, /src\/FritzSipWebPhone\.js\?v=\d{8}-\d+/, 'SIP webphone service must load from src with a deployment cache key');
+assert.match(html, /src\/SipWebPhoneProviders\.js\?v=\d{8}-\d+/, 'generated SIP provider table must load from src with a deployment cache key');
 assert.match(html, /window\.FritzSipProviderTable\?\.schemaVersion !== '1'/, 'partial deployments must reject a missing provider table');
 assert.equal(html.includes('FritzSipWebPhone API v1'), true, 'SIP webphone compatibility guard is missing');
 assert.equal(html.includes('cdnjs.cloudflare.com/ajax/libs/sip.js/0.20.0/sip.min.js'), true, 'browser SIP stack is missing');

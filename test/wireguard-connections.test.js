@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
-const Config = require('../FritzConfigDocument.js');
-const WireGuard = require('../FritzWireGuardConnections.js');
+const Config = require('../src/FritzConfigDocument.js');
+const WireGuard = require('../src/FritzWireGuardConnections.js');
 
 const source = [
   '**** CFGFILE:vpn.cfg',

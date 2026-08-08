@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { FritzBoxParser } = require('../FritzOSCrypto.js');
+const { FritzBoxParser } = require('../lib/FritzOSCrypto.js');
 
 const duplicate = '$$$$DUPLICATE1234';
 const sipPasswordOne = '$$$$SIPPASSWORD1';

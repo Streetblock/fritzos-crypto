@@ -5,8 +5,8 @@ if (typeof globalThis.crypto === 'undefined') {
   globalThis.crypto = nodeCrypto.webcrypto;
 }
 
-const FritzOSCrypto = require('../FritzOSCrypto.js');
-const FritzExportChecksum = require('../FritzExportChecksum.js');
+const FritzOSCrypto = require('../lib/FritzOSCrypto.js');
+const FritzExportChecksum = require('../lib/FritzExportChecksum.js');
 
 async function run() {
   const masterKey = Uint8Array.from({ length: 16 }, (_, index) => 0x30 + index);

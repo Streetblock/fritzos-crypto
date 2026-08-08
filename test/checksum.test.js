@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const FritzExportChecksum = require('../FritzExportChecksum.js');
+const FritzExportChecksum = require('../lib/FritzExportChecksum.js');
 
 const standardVector = new TextEncoder().encode('123456789');
 assert.equal(

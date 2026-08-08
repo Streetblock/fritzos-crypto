@@ -30,13 +30,13 @@ The absolute highlight: This tool supports the modern **FRITZ!OS 7.50+ Master-Ke
 
 ## 🧩 Library structure
 
-* `FritzOSCrypto.js`: Secret encryption/decryption and structured occurrence detection.
-* `FritzExportChecksum.js`: Calculate, replace, and verify the AVM CRC32.
-* `FritzExportEditor.js`: Apply edits atomically. It verifies the existing ciphertext, encrypts the new value, performs the secret roundtrip, and then updates CRC32.
-* `ConfigState.js`: UI state for pending and validated changes; no cryptography.
-* `FritzEmbeddedFiles.js`: Detect embedded B64 files and read supported content such as phonebooks without modifying it.
-* `FritzSipWebPhone.js`: Allowlisted SIP-over-WSS provider profiles, dial-target validation, and the browser SIP/WebRTC session workflow.
-* `SipWebPhoneProviders.json`: Maintained lookup from exact `registrar` values to provider and WSS configurations. `SipWebPhoneProviders.js` is generated from it for direct local browser use and must not be edited manually.
+* `lib/FritzOSCrypto.js`: Secret encryption/decryption and structured occurrence detection.
+* `lib/FritzExportChecksum.js`: Calculate, replace, and verify the AVM CRC32.
+* `src/FritzExportEditor.js`: Apply edits atomically. It verifies the existing ciphertext, encrypts the new value, performs the secret roundtrip, and then updates CRC32.
+* `src/ConfigState.js`: UI state for pending and validated changes; no cryptography.
+* `src/FritzEmbeddedFiles.js`: Detect embedded B64 files and read supported content such as phonebooks without modifying it.
+* `src/FritzSipWebPhone.js`: Allowlisted SIP-over-WSS provider profiles, dial-target validation, and the browser SIP/WebRTC session workflow.
+* `src/SipWebPhoneProviders.json`: Maintained lookup from exact `registrar` values to provider and WSS configurations. `src/SipWebPhoneProviders.js` is generated from it for direct local browser use and must not be edited manually.
 
 `FritzExportEditor.applySecretChanges()` and `FritzExportEditor.changeExportPassword()` return a new export text only when every verification step succeeds. The provided text remains unchanged on failure.
 
@@ -72,7 +72,7 @@ globalThis.pako = require('pako');
 globalThis.CryptoJS = require('crypto-js');
 
 // Load FritzOSCrypto
-const { AVMCrypto } = require('./FritzOSCrypto.js');
+const { AVMCrypto } = require('./lib/FritzOSCrypto.js');
 
 async function decryptMyConfig() {
     const password = "YourRouterPassword123!";

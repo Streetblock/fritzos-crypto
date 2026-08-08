@@ -1,13 +1,13 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const webphone = require('../FritzSipWebPhone.js');
-const providerTable = require('../SipWebPhoneProviders.json');
+const webphone = require('../src/FritzSipWebPhone.js');
+const providerTable = require('../src/SipWebPhoneProviders.json');
 
 async function main() {
   assert.equal(webphone.API_VERSION, '1');
   const browserContext = {};
-  vm.runInNewContext(fs.readFileSync(require.resolve('../SipWebPhoneProviders.js'), 'utf8'), browserContext);
+  vm.runInNewContext(fs.readFileSync(require.resolve('../src/SipWebPhoneProviders.js'), 'utf8'), browserContext);
   assert.deepEqual(JSON.parse(JSON.stringify(browserContext.FritzSipProviderTable)), providerTable, 'generated browser provider table must match its JSON source');
   assert.equal(providerTable.registrars['sipgate.de'], 'sipgate');
   assert.equal(providerTable.providers.sipgate.websocket, 'wss://sip.sipgate.de:443');

@@ -1,8 +1,8 @@
 const assert = require('node:assert/strict');
-const Config = require('../FritzConfigDocument.js');
-const Sip = require('../FritzSipAccounts.js');
-const { FritzBoxParser } = require('../FritzOSCrypto.js');
-const { ConfigState } = require('../ConfigState.js');
+const Config = require('../src/FritzConfigDocument.js');
+const Sip = require('../src/FritzSipAccounts.js');
+const { FritzBoxParser } = require('../lib/FritzOSCrypto.js');
+const { ConfigState } = require('../src/ConfigState.js');
 
 const source = [
   '**** FRITZ!Box Test CONFIGURATION EXPORT',

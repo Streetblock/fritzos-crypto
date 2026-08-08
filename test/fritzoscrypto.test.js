@@ -18,7 +18,7 @@ globalThis.pako = require('pako');
 globalThis.CryptoJS = require('crypto-js');
 
 // 2. Zu testendes Modul laden (Pfad angepasst für Aufruf aus "test/" Unterordner)
-const FritzOSCrypto = require('../FritzOSCrypto.js');
+const FritzOSCrypto = require('../lib/FritzOSCrypto.js');
 const { AVMCrypto, FritzBoxParser } = FritzOSCrypto;
 
 // 3. Test-Runner

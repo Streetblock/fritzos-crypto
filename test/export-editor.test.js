@@ -5,9 +5,9 @@ if (typeof globalThis.crypto === 'undefined') globalThis.crypto = nodeCrypto.web
 globalThis.pako = require('pako');
 globalThis.CryptoJS = require('crypto-js');
 
-const FritzOSCrypto = require('../FritzOSCrypto.js');
-const FritzExportChecksum = require('../FritzExportChecksum.js');
-const { API_VERSION, FritzExportEditor } = require('../FritzExportEditor.js');
+const FritzOSCrypto = require('../lib/FritzOSCrypto.js');
+const FritzExportChecksum = require('../lib/FritzExportChecksum.js');
+const { API_VERSION, FritzExportEditor } = require('../src/FritzExportEditor.js');
 
 async function run() {
   assert.equal(API_VERSION, '1');

@@ -30,13 +30,13 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 
 ## 🧩 Bibliotheksaufbau
 
-* `FritzOSCrypto.js`: Secret-Ver- und Entschlüsselung sowie strukturierte Fundstellenerkennung.
-* `FritzExportChecksum.js`: AVM-CRC32 berechnen, ersetzen und prüfen.
-* `FritzExportEditor.js`: Änderungen atomar anwenden. Der Dienst prüft zuerst den vorhandenen Chiffretext, verschlüsselt den neuen Wert, führt den Secret-Roundtrip aus und aktualisiert anschließend CRC32.
-* `ConfigState.js`: UI-Zustand wie offene und validierte Änderungen; keine Kryptografie.
-* `FritzEmbeddedFiles.js`: Eingebettete B64-Dateien erkennen und unterstützte Inhalte wie Telefonbücher schreibgeschützt auslesen.
-* `FritzSipWebPhone.js`: Freigegebene SIP-over-WSS-Providerprofile, Rufnummernvalidierung und browserseitiger SIP/WebRTC-Sitzungsablauf.
-* `SipWebPhoneProviders.json`: Gepflegte Auflösungstabelle von exakten `registrar`-Werten zu Provider- und WSS-Konfigurationen. `SipWebPhoneProviders.js` wird daraus für die direkte lokale Browsernutzung erzeugt und darf nicht von Hand bearbeitet werden.
+* `lib/FritzOSCrypto.js`: Secret-Ver- und Entschlüsselung sowie strukturierte Fundstellenerkennung.
+* `lib/FritzExportChecksum.js`: AVM-CRC32 berechnen, ersetzen und prüfen.
+* `src/FritzExportEditor.js`: Änderungen atomar anwenden. Der Dienst prüft zuerst den vorhandenen Chiffretext, verschlüsselt den neuen Wert, führt den Secret-Roundtrip aus und aktualisiert anschließend CRC32.
+* `src/ConfigState.js`: UI-Zustand wie offene und validierte Änderungen; keine Kryptografie.
+* `src/FritzEmbeddedFiles.js`: Eingebettete B64-Dateien erkennen und unterstützte Inhalte wie Telefonbücher schreibgeschützt auslesen.
+* `src/FritzSipWebPhone.js`: Freigegebene SIP-over-WSS-Providerprofile, Rufnummernvalidierung und browserseitiger SIP/WebRTC-Sitzungsablauf.
+* `src/SipWebPhoneProviders.json`: Gepflegte Auflösungstabelle von exakten `registrar`-Werten zu Provider- und WSS-Konfigurationen. `src/SipWebPhoneProviders.js` wird daraus für die direkte lokale Browsernutzung erzeugt und darf nicht von Hand bearbeitet werden.
 
 `FritzExportEditor.applySecretChanges()` und `FritzExportEditor.changeExportPassword()` geben nur dann einen neuen Exporttext zurück, wenn alle Prüfschritte erfolgreich waren. Bei einem Fehler bleibt der übergebene Text unverändert.
 
@@ -72,7 +72,7 @@ globalThis.pako = require('pako');
 globalThis.CryptoJS = require('crypto-js');
 
 // FritzOSCrypto laden
-const { AVMCrypto } = require('./FritzOSCrypto.js');
+const { AVMCrypto } = require('./lib/FritzOSCrypto.js');
 
 async function decryptMyConfig() {
     const password = "DeinRouterPasswort123!";

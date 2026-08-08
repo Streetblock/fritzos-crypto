@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const FritzEmbeddedFiles = require('../FritzEmbeddedFiles.js');
+const FritzEmbeddedFiles = require('../src/FritzEmbeddedFiles.js');
 
 const xml = '<?xml version="1.0" encoding="utf-8"?>' +
   '<phonebooks><phonebook name="Familie &amp; Freunde"><contact><category>Privat</category>' +

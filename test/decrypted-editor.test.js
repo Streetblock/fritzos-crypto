@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const Editor = require('../DecryptedEditor.js');
+const Editor = require('../src/DecryptedEditor.js');
 
 const cipher = '$$$$SECRET';
 const source = `before\nvalue = "${cipher}";\nafter\n`;
