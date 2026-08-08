@@ -35,6 +35,39 @@
     return decodeURIComponent(escape(String.fromCharCode.apply(null, Array.from(bytes))));
   }
 
+  function createFilePreview(file, maxLength) {
+    var bytes = file && file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(0);
+    var limit = Number.isFinite(maxLength) && maxLength > 0 ? Math.floor(maxLength) : 500000;
+    try {
+      var text = decodeUtf8(bytes);
+      var hasBinaryControls = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(text);
+      if (!hasBinaryControls) {
+        return {
+          kind: "text",
+          content: text.slice(0, limit),
+          truncated: text.length > limit,
+          totalBytes: bytes.length
+        };
+      }
+    } catch (_) {
+      // Non-UTF-8 payloads are rendered as decoded bytes below.
+    }
+
+    var previewBytes = bytes.slice(0, Math.min(bytes.length, 4096));
+    var lines = [];
+    for (var offset = 0; offset < previewBytes.length; offset += 16) {
+      var chunk = Array.from(previewBytes.slice(offset, offset + 16));
+      var hex = chunk.map(function (value) { return value.toString(16).padStart(2, "0"); }).join(" ");
+      lines.push(offset.toString(16).padStart(8, "0") + "  " + hex);
+    }
+    return {
+      kind: "binary",
+      content: lines.join("\n"),
+      truncated: bytes.length > previewBytes.length,
+      totalBytes: bytes.length
+    };
+  }
+
   function decodeXmlEntities(value) {
     return String(value == null ? "" : value).replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, function (_, entity) {
       var normalized = entity.toLowerCase();
@@ -161,6 +194,7 @@
     API_VERSION: API_VERSION,
     decodeBase64: decodeBase64,
     decodeUtf8: decodeUtf8,
+    createFilePreview: createFilePreview,
     extractB64Files: extractB64Files,
     parsePhonebookXml: parsePhonebookXml,
     extractPhonebooks: extractPhonebooks

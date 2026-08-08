@@ -26,6 +26,10 @@ for (const id of [
   'phonebookSearch',
   'phonebookViewerErrors',
   'phonebookViewer',
+  'phonebookXmlViewer',
+  'embeddedFileViewerSection',
+  'embeddedFileViewerSummary',
+  'embeddedFileViewer',
   'filesEmptyState',
   'exportSafetyPanel',
   'exportMasterKeySection',
@@ -143,8 +147,15 @@ assert.match(html, /FritzExportEditor\.js\?v=\d{8}-\d+/, 'atomic export editor n
 assert.equal(html.includes('FritzExportEditor API v1'), true, 'export editor compatibility guard is missing');
 assert.match(html, /FritzEmbeddedFiles\.js\?v=\d{8}-\d+/, 'embedded file decoder needs a deployment cache key');
 assert.equal(html.includes('FritzEmbeddedFiles API v1'), true, 'embedded file decoder compatibility guard is missing');
+assert.match(html, /typeof window\.FritzEmbeddedFiles\?\.createFilePreview/, 'partial deployments must reject a missing generic preview service');
 assert.match(html, /this\.embeddedFiles\.extractPhonebooks\(text\)/, 'loaded exports must be scanned for embedded phonebooks');
 assert.match(html, /this\.jumpToEditorLine\(entry\.book\.sourceLine\)/, 'phonebooks must link back to their source block');
+assert.equal(html.includes('Dekodierte XML-Quelldatei anzeigen'), true, 'phonebook cards must expose their decoded XML source on demand');
+assert.match(html, /this\.phonebookXmlViewer\.appendChild\(details\)/, 'decoded phonebook XML must render below the structured phonebooks');
+assert.match(html, /file\.type === 'B64FILE'/, 'generic file viewer must only expose decoded plain B64 files');
+assert.match(html, /file\.name\.toLowerCase\(\) !== 'phonebook'/, 'structured phonebooks must not be duplicated in the generic file viewer');
+assert.match(html, /this\.embeddedFiles\.createFilePreview\(file\)/, 'generic files must use the safe decoded preview service');
+assert.match(html, /this\.jumpToEditorLine\(file\.line\)/, 'generic embedded files must link back to their source block');
 assert.match(html, /this\.phonebookOverviewCard\?\.addEventListener\('click', \(\) => this\.switchView\('files'\)\)/, 'overview phonebook summary must open the files page');
 assert.equal(html.includes('separat Base64-kodierten Zeilen'), false, 'line-wise Base64 encoding is an implementation detail, not user-facing copy');
 const reencryptWorkflow = html.match(/async reencryptChangedSecrets[\s\S]*?(?=\n\s*async handleDecrypt)/)?.[0] || '';

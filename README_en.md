@@ -20,7 +20,7 @@ The absolute highlight: This tool supports the modern **FRITZ!OS 7.50+ Master-Ke
 
 * **Change the export password:** For modern exports, the existing export master key can be protected with a new password without changing the key itself. The master-key roundtrip, bound payload secrets, and CRC32 are verified before download. Mixed exports containing secrets still bound directly to the old password are rejected safely.
 
-* **View phonebooks:** Embedded phonebook files are decoded locally and presented by phonebook and contact on a dedicated read-only page. The overview shows the number of detected phonebooks and contacts.
+* **View embedded files:** Phonebook files are decoded locally and presented by phonebook and contact on a dedicated read-only page. Other unencrypted `B64FILE` blocks can be expanded individually; text is shown directly and binary data as a hex preview. The overview shows the number of detected phonebooks and contacts.
 
 * **AVM checksum:** After re-encryption and before saving an export, the CRC32 value at `END OF EXPORT` is updated using AVM's section-aware procedure and verified again.
 

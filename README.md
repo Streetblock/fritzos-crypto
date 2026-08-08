@@ -20,7 +20,7 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 
 * **Sicherungskennwort ändern:** Bei modernen Exporten kann der vorhandene Export-Master-Key unverändert mit einem neuen Sicherungskennwort geschützt werden. Master-Key-Roundtrip, gebundene Nutz-Secrets und CRC32 werden vor dem Download geprüft. Gemischte Exporte mit noch direkt kennwortgebundenen Secrets werden sicher abgelehnt.
 
-* **Telefonbücher ansehen:** Eingebettete Telefonbuchdateien werden lokal dekodiert und auf einer eigenen schreibgeschützten Seite nach Telefonbüchern und Kontakten gegliedert. Die Übersicht zeigt die Anzahl der erkannten Telefonbücher und Kontakte.
+* **Eingebettete Dateien ansehen:** Telefonbuchdateien werden lokal dekodiert und auf einer eigenen schreibgeschützten Seite nach Telefonbüchern und Kontakten gegliedert. Weitere unverschlüsselte `B64FILE`-Blöcke lassen sich dort einzeln ausklappen; Text wird direkt, Binärdaten werden als Hex-Vorschau angezeigt. Die Übersicht zeigt die Anzahl der erkannten Telefonbücher und Kontakte.
 
 * **AVM-Prüfsumme:** Nach der Neuverschlüsselung und vor dem Speichern einer Exportdatei wird die CRC32-Prüfsumme am `END OF EXPORT` nach dem AVM-Sektionsverfahren aktualisiert und erneut geprüft.
 
