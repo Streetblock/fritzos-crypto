@@ -154,6 +154,32 @@ FirmwareVersion=154.07.57
         failed++;
     }
 
+    // --- TEST 7: Export-Master-Key mit neuem Kennwort verpacken ---
+    try {
+        console.log("\n▶ TEST 7: Export-Master-Key mit neuem Kennwort verpacken");
+        const exportKey = Uint8Array.from({ length: 16 }, (_, index) => index + 17);
+        const wrappedExportKey = await FritzOSCrypto.encryptExportKey(exportKey, 'neues-sicherungskennwort');
+        const unwrappedExportKey = FritzOSCrypto.decryptExportKey(wrappedExportKey, 'neues-sicherungskennwort');
+
+        assert(
+            FritzOSCrypto.toHex(unwrappedExportKey.exportKeyBytes) === FritzOSCrypto.toHex(exportKey),
+            'Der Export-Master-Key muss beim Kennwortwechsel bytegenau erhalten bleiben'
+        );
+        let wrongExportPasswordRejected = false;
+        try {
+            FritzOSCrypto.decryptExportKey(wrappedExportKey, 'falsches-kennwort');
+        } catch (_) {
+            wrongExportPasswordRejected = true;
+        }
+        assert(wrongExportPasswordRejected, 'Ein falsches Kennwort darf die neue Hülle nicht öffnen');
+
+        console.log('  ✅ OK (Export-Master-Key unverändert neu verpackt)');
+        passed++;
+    } catch (e) {
+        console.error('  ❌ Exception:', e.message);
+        failed++;
+    }
+
     // --- Zusammenfassung ---
     console.log("\n==================================================");
     if (failed === 0) {
