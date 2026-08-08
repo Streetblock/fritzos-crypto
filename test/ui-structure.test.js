@@ -152,6 +152,13 @@ assert.match(html, /\['wg_dyndns', 'Endpoint \/ Domain', 'text'\]/, 'WireGuard s
 assert.match(html, /\['wg_allowed_ips', 'Erlaubte Netze', 'text'\]/, 'WireGuard simple settings must expose allowed networks');
 assert.match(html, /connection\.fields\.dns_servers[\s\S]*connection\.fields\.wg_dnsserver/, 'WireGuard settings must support v4 and v3 DNS field names');
 assert.match(html, /connection\.values\.wg_slave_network[\s\S]*connection\.values\.wg_slave_mask/, 'WireGuard cards must support v3 peer network fields');
+const wireGuardCardDetails = html.match(/this\.appendWireGuardDetails\(card, \[\s*\['Erlaubte Netze'[\s\S]*?\]\);/)?.[0] || '';
+assert.match(wireGuardCardDetails, /Erlaubte Netze/, 'WireGuard cards must keep allowed networks visible');
+assert.match(wireGuardCardDetails, /DNS-Server/, 'WireGuard cards must keep DNS servers visible');
+for (const hiddenDetail of ['Endpoint / Domain', 'Lokale IP', 'Entfernte IP', 'Gegenstellen-Netz', 'Persistent Keepalive']) {
+  assert.equal(wireGuardCardDetails.includes(hiddenDetail), false, `${hiddenDetail} belongs in the WireGuard settings drawer`);
+}
+assert.match(html, /technicalTitle\.textContent = 'Technische Werte'/, 'hidden WireGuard connection details must remain available in the drawer');
 assert.match(html, /this\.jumpToEditorLine\(secret\.line\)/, 'secret location links must navigate to the exact source line');
 assert.equal((html.match(/this\.createSecretLocationLink\(secret/g) || []).length >= 5, true, 'secret list, audit and credential cards must expose source links');
 assert.equal(html.includes('<Binärer Master-Key (entschlüsselt)>'), false, 'master key placeholder must not hide the actual decrypted key');
