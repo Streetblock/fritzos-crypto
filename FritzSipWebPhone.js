@@ -1,19 +1,16 @@
 (function (root, factory) {
-  if (typeof module === "object" && module.exports) module.exports = factory();
-  else root.FritzSipWebPhone = factory();
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  if (typeof module === "object" && module.exports) module.exports = factory(require("./SipWebPhoneProviders.json"));
+  else root.FritzSipWebPhone = factory(root.FritzSipProviderTable);
+})(typeof globalThis !== "undefined" ? globalThis : this, function (providerTable) {
   "use strict";
 
   var API_VERSION = "1";
-  var PROVIDERS = Object.freeze([
-    Object.freeze({
-      id: "sipgate",
-      name: "Sipgate",
-      registrarPattern: /(^|\.)sipgate\.(?:de|io)$/i,
-      websocket: "wss://sip.sipgate.de:443",
-      credentialsMode: "sip-account"
-    })
-  ]);
+  var PROVIDER_TABLE = providerTable && providerTable.schemaVersion === "1"
+    ? providerTable
+    : { schemaVersion: "1", providers: {}, registrars: {} };
+  var PROVIDERS = Object.freeze(Object.keys(PROVIDER_TABLE.providers).map(function (id) {
+    return Object.freeze(Object.assign({ id: id }, PROVIDER_TABLE.providers[id]));
+  }));
 
   function normalizeRegistrar(value) {
     return String(value || "")
@@ -27,7 +24,8 @@
 
   function resolveProvider(registrar) {
     var normalized = normalizeRegistrar(registrar);
-    return PROVIDERS.find(function (provider) { return provider.registrarPattern.test(normalized); }) || null;
+    var providerId = PROVIDER_TABLE.registrars[normalized];
+    return PROVIDERS.find(function (provider) { return provider.id === providerId; }) || null;
   }
 
   function createCompatibleAccount(input) {
@@ -211,6 +209,7 @@
 
   return {
     API_VERSION: API_VERSION,
+    PROVIDER_TABLE: PROVIDER_TABLE,
     PROVIDERS: PROVIDERS,
     normalizeRegistrar: normalizeRegistrar,
     resolveProvider: resolveProvider,

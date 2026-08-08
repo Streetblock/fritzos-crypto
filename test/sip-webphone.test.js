@@ -1,11 +1,21 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
 const webphone = require('../FritzSipWebPhone.js');
+const providerTable = require('../SipWebPhoneProviders.json');
 
 async function main() {
   assert.equal(webphone.API_VERSION, '1');
+  const browserContext = {};
+  vm.runInNewContext(fs.readFileSync(require.resolve('../SipWebPhoneProviders.js'), 'utf8'), browserContext);
+  assert.deepEqual(JSON.parse(JSON.stringify(browserContext.FritzSipProviderTable)), providerTable, 'generated browser provider table must match its JSON source');
+  assert.equal(providerTable.registrars['sipgate.de'], 'sipgate');
+  assert.equal(providerTable.providers.sipgate.websocket, 'wss://sip.sipgate.de:443');
   assert.equal(webphone.normalizeRegistrar('sip:sipgate.de:5060'), 'sipgate.de');
   assert.equal(webphone.resolveProvider('sipgate.de').id, 'sipgate');
   assert.equal(webphone.resolveProvider('sip.sipgate.de').id, 'sipgate');
+  assert.equal(webphone.resolveProvider('customer.sipgate.de'), null, 'registrars must be allowlisted exactly');
+  assert.equal(webphone.resolveProvider('sipgate.io'), null, 'undocumented aliases must not be inferred');
   assert.equal(webphone.resolveProvider('tel.t-online.de'), null, 'unsupported providers must not receive guessed WSS endpoints');
 
   const account = webphone.createCompatibleAccount({

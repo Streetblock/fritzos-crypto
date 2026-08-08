@@ -167,6 +167,8 @@ assert.equal(html.includes('FritzExportEditor API v1'), true, 'export editor com
 assert.match(html, /FritzEmbeddedFiles\.js\?v=\d{8}-\d+/, 'embedded file decoder needs a deployment cache key');
 assert.equal(html.includes('FritzEmbeddedFiles API v1'), true, 'embedded file decoder compatibility guard is missing');
 assert.match(html, /FritzSipWebPhone\.js\?v=\d{8}-\d+/, 'SIP webphone service needs a deployment cache key');
+assert.match(html, /SipWebPhoneProviders\.js\?v=\d{8}-\d+/, 'generated SIP provider table needs a deployment cache key');
+assert.match(html, /window\.FritzSipProviderTable\?\.schemaVersion !== '1'/, 'partial deployments must reject a missing provider table');
 assert.equal(html.includes('FritzSipWebPhone API v1'), true, 'SIP webphone compatibility guard is missing');
 assert.equal(html.includes('cdnjs.cloudflare.com/ajax/libs/sip.js/0.20.0/sip.min.js'), true, 'browser SIP stack is missing');
 assert.equal(html.includes('Aktuell wird nur Sipgate automatisch unterstützt'), true, 'webphone must communicate its provider allowlist');

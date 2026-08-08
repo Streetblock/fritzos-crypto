@@ -21,6 +21,7 @@
     <script src="./FritzExportChecksum.js?v=20260807-4"></script>
     <script src="./FritzExportEditor.js?v=20260808-1"></script>
     <script src="./FritzEmbeddedFiles.js?v=20260808-2"></script>
+    <script src="./SipWebPhoneProviders.js?v=20260808-1"></script>
     <script src="./FritzSipWebPhone.js?v=20260808-1"></script>
 
     <style>
@@ -2934,6 +2935,7 @@
                 missingCapabilities.unshift('FritzEmbeddedFiles API v1');
             }
             if (window.FritzSipWebPhone?.API_VERSION !== '1' ||
+                window.FritzSipProviderTable?.schemaVersion !== '1' ||
                 typeof window.FritzSipWebPhone?.createCompatibleAccount !== 'function' ||
                 typeof window.FritzSipWebPhone?.SipWebPhone !== 'function') {
                 missingCapabilities.unshift('FritzSipWebPhone API v1');

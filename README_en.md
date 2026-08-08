@@ -36,6 +36,7 @@ The absolute highlight: This tool supports the modern **FRITZ!OS 7.50+ Master-Ke
 * `ConfigState.js`: UI state for pending and validated changes; no cryptography.
 * `FritzEmbeddedFiles.js`: Detect embedded B64 files and read supported content such as phonebooks without modifying it.
 * `FritzSipWebPhone.js`: Allowlisted SIP-over-WSS provider profiles, dial-target validation, and the browser SIP/WebRTC session workflow.
+* `SipWebPhoneProviders.json`: Maintained lookup from exact `registrar` values to provider and WSS configurations. `SipWebPhoneProviders.js` is generated from it for direct local browser use and must not be edited manually.
 
 `FritzExportEditor.applySecretChanges()` and `FritzExportEditor.changeExportPassword()` return a new export text only when every verification step succeeds. The provided text remains unchanged on failure.
 
