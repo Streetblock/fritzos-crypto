@@ -1523,6 +1523,31 @@
                 return null;
             }
 
+            syncSecretEditorRow(secret) {
+                const row = [...this.secretEditorList.querySelectorAll('[data-secret-id]')]
+                    .find(candidate => candidate.dataset.secretId === secret.id);
+                if (!row) return;
+                const input = row.querySelector('[data-secret-value]');
+                const statusBadge = row.querySelector('[data-secret-status]');
+                const resetButton = row.querySelector('[data-secret-reset]');
+                const statusStyles = {
+                    pending: ['Offen', 'bg-blue-50 text-blue-700 border-blue-200'],
+                    decrypted: ['Entschlüsselt', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
+                    changed: ['Geändert', 'bg-amber-50 text-amber-700 border-amber-200'],
+                    failed: ['Fehlgeschlagen', 'bg-red-50 text-red-700 border-red-200']
+                };
+                const displayStatus = this.getSecretDisplayStatus(secret);
+                if (input && document.activeElement !== input) {
+                    input.value = secret.status === 'decrypted' ? (secret.editedPlaintext ?? '') : '';
+                    input.type = this.revealedSecrets.has(secret.stableKey) ? 'text' : 'password';
+                }
+                if (statusBadge) {
+                    statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[displayStatus][1]}`;
+                    statusBadge.textContent = this.getSecretStatusLabel(secret) || statusStyles[displayStatus][0];
+                }
+                resetButton?.classList.toggle('hidden', displayStatus !== 'changed');
+            }
+
             getSecretSearchText(secret) {
                 return [
                     secret.displayLabel,
@@ -1724,27 +1749,91 @@
 
             createMaskedCredential(secret) {
                 const wrap = document.createElement('div');
-                wrap.className = 'flex items-center gap-2';
+                wrap.className = 'space-y-2';
+                const inputRow = document.createElement('div');
+                inputRow.className = 'flex items-center gap-2';
                 const value = document.createElement('input');
                 value.type = this.revealedSecrets.has(secret.stableKey) ? 'text' : 'password';
                 value.value = secret.status === 'decrypted' ? (secret.editedPlaintext ?? '') : '';
                 value.placeholder = secret.status === 'failed' ? 'Fehlgeschlagen' : 'Noch verschlüsselt';
                 value.readOnly = true;
                 value.disabled = secret.status !== 'decrypted';
-                value.className = 'min-w-0 flex-1 rounded-lg border border-slate-200 bg-white/90 px-3 py-2 font-mono text-sm disabled:bg-slate-100 disabled:text-slate-400';
+                value.className = 'min-w-0 flex-1 rounded-lg border border-slate-200 bg-white/90 px-3 py-2 font-mono text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400';
+                value.setAttribute('aria-label', `${secret.displayLabel} Klartext in der Zugangskarte`);
+                const editable = secret.status === 'decrypted' && (secret.type === 4 || secret.type === 5) && !this.isExportMasterKey(secret);
                 const toggle = this.createCredentialAction(
                     '',
                     this.revealedSecrets.has(secret.stableKey) ? 'eye-off' : 'eye',
                     () => {
-                        if (this.revealedSecrets.has(secret.stableKey)) this.revealedSecrets.delete(secret.stableKey);
+                        const revealed = this.revealedSecrets.has(secret.stableKey);
+                        if (revealed) this.revealedSecrets.delete(secret.stableKey);
                         else this.revealedSecrets.add(secret.stableKey);
-                        this.renderSecretEditor();
+                        value.type = revealed ? 'password' : 'text';
+                        toggle.innerHTML = `<i data-lucide="${revealed ? 'eye' : 'eye-off'}" class="w-3.5 h-3.5"></i><span></span>`;
+                        this.syncSecretEditorRow(secret);
+                        lucide.createIcons();
                     },
                     secret.status !== 'decrypted'
                 );
                 toggle.classList.add('px-2.5');
                 toggle.setAttribute('aria-label', `${secret.displayLabel} anzeigen oder verbergen`);
-                wrap.append(value, toggle);
+                toggle.title = 'Anzeigen oder verbergen';
+
+                const edit = this.createCredentialAction('', 'pencil', () => {
+                    this.revealedSecrets.add(secret.stableKey);
+                    value.type = 'text';
+                    value.readOnly = false;
+                    value.focus();
+                    value.select();
+                    edit.classList.add('border-blue-300', 'bg-blue-50', 'text-blue-700');
+                    lucide.createIcons();
+                }, !editable);
+                edit.classList.add('px-2.5');
+                edit.setAttribute('aria-label', `${secret.displayLabel} direkt bearbeiten`);
+                edit.title = editable ? 'Direkt bearbeiten' : 'Dieser Wert kann nicht neu verschlüsselt werden';
+
+                const reset = this.createCredentialAction('', 'undo-2', () => {
+                    this.state.setEditedPlaintext(secret.id, secret.plaintext);
+                    value.value = secret.plaintext ?? '';
+                    value.readOnly = true;
+                    edit.classList.remove('border-blue-300', 'bg-blue-50', 'text-blue-700');
+                    updateCardStatus();
+                    this.syncSecretEditorRow(secret);
+                    this.updateChangedButton();
+                    this.scheduleAutoValidation();
+                }, !editable);
+                reset.classList.add('px-2.5');
+                reset.setAttribute('aria-label', `${secret.displayLabel} Änderung zurücksetzen`);
+                reset.title = 'Änderung zurücksetzen';
+
+                const status = document.createElement('p');
+                const updateCardStatus = () => {
+                    const changed = this.getSecretDisplayStatus(secret) === 'changed';
+                    reset.classList.toggle('hidden', !changed);
+                    status.className = `${changed ? '' : 'hidden '}text-[11px] font-semibold ${secret.validatedChange && secret.editedPlaintext === secret.plaintext ? 'text-emerald-700' : 'text-amber-700'}`;
+                    status.textContent = this.getSecretStatusLabel(secret) || 'Geändert';
+                };
+
+                value.addEventListener('input', () => {
+                    this.state.setEditedPlaintext(secret.id, value.value);
+                    updateCardStatus();
+                    this.syncSecretEditorRow(secret);
+                    this.updateChangedButton();
+                    this.scheduleAutoValidation();
+                    if (secret.category === 'sip') {
+                        this.renderSipPhoneAccounts(this.state.secrets.filter(item => item.category === 'sip'));
+                    }
+                });
+                value.addEventListener('keydown', event => {
+                    if (event.key === 'Enter') {
+                        value.readOnly = true;
+                        edit.classList.remove('border-blue-300', 'bg-blue-50', 'text-blue-700');
+                    }
+                });
+
+                inputRow.append(value, toggle, edit, reset);
+                wrap.append(inputRow, status);
+                updateCardStatus();
                 return wrap;
             }
 
@@ -2472,6 +2561,7 @@
                     categoryBadge.className = 'text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 text-slate-600';
                     categoryBadge.textContent = categoryNames[secret.category] || categoryNames.other;
                     const statusBadge = document.createElement('span');
+                    statusBadge.dataset.secretStatus = '';
                     statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[displayStatus][1]}`;
                     statusBadge.textContent = this.getSecretStatusLabel(secret) || statusStyles[displayStatus][0];
                     headingLine.append(title, categoryBadge, statusBadge);
@@ -2506,6 +2596,7 @@
                     input.disabled = !decrypted;
                     input.className = 'w-full rounded-xl border border-slate-300 px-3 py-2.5 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-400';
                     input.setAttribute('aria-label', `${secret.displayLabel} Klartext`);
+                    input.dataset.secretValue = '';
 
                     const actions = document.createElement('div');
                     actions.className = 'flex items-center gap-2 flex-wrap mt-2';
@@ -2534,6 +2625,7 @@
                         if (this.state.viewMode === 'preview') this.renderPreviewText();
                         this.renderSecretEditor();
                     }, false);
+                    resetButton.dataset.secretReset = '';
                     resetButton.classList.toggle('hidden', displayStatus !== 'changed');
                     actions.append(revealButton, copyButton, editButton, resetButton);
 

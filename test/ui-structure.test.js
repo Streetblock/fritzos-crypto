@@ -145,6 +145,12 @@ for (const action of ['Anzeigen', 'Kopieren', 'Bearbeiten', 'Zurücksetzen']) {
 assert.equal(html.includes('Alle anzeigen'), true, 'global reveal action is missing');
 assert.equal(html.includes('Alle verbergen'), true, 'global hide action is missing');
 assert.equal(html.includes('In Zwischenablage kopieren'), true, 'SIP clipboard action is missing');
+const cardEditor = html.match(/createMaskedCredential\(secret\)\s*\{[\s\S]*?(?=\n\s*isWifiPasswordSecret\()/)?.[0] || '';
+assert.match(cardEditor, /createCredentialAction\('', 'pencil'/, 'credential cards need a direct edit action');
+assert.match(cardEditor, /createCredentialAction\('', 'undo-2'/, 'credential cards need a per-field reset action');
+assert.match(cardEditor, /this\.state\.setEditedPlaintext\(secret\.id, value\.value\)/, 'card edits must use the shared config state');
+assert.match(cardEditor, /this\.scheduleAutoValidation\(\)/, 'card edits must schedule the verified re-encryption flow');
+assert.match(cardEditor, /this\.syncSecretEditorRow\(secret\)/, 'card edits must keep the detailed secret row synchronized');
 assert.equal(/href\s*=\s*["']sip:/i.test(html), false, 'SIP cards must not launch a softphone');
 assert.equal(html.includes('qrcode_UTF8.js'), true, 'UTF-8 QR encoding support is missing');
 assert.match(html, /this\.btnSave\.disabled\s*=\s*!ready/, 'download button must follow the verification gate');
