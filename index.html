@@ -15,7 +15,7 @@
     <!-- Externe FritzOSCrypto.js Bibliothek        -->
     <!-- (Muss im selben Ordner liegen!)            -->
     <!-- ========================================== -->
-    <script src="./FritzOSCrypto.js?v=20260808-3"></script>
+    <script src="./FritzOSCrypto.js?v=20260808-4"></script>
     <script src="./ConfigState.js?v=20260807-4"></script>
     <script src="./FritzExportChecksum.js?v=20260807-4"></script>
     <script src="./FritzExportEditor.js?v=20260807-4"></script>
@@ -1147,6 +1147,7 @@
                     if (!groups.has(key)) {
                         groups.set(key, {
                             category: secret.category,
+                            path: secret.credentialGroup?.path || secret.contextPath || '',
                             metadata: secret.credentialGroup?.metadata || {},
                             secrets: []
                         });
@@ -1158,6 +1159,7 @@
 
             describeStructuredCredential(group) {
                 const metadata = group.metadata || {};
+                const normalizedPath = String(group.path || '').toLowerCase();
                 const admin = /^(?:1|yes|true|on)$/i.test(String(metadata.box_admin_rights || ''));
                 const definitions = {
                     'fritz-user': {
@@ -1191,9 +1193,17 @@
                         color: 'cyan'
                     },
                     provider: {
-                        eyebrow: 'Internetzugang',
-                        title: metadata.providerdisplayname || metadata.provider || metadata.name || 'Provider-Zugang',
-                        subtitle: 'Einwahl-Zugangsdaten',
+                        eyebrow: normalizedPath.includes('serialcfg') ? 'Mobilfunk / LTE' : 'Internetzugang',
+                        title: normalizedPath.includes('serialcfg')
+                            ? (metadata.providerdisplayname || 'Mobilfunkzugang')
+                            : normalizedPath.includes('targets')
+                                ? 'PPPoE-Internetzugang'
+                                : (metadata.providerdisplayname || metadata.name || 'Provider-Zugang'),
+                        subtitle: normalizedPath.includes('serialcfg')
+                            ? (metadata.provider ? `APN: ${metadata.provider}` : 'Mobilfunk-Einwahldaten')
+                            : normalizedPath.includes('targets')
+                                ? (metadata.name ? `Profil: ${metadata.name}` : 'PPPoE-Einwahldaten')
+                                : 'Einwahl-Zugangsdaten',
                         color: 'amber'
                     },
                     'remote-management': {

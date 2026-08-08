@@ -213,4 +213,35 @@ assert.equal(phonebookByValue('$$$$INTERNALUSER').credentialGroup.id, phonebookB
 assert.equal(phonebookByValue('$$$$INTERNALUSER').credentialGroup.metadata.extension_number, '620');
 assert.equal(phonebookByValue('$$$$NONSIPTELEPHONY').category, 'telephony', 'voip.cfg alone must not imply a SIP account');
 
+const providerAccessSource = [
+  '**** CFGFILE: ar7.cfg',
+  'ar7cfg {',
+  'serialcfg {',
+  'mode = mbim;',
+  'provider = "example.apn";',
+  'username = "$$$$MOBILEUSER";',
+  'passwd = "$$$$MOBILEPASS";',
+  '}',
+  'targets {',
+  'type = pppcfg_target_internet;',
+  'name = "internet";',
+  'local {',
+  'username = "$$$$PPPUSER";',
+  'passwd = "$$$$PPPPASS";',
+  '}',
+  '}',
+  '}',
+  '**** END OF FILE ****'
+].join('\n');
+const providerInventory = FritzBoxParser.extractSecretInventory(providerAccessSource);
+const providerByValue = value => providerInventory.find(item => item.value === value);
+assert.equal(providerByValue('$$$$MOBILEUSER').credentialGroup.metadata.provider, 'example.apn');
+assert.equal(providerByValue('$$$$MOBILEUSER').displayLabel, 'Mobilfunk: Benutzername');
+assert.equal(providerByValue('$$$$MOBILEPASS').displayLabel, 'Mobilfunk: Kennwort');
+assert.equal(providerByValue('$$$$PPPUSER').credentialGroup.metadata.type, 'pppcfg_target_internet');
+assert.equal(providerByValue('$$$$PPPUSER').displayLabel, 'PPPoE: Benutzername');
+assert.equal(providerByValue('$$$$PPPPASS').displayLabel, 'PPPoE: Kennwort');
+assert.equal(providerByValue('$$$$PPPUSER').credentialGroup.metadata.name, 'internet');
+assert.match(providerByValue('$$$$PPPUSER').credentialGroup.path, /targets\/local$/);
+
 console.log('Structured secret inventory tests passed.');

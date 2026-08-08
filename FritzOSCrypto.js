@@ -1102,10 +1102,22 @@
               };
               return { category: 'app-access', label: labels[normalizedField] || this.humanizeField(field) };
           }
-          const providerPath = pathContains('serialcfg') || (pathContains('targets') && pathContains('local'));
+          const mobileProviderPath = pathContains('serialcfg');
+          const pppProviderPath = pathContains('targets') && pathContains('local');
+          const providerPath = mobileProviderPath || pppProviderPath;
           if ((normalizedSection.includes('ar7') && providerPath) || normalizedField.includes('provider')) {
-              if (/user/.test(normalizedField)) return { category: 'provider', label: 'Internetzugang: Benutzername' };
-              if (/pass/.test(normalizedField)) return { category: 'provider', label: 'Internetzugang: Passwort' };
+              if (/user/.test(normalizedField)) {
+                  return {
+                      category: 'provider',
+                      label: mobileProviderPath ? 'Mobilfunk: Benutzername' : pppProviderPath ? 'PPPoE: Benutzername' : 'Internetzugang: Benutzername'
+                  };
+              }
+              if (/pass/.test(normalizedField)) {
+                  return {
+                      category: 'provider',
+                      label: mobileProviderPath ? 'Mobilfunk: Kennwort' : pppProviderPath ? 'PPPoE: Kennwort' : 'Internetzugang: Passwort'
+                  };
+              }
               return { category: 'provider', label: 'Provider-Zugangsdaten' };
           }
           if (normalizedField.includes('pass') || normalizedField.includes('secret') || normalizedField.includes('key')) {
@@ -1146,7 +1158,7 @@
               if (category === 'remote-management') return findLast('lab');
               if (category === 'online-phonebook') return blocks[blocks.length - 1] || null;
               if (category === 'internal-telephony') return findLast('extensions');
-              if (category === 'provider') return findLast('local') || findLast('serialcfg');
+              if (category === 'provider') return findLast('serialcfg') || findLast('targets') || findLast('local');
               if (category === 'app-access') return findLast('apps');
               return null;
           };

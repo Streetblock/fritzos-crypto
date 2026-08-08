@@ -112,5 +112,10 @@ assert.equal(html.includes('Internetzugang &amp; Provider-Fernwartung'), true, '
 assert.equal(html.includes('Online-Telefonbücher'), true, 'online phonebook cards are missing');
 assert.equal(html.includes('Interne Nebenstellen &amp; FRITZ!App Fon'), true, 'internal telephony cards are missing');
 assert.match(html, /Registrar: \$\{registrar\}/, 'SIP cards must label the registrar explicitly');
+assert.equal(html.includes("normalizedPath.includes('serialcfg')"), true, 'mobile access cards must use their structural path');
+assert.equal(html.includes('Mobilfunkzugang'), true, 'mobile access cards need a descriptive title');
+assert.match(html, /APN: \$\{metadata\.provider\}/, 'mobile access cards must label the APN source field');
+assert.equal(html.includes('PPPoE-Internetzugang'), true, 'PPPoE access cards need a descriptive title');
+assert.match(html, /Profil: \$\{metadata\.name\}/, 'PPPoE cards must expose the target profile name');
 
 console.log('UI structure regression tests passed.');
