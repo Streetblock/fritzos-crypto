@@ -861,9 +861,7 @@
                     const title = document.createElement('div');
                     title.className = 'text-sm font-bold text-slate-800';
                     title.textContent = secret.displayLabel;
-                    const location = document.createElement('div');
-                    location.className = 'text-xs text-slate-500 mt-0.5';
-                    location.textContent = `${secret.section} · ${secret.field} · Zeile ${secret.line}`;
+                    const location = this.createSecretLocationLink(secret, 'mt-0.5');
                     details.append(title, location);
                     const length = document.createElement('span');
                     length.className = 'text-[11px] font-medium text-amber-700 whitespace-nowrap';
@@ -1055,6 +1053,23 @@
                 return button;
             }
 
+            createSecretLocationLink(secret, className = '') {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `group inline-flex max-w-full items-center gap-1 text-left text-xs text-slate-500 hover:text-blue-700 ${className}`.trim();
+                const text = document.createElement('span');
+                text.className = 'truncate group-hover:underline';
+                text.textContent = `${secret.section} · ${secret.field} · Zeile ${secret.line}`;
+                const icon = document.createElement('i');
+                icon.setAttribute('data-lucide', 'arrow-up-right');
+                icon.className = 'w-3 h-3 shrink-0';
+                button.append(text, icon);
+                button.title = `Im Experten-Editor zu Zeile ${secret.line} springen`;
+                button.setAttribute('aria-label', `${secret.displayLabel}: Im Experten-Editor zu Zeile ${secret.line} springen`);
+                button.addEventListener('click', () => this.jumpToEditorLine(secret.line));
+                return button;
+            }
+
             createMaskedCredential(secret) {
                 const wrap = document.createElement('div');
                 wrap.className = 'flex items-center gap-2';
@@ -1123,9 +1138,15 @@
                     ssid.className = 'text-xl font-black text-slate-900 mt-1 break-words';
                     ssid.textContent = resolvedSsid || 'SSID noch verschlüsselt';
                     const passwordLabel = document.createElement('p');
-                    passwordLabel.className = 'text-xs font-semibold text-slate-500 mt-4 mb-1.5';
+                    passwordLabel.className = 'text-xs font-semibold text-slate-500 mt-4';
                     passwordLabel.textContent = 'WLAN-Passwort';
-                    details.append(eyebrow, ssid, passwordLabel, this.createMaskedCredential(secret));
+                    details.append(
+                        eyebrow,
+                        ssid,
+                        passwordLabel,
+                        this.createSecretLocationLink(secret, 'mt-0.5 mb-1.5'),
+                        this.createMaskedCredential(secret)
+                    );
 
                     const actions = document.createElement('div');
                     actions.className = 'flex flex-wrap gap-2 mt-3';
@@ -1205,9 +1226,13 @@
                     group.secrets.forEach(secret => {
                         const field = document.createElement('div');
                         const label = document.createElement('p');
-                        label.className = 'text-xs font-semibold text-slate-500 mb-1';
+                        label.className = 'text-xs font-semibold text-slate-500';
                         label.textContent = secret.displayLabel;
-                        field.append(label, this.createMaskedCredential(secret));
+                        field.append(
+                            label,
+                            this.createSecretLocationLink(secret, 'mt-0.5 mb-1'),
+                            this.createMaskedCredential(secret)
+                        );
                         fields.appendChild(field);
                     });
                     card.appendChild(fields);
@@ -1407,9 +1432,13 @@
                     group.secrets.forEach(secret => {
                         const field = document.createElement('div');
                         const label = document.createElement('p');
-                        label.className = 'text-xs font-semibold text-slate-500 mb-1';
+                        label.className = 'text-xs font-semibold text-slate-500';
                         label.textContent = secret.displayLabel;
-                        field.append(label, this.createMaskedCredential(secret));
+                        field.append(
+                            label,
+                            this.createSecretLocationLink(secret, 'mt-0.5 mb-1'),
+                            this.createMaskedCredential(secret)
+                        );
                         fields.appendChild(field);
                     });
                     card.appendChild(fields);
@@ -1558,9 +1587,7 @@
                     statusBadge.textContent = this.getSecretStatusLabel(secret) || statusStyles[displayStatus][0];
                     headingLine.append(title, categoryBadge, statusBadge);
 
-                    const location = document.createElement('p');
-                    location.className = 'text-xs text-slate-500 mt-1.5';
-                    location.textContent = `${secret.section} · ${secret.field} · Zeile ${secret.line}`;
+                    const location = this.createSecretLocationLink(secret, 'mt-1.5');
                     description.append(headingLine, location);
 
                     if (secret.validatedChange && secret.editedPlaintext === secret.plaintext) {

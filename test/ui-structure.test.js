@@ -77,6 +77,9 @@ assert.match(html, /h-\[calc\(100vh-19rem\)\]/, 'expert editor must use the avai
 assert.match(html, /this\.editorLineNumbers\.scrollTop\s*=\s*this\.editor\.scrollTop/, 'line number gutter must follow editor scrolling');
 assert.match(html, /CFGFILE\|\(\?:CRYPTED\)\?BINFILE\|\(\?:CRYPTED\)\?B64FILE/, 'editor section navigation must recognize export file markers');
 assert.match(html, /button\.addEventListener\('click', \(\) => this\.jumpToEditorLine\(section\.line\)\)/, 'section markers must navigate to their source line');
+assert.match(html, /createSecretLocationLink\(secret/, 'secret locations must use the shared editor navigation link');
+assert.match(html, /this\.jumpToEditorLine\(secret\.line\)/, 'secret location links must navigate to the exact source line');
+assert.equal((html.match(/this\.createSecretLocationLink\(secret/g) || []).length >= 5, true, 'secret list, audit and credential cards must expose source links');
 assert.equal(html.includes('<Binärer Master-Key (entschlüsselt)>'), false, 'master key placeholder must not hide the actual decrypted key');
 assert.match(html, /plaintext:\s*mkResult\.exportKeyHex/, 'decrypted master key must be available to the masked secret field');
 assert.match(html, /input\.type\s*=\s*this\.revealedSecrets\.has\(secret\.stableKey\)\s*\?\s*'text'\s*:\s*'password'/, 'plaintext fields must be masked by default');
