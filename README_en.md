@@ -20,6 +20,8 @@ The absolute highlight: This tool supports the modern **FRITZ!OS 7.50+ Master-Ke
 
 * **Change the export password:** For modern exports, the existing export master key can be protected with a new password without changing the key itself. The master-key roundtrip, bound payload secrets, and CRC32 are verified before download. Mixed exports containing secrets still bound directly to the old password are rejected safely.
 
+* **Rotate the export master key:** A new 128-bit master key can be generated securely by the operating system through `crypto.getRandomValues()` or supplied as a 32-character hexadecimal value in expert mode. Every bound Type 5 secret is re-encrypted and verified byte-for-byte, while password-bound legacy secrets remain unchanged.
+
 * **View embedded files:** Phonebook files are decoded locally and presented by phonebook and contact on a dedicated read-only page. Other unencrypted `B64FILE` blocks can be expanded individually; text is shown directly and binary data as a hex preview. The overview shows the number of detected phonebooks and contacts.
 
 * **Sipgate webphone:** Fully decrypted Sipgate accounts can be connected deliberately using the officially supported WSS endpoint. Embedded phonebooks act as a contact picker. Unknown providers and Telekom accounts never receive a guessed WebSocket endpoint, and selecting a contact never starts a call by itself.

@@ -18,7 +18,7 @@
     <!-- ========================================== -->
     <!-- Crypto-/Checksum-Bibliotheken und Anwendung -->
     <!-- ========================================== -->
-    <script src="./lib/FritzOSCrypto.js?v=20260808-8"></script>
+    <script src="./lib/FritzOSCrypto.js?v=20260809-1"></script>
     <script src="./src/ConfigState.js?v=20260808-1"></script>
     <script src="./src/DecryptedEditor.js?v=20260808-2"></script>
     <script src="./src/FritzConfigDocument.js?v=20260808-3"></script>
@@ -26,7 +26,7 @@
     <script src="./src/FritzWireGuardConnections.js?v=20260808-2"></script>
     <script src="./lib/FritzExportChecksum.js?v=20260808-1"></script>
     <script src="./lib/FritzWireGuardKeys.js?v=20260808-1"></script>
-    <script src="./src/FritzExportEditor.js?v=20260808-3"></script>
+    <script src="./src/FritzExportEditor.js?v=20260809-1"></script>
     <script src="./src/FritzEmbeddedFiles.js?v=20260808-3"></script>
     <script src="./src/SipWebPhoneProviders.js?v=20260808-2"></script>
     <script src="./src/FritzSipWebPhone.js?v=20260808-2"></script>
@@ -238,12 +238,17 @@
                             <div class="p-5 flex items-center justify-between gap-4 flex-wrap bg-gradient-to-r from-blue-50 to-white">
                                 <div>
                                     <p class="text-xs font-semibold uppercase tracking-wider text-blue-600">Sicherungsschutz</p>
-                                    <h3 class="font-bold text-slate-900 mt-1">Sicherungskennwort der Exportdatei</h3>
-                                    <p class="text-xs text-slate-500 mt-1">Der Export-Master-Key bleibt unverändert und wird nur mit einem neuen Kennwort geschützt.</p>
+                                    <h3 class="font-bold text-slate-900 mt-1">Export-Master-Key &amp; Sicherungskennwort</h3>
+                                    <p class="text-xs text-slate-500 mt-1">Ändere nur den Kennwortschutz oder rotiere den Master-Key samt aller gebundenen Secrets.</p>
                                 </div>
-                                <button id="btnTogglePasswordChange" type="button" class="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50">
-                                    <i data-lucide="key-round" class="w-4 h-4"></i> Sicherungskennwort ändern
-                                </button>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <button id="btnTogglePasswordChange" type="button" class="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50">
+                                        <i data-lucide="key-round" class="w-4 h-4"></i> Sicherungskennwort ändern
+                                    </button>
+                                    <button id="btnToggleMasterKeyRotation" type="button" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">
+                                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Master-Key rotieren
+                                    </button>
+                                </div>
                             </div>
                             <form id="passwordChangePanel" class="hidden border-t border-blue-100 bg-blue-50/40 p-5">
                                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
@@ -270,6 +275,47 @@
                                     </div>
                                 </div>
                             </form>
+                            <form id="masterKeyRotationPanel" class="hidden border-t border-amber-200 bg-amber-50/60 p-5">
+                                <div class="rounded-xl border border-amber-300 bg-white p-4 flex items-start gap-3">
+                                    <i data-lucide="triangle-alert" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
+                                    <div>
+                                        <h4 class="text-sm font-bold text-amber-900">Der Export-Master-Key wird wirklich ersetzt</h4>
+                                        <p class="text-xs text-amber-800 mt-1">Alle daran gebundenen Secrets werden vollständig neu verschlüsselt. Die Arbeitskopie wird nur übernommen, wenn jeder Secret-Roundtrip und die CRC32-Prüfung erfolgreich sind.</p>
+                                    </div>
+                                </div>
+                                <fieldset class="mt-4">
+                                    <legend class="text-xs font-semibold text-slate-600 mb-2">Quelle des neuen Schlüssels</legend>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <label class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex items-start gap-3 cursor-pointer">
+                                            <input id="masterKeyModeRandom" type="radio" name="masterKeyMode" value="random" checked class="mt-1 accent-emerald-600">
+                                            <span><strong class="block text-sm text-emerald-900">Sicher erzeugen</strong><span class="block text-xs text-emerald-700 mt-1">Empfohlen · 128 Bit aus crypto.getRandomValues() des Betriebssystems</span></span>
+                                        </label>
+                                        <label class="rounded-xl border border-slate-300 bg-white p-4 flex items-start gap-3 cursor-pointer">
+                                            <input id="masterKeyModeManual" type="radio" name="masterKeyMode" value="manual" class="mt-1 accent-slate-700">
+                                            <span><strong class="block text-sm text-slate-900">Eigenen Schlüssel eingeben</strong><span class="block text-xs text-slate-500 mt-1">Expertenmodus · exakt 32 hexadezimale Zeichen</span></span>
+                                        </label>
+                                    </div>
+                                </fieldset>
+                                <div id="manualMasterKeyFields" class="hidden mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
+                                    <p class="text-xs font-semibold text-red-800">Keine Passwörter, Wörter oder selbst erdachten Muster verwenden. Ein schwacher Master-Key gefährdet sämtliche enthaltenen Secrets.</p>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                                        <label><span class="block text-xs font-semibold text-slate-600 mb-1.5">Neuer Master-Key (Hex)</span><input id="manualMasterKey" type="password" maxlength="32" autocomplete="off" spellcheck="false" class="w-full rounded-xl border border-red-200 bg-white px-3 py-2.5 font-mono text-sm uppercase focus:ring-2 focus:ring-red-400 outline-none" placeholder="32 Hex-Zeichen"></label>
+                                        <label><span class="block text-xs font-semibold text-slate-600 mb-1.5">Master-Key wiederholen</span><input id="confirmManualMasterKey" type="password" maxlength="32" autocomplete="off" spellcheck="false" class="w-full rounded-xl border border-red-200 bg-white px-3 py-2.5 font-mono text-sm uppercase focus:ring-2 focus:ring-red-400 outline-none" placeholder="Erneut eingeben"></label>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 lg:grid-cols-[minmax(260px,0.7fr)_minmax(320px,1.3fr)] gap-4 mt-4 items-end">
+                                    <label><span class="block text-xs font-semibold text-slate-600 mb-1.5">Sicherungskennwort bestätigen</span><input id="masterKeyRotationPassword" type="password" autocomplete="current-password" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></label>
+                                    <label class="rounded-xl border border-slate-200 bg-white p-3 flex items-start gap-3 cursor-pointer"><input id="confirmMasterKeyRotation" type="checkbox" class="mt-0.5 accent-red-600"><span class="text-xs text-slate-700">Ich verstehe, dass ein neuer Master-Key erzeugt und alle gebundenen Secrets neu verschlüsselt werden.</span></label>
+                                </div>
+                                <div class="mt-4 flex items-center justify-between gap-4 flex-wrap">
+                                    <p id="masterKeyRotationStatus" class="text-xs text-slate-500">Die Originaldatei bleibt jederzeit wiederherstellbar.</p>
+                                    <div class="flex items-center gap-2">
+                                        <button id="btnCancelMasterKeyRotation" type="button" class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50">Abbrechen</button>
+                                        <button id="btnRotateMasterKey" type="submit" class="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"><i data-lucide="shield-check" class="w-4 h-4"></i> Master-Key rotieren und prüfen</button>
+                                    </div>
+                                </div>
+                            </form>
+                            <div id="masterKeyRotationResult" class="hidden border-t border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-800"></div>
                             <div id="exportMasterKeyCard" class="border-t border-blue-100"></div>
                         </section>
                         <details id="reencryptSummary" class="hidden group bg-amber-50 border border-amber-200 rounded-2xl shadow-sm overflow-hidden">
@@ -654,6 +700,19 @@
                 this.passwordChangeStatus = document.getElementById('passwordChangeStatus');
                 this.btnCancelPasswordChange = document.getElementById('btnCancelPasswordChange');
                 this.btnChangeExportPassword = document.getElementById('btnChangeExportPassword');
+                this.btnToggleMasterKeyRotation = document.getElementById('btnToggleMasterKeyRotation');
+                this.masterKeyRotationPanel = document.getElementById('masterKeyRotationPanel');
+                this.masterKeyModeRandom = document.getElementById('masterKeyModeRandom');
+                this.masterKeyModeManual = document.getElementById('masterKeyModeManual');
+                this.manualMasterKeyFields = document.getElementById('manualMasterKeyFields');
+                this.manualMasterKey = document.getElementById('manualMasterKey');
+                this.confirmManualMasterKey = document.getElementById('confirmManualMasterKey');
+                this.masterKeyRotationPassword = document.getElementById('masterKeyRotationPassword');
+                this.confirmMasterKeyRotation = document.getElementById('confirmMasterKeyRotation');
+                this.masterKeyRotationStatus = document.getElementById('masterKeyRotationStatus');
+                this.masterKeyRotationResult = document.getElementById('masterKeyRotationResult');
+                this.btnCancelMasterKeyRotation = document.getElementById('btnCancelMasterKeyRotation');
+                this.btnRotateMasterKey = document.getElementById('btnRotateMasterKey');
                 this.wifiCardsSection = document.getElementById('wifiCardsSection');
                 this.wifiCards = document.getElementById('wifiCards');
                 this.sipCardsSection = document.getElementById('sipCardsSection');
@@ -743,6 +802,7 @@
                 this.autoValidationGeneration = 0;
                 this.autoValidationRunning = false;
                 this.passwordChangeRunning = false;
+                this.masterKeyRotationRunning = false;
                 this.originalExportPassword = null;
                 this.phonebookData = { files: [], phonebookFiles: [], books: [], errors: [] };
                 this.compatibleSipAccounts = [];
@@ -797,6 +857,10 @@
                 this.btnTogglePasswordChange?.addEventListener('click', () => this.togglePasswordChangePanel());
                 this.btnCancelPasswordChange?.addEventListener('click', () => this.closePasswordChangePanel());
                 this.passwordChangePanel?.addEventListener('submit', event => this.handleExportPasswordChange(event));
+                this.btnToggleMasterKeyRotation?.addEventListener('click', () => this.toggleMasterKeyRotationPanel());
+                this.btnCancelMasterKeyRotation?.addEventListener('click', () => this.closeMasterKeyRotationPanel());
+                this.masterKeyRotationPanel?.addEventListener('submit', event => this.handleMasterKeyRotation(event));
+                [this.masterKeyModeRandom, this.masterKeyModeManual].forEach(input => input?.addEventListener('change', () => this.renderMasterKeyMode()));
                 this.btnClearLog?.addEventListener('click', () => this.clearLog());
                 this.fileInput?.addEventListener('change', (event) => this.handleFileInput(event));
                 this.editor?.addEventListener('input', () => this.handleEditorInput());
@@ -1063,6 +1127,9 @@
                     this.phonebookData = this.embeddedFiles.extractPhonebooks(text);
                     this.originalExportPassword = null;
                     this.closePasswordChangePanel();
+                    this.closeMasterKeyRotationPanel();
+                    this.masterKeyRotationResult.classList.add('hidden');
+                    this.masterKeyRotationResult.textContent = '';
                     this.revealedSecrets.clear();
                     this.cancelAutoValidation();
                     this.hideReencryptSummary();
@@ -1316,6 +1383,9 @@
                 void this.sipPhone.disconnect();
                 if (this.originalExportPassword !== null) this.passwordInput.value = this.originalExportPassword;
                 this.closePasswordChangePanel();
+                this.closeMasterKeyRotationPanel();
+                this.masterKeyRotationResult.classList.add('hidden');
+                this.masterKeyRotationResult.textContent = '';
                 this.editor.value = original;
                 this.editor.readOnly = true;
                 this.decryptedEditorModel = null;
@@ -1701,6 +1771,8 @@
 
             setPasswordChangeBusy(running) {
                 this.passwordChangeRunning = running;
+                this.btnTogglePasswordChange.disabled = running;
+                this.btnToggleMasterKeyRotation.disabled = running;
                 [
                     this.currentExportPassword,
                     this.newExportPassword,
@@ -1715,11 +1787,12 @@
             }
 
             togglePasswordChangePanel() {
-                if (this.passwordChangeRunning) return;
+                if (this.passwordChangeRunning || this.masterKeyRotationRunning) return;
                 if (!this.passwordChangePanel.classList.contains('hidden')) {
                     this.closePasswordChangePanel();
                     return;
                 }
+                this.closeMasterKeyRotationPanel();
                 this.passwordChangePanel.classList.remove('hidden');
                 this.currentExportPassword.value = this.passwordInput.value;
                 this.newExportPassword.value = '';
@@ -1815,6 +1888,175 @@
                         this.setPasswordChangeStatus(error.message || 'Kennwortwechsel fehlgeschlagen.', 'error');
                         this.showStatus(`Sicherungskennwort konnte nicht geändert werden: ${error.message}`, 'error');
                         this.log(`> FEHLER beim Kennwortwechsel: ${error.message}`, 'error');
+                    }
+                    this.renderState();
+                }
+            }
+
+            setMasterKeyRotationStatus(message, type = 'idle') {
+                const styles = {
+                    idle: 'text-slate-500',
+                    running: 'text-blue-700 font-semibold',
+                    success: 'text-emerald-700 font-semibold',
+                    error: 'text-red-700 font-semibold'
+                };
+                this.masterKeyRotationStatus.className = `text-xs ${styles[type] || styles.idle}`;
+                this.masterKeyRotationStatus.textContent = message;
+            }
+
+            renderMasterKeyMode() {
+                const manual = this.masterKeyModeManual.checked;
+                this.manualMasterKeyFields.classList.toggle('hidden', !manual);
+                if (manual) this.manualMasterKey.focus();
+            }
+
+            setMasterKeyRotationBusy(running) {
+                this.masterKeyRotationRunning = running;
+                this.btnTogglePasswordChange.disabled = running;
+                this.btnToggleMasterKeyRotation.disabled = running;
+                [
+                    this.masterKeyModeRandom,
+                    this.masterKeyModeManual,
+                    this.manualMasterKey,
+                    this.confirmManualMasterKey,
+                    this.masterKeyRotationPassword,
+                    this.confirmMasterKeyRotation,
+                    this.btnCancelMasterKeyRotation,
+                    this.btnRotateMasterKey
+                ].forEach(element => { if (element) element.disabled = running; });
+                this.btnRotateMasterKey.innerHTML = running
+                    ? '<i data-lucide="loader-circle" class="w-4 h-4 animate-spin"></i> Master-Key wird rotiert…'
+                    : '<i data-lucide="shield-check" class="w-4 h-4"></i> Master-Key rotieren und prüfen';
+                lucide.createIcons();
+            }
+
+            toggleMasterKeyRotationPanel() {
+                if (this.masterKeyRotationRunning || this.passwordChangeRunning) return;
+                if (!this.masterKeyRotationPanel.classList.contains('hidden')) {
+                    this.closeMasterKeyRotationPanel();
+                    return;
+                }
+                this.closePasswordChangePanel();
+                this.closeMasterKeyRotationPanel();
+                this.masterKeyRotationResult.classList.add('hidden');
+                this.masterKeyRotationResult.textContent = '';
+                this.masterKeyRotationPanel.classList.remove('hidden');
+                this.masterKeyModeRandom.checked = true;
+                this.masterKeyModeManual.checked = false;
+                this.manualMasterKey.value = '';
+                this.confirmManualMasterKey.value = '';
+                this.masterKeyRotationPassword.value = this.passwordInput.value;
+                this.confirmMasterKeyRotation.checked = false;
+                this.renderMasterKeyMode();
+                this.setMasterKeyRotationStatus('Die Originaldatei bleibt jederzeit wiederherstellbar.', 'idle');
+            }
+
+            closeMasterKeyRotationPanel() {
+                if (!this.masterKeyRotationPanel || this.masterKeyRotationRunning) return;
+                this.masterKeyRotationPanel.classList.add('hidden');
+                this.manualMasterKey.value = '';
+                this.confirmManualMasterKey.value = '';
+                this.masterKeyRotationPassword.value = '';
+                this.confirmMasterKeyRotation.checked = false;
+                this.setMasterKeyRotationStatus('Die Originaldatei bleibt jederzeit wiederherstellbar.', 'idle');
+            }
+
+            async handleMasterKeyRotation(event) {
+                event.preventDefault();
+                if (this.masterKeyRotationRunning) return;
+                if (this.autoValidationRunning || this.state.getChangedSecrets().length > 0) {
+                    this.setMasterKeyRotationStatus('Bitte warte zuerst, bis offene Secret-Änderungen automatisch geprüft wurden.', 'error');
+                    return;
+                }
+                const password = this.masterKeyRotationPassword.value;
+                if (!password) {
+                    this.setMasterKeyRotationStatus('Bitte bestätige das aktuelle Sicherungskennwort.', 'error');
+                    this.masterKeyRotationPassword.focus();
+                    return;
+                }
+                if (!this.confirmMasterKeyRotation.checked) {
+                    this.setMasterKeyRotationStatus('Bitte bestätige zuerst die vollständige Neuverschlüsselung.', 'error');
+                    this.confirmMasterKeyRotation.focus();
+                    return;
+                }
+
+                let newExportKeyBytes = null;
+                if (this.masterKeyModeManual.checked) {
+                    const manualKey = this.manualMasterKey.value.trim();
+                    const confirmation = this.confirmManualMasterKey.value.trim();
+                    if (!/^[0-9a-fA-F]{32}$/.test(manualKey)) {
+                        this.setMasterKeyRotationStatus('Der eigene Master-Key muss aus exakt 32 Hex-Zeichen bestehen.', 'error');
+                        this.manualMasterKey.focus();
+                        return;
+                    }
+                    if (manualKey.toLowerCase() !== confirmation.toLowerCase()) {
+                        this.setMasterKeyRotationStatus('Die beiden Master-Key-Eingaben stimmen nicht überein.', 'error');
+                        this.confirmManualMasterKey.focus();
+                        return;
+                    }
+                    newExportKeyBytes = this.library.fromHex(manualKey);
+                }
+
+                const sourceText = this.state.workingText;
+                const previousVerification = {
+                    roundtrip: Object.assign({}, this.state.verification.roundtrip),
+                    checksum: Object.assign({}, this.state.verification.checksum)
+                };
+                const ensureFresh = () => {
+                    if (!this.masterKeyRotationRunning || this.state.workingText !== sourceText) {
+                        throw new Error('MASTER_KEY_ROTATION_STALE');
+                    }
+                };
+                this.cancelAutoValidation();
+                this.masterKeyRotationResult.classList.add('hidden');
+                this.masterKeyRotationResult.textContent = '';
+                this.state.invalidateVerification();
+                this.setMasterKeyRotationBusy(true);
+                this.setMasterKeyRotationStatus('Alle gebundenen Secrets werden bytegenau neu verschlüsselt und geprüft…', 'running');
+                this.renderSafetyState();
+
+                try {
+                    const result = await this.exportEditor.rotateExportMasterKey({
+                        text: sourceText,
+                        password,
+                        newExportKeyBytes,
+                        assertFresh: ensureFresh,
+                        onStep: step => {
+                            if (!['roundtrip', 'checksum'].includes(step.step)) return;
+                            this.state.setVerificationStep(step.step, step.status, step.message);
+                            this.renderSafetyState();
+                        }
+                    });
+                    ensureFresh();
+                    this.state.setWorkingText(result.updatedText);
+                    const masterSecret = this.state.secrets.find(secret => this.isExportMasterKey(secret));
+                    if (masterSecret) {
+                        this.state.markDecrypted(masterSecret.id, {
+                            plaintext: result.newExportKeyHex,
+                            label: 'Export-Master-Key',
+                            type: 5,
+                            source: 'FritzOSCrypto'
+                        });
+                    }
+                    this.state.setVerificationStep('roundtrip', 'success', `${result.roundtrip.rotatedSecrets} Master-Key-Secrets neu verschlüsselt und geprüft`);
+                    this.state.setVerificationStep('checksum', 'success', `CRC32 ${result.checksum.newCrc} ist gültig`);
+                    this.setMasterKeyRotationBusy(false);
+                    this.showDecryptedPreview();
+                    this.closeMasterKeyRotationPanel();
+                    this.masterKeyRotationResult.textContent = `Export-Master-Key rotiert · ${result.roundtrip.rotatedSecrets} Secrets neu verschlüsselt und geprüft`;
+                    this.masterKeyRotationResult.classList.remove('hidden');
+                    this.showStatus('Export-Master-Key sicher rotiert. Alle gebundenen Secrets und die CRC32 wurden geprüft.', 'success');
+                    this.log(`> Export-Master-Key rotiert: ${result.roundtrip.rotatedSecrets} Secrets neu verschlüsselt, ${result.roundtrip.passwordBoundSecretsVerified} kennwortgebundene Secrets unverändert geprüft, CRC32 ${result.checksum.newCrc}.`, 'success');
+                } catch (error) {
+                    this.setMasterKeyRotationBusy(false);
+                    if (error.message === 'MASTER_KEY_ROTATION_STALE') {
+                        this.setMasterKeyRotationStatus('Rotation verworfen, weil sich die Arbeitskopie geändert hat.', 'error');
+                    } else {
+                        this.state.setVerificationStep('roundtrip', previousVerification.roundtrip.status, previousVerification.roundtrip.message);
+                        this.state.setVerificationStep('checksum', previousVerification.checksum.status, previousVerification.checksum.message);
+                        this.setMasterKeyRotationStatus(error.message || 'Master-Key-Rotation fehlgeschlagen.', 'error');
+                        this.showStatus(`Export-Master-Key konnte nicht rotiert werden: ${error.message}`, 'error');
+                        this.log(`> FEHLER bei der Master-Key-Rotation: ${error.message}`, 'error');
                     }
                     this.renderState();
                 }
@@ -3317,6 +3559,9 @@
                 this.passwordInput.value = '';
                 this.originalExportPassword = null;
                 this.closePasswordChangePanel();
+                this.closeMasterKeyRotationPanel();
+                this.masterKeyRotationResult.classList.add('hidden');
+                this.masterKeyRotationResult.textContent = '';
                 this.revealedSecrets.clear();
                 if (this.secretSearch) this.secretSearch.value = '';
                 if (this.secretCategoryFilter) this.secretCategoryFilter.value = 'all';
@@ -3577,7 +3822,7 @@
                             plaintext: mkResult.exportKeyHex,
                             label: 'Datei-Master-Key'
                         });
-                        this.log(`> [OK] Master-Key entschlüsselt! (Hex: ${mkResult.exportKeyHex.substring(0,8)}...)`, 'success');
+                        this.log('> [OK] Export-Master-Key erfolgreich entschlüsselt.', 'success');
                         if (!masterWasDecrypted) successCount += 1;
                     } catch (err) {
                         this.state.markFailed(masterIdentifier, err);
@@ -3704,7 +3949,8 @@
             if (window.FritzExportEditor?.API_VERSION !== '1' ||
                 typeof window.FritzExportEditor?.FritzExportEditor?.applySecretChanges !== 'function' ||
                 typeof window.FritzExportEditor?.FritzExportEditor?.verifyWorkingCopy !== 'function' ||
-                typeof window.FritzExportEditor?.FritzExportEditor?.changeExportPassword !== 'function') {
+                typeof window.FritzExportEditor?.FritzExportEditor?.changeExportPassword !== 'function' ||
+                typeof window.FritzExportEditor?.FritzExportEditor?.rotateExportMasterKey !== 'function') {
                 missingCapabilities.unshift('FritzExportEditor API v1');
             }
             if (typeof window.FritzDecryptedEditor?.buildDocument !== 'function' ||
