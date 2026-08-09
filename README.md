@@ -20,6 +20,8 @@ Das absolute Highlight: Dieses Tool unterstützt die moderne **FRITZ!OS 7.50+ Ma
 
 * **Sicherungskennwort ändern:** Bei modernen Exporten kann der vorhandene Export-Master-Key unverändert mit einem neuen Sicherungskennwort geschützt werden. Master-Key-Roundtrip, gebundene Nutz-Secrets und CRC32 werden vor dem Download geprüft. Gemischte Exporte mit noch direkt kennwortgebundenen Secrets werden sicher abgelehnt.
 
+* **Export-Master-Key rotieren:** Ein neuer 128-Bit-Master-Key kann über `crypto.getRandomValues()` sicher vom Betriebssystem erzeugt oder im Expertenmodus als 32-stelliger Hexwert vorgegeben werden. Alle gebundenen Typ-5-Secrets werden bytegenau neu verschlüsselt und geprüft; kennwortgebundene Legacy-Secrets bleiben unverändert.
+
 * **Eingebettete Dateien ansehen:** Telefonbuchdateien werden lokal dekodiert und auf einer eigenen schreibgeschützten Seite nach Telefonbüchern und Kontakten gegliedert. Weitere unverschlüsselte `B64FILE`-Blöcke lassen sich dort einzeln ausklappen; Text wird direkt, Binärdaten werden als Hex-Vorschau angezeigt. Die Übersicht zeigt die Anzahl der erkannten Telefonbücher und Kontakte.
 
 * **Sipgate-Webphone:** Vollständig entschlüsselte Sipgate-Konten können bewusst mit der offiziell unterstützten WSS-Adresse verbunden werden. Eingebettete Telefonbücher dienen als Wählhilfe. Unbekannte Provider und Telekom-Konten erhalten keinen geratenen WebSocket-Endpunkt; Kontaktwahl und Anruf bleiben getrennte Aktionen.
