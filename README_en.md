@@ -1,117 +1,125 @@
-# 🔐 FritzCryptoJs
+# fritzos-crypto
 
-*🇩🇪 [Auf Deutsch lesen](README.md)*
+*[Deutsche Version](README.md)*
 
-🚀 **[Open Live Demo & Tool in Browser](https://streetblock.github.io/fritzos-crypto/)**
+A JavaScript library for reading, decrypting, encrypting, and safely updating FRITZ!Box export files. The `main` branch intentionally contains only the reusable core, small examples, and core tests.
 
-A lightweight browser tool and modular Node.js library for decrypting secrets in FRITZ!Box configuration exports (`.export` files).
+The complete user interface is maintained separately:
 
-The absolute highlight: This tool supports the modern **FRITZ!OS 7.50+ Master-Key architecture** (2-stage decryption) as well as all older PBKDF2-based legacy encryption types.
+- [Secret Finder web app](https://streetblock.github.io/fritzos-crypto/)
+- [App source in the `app/secret-finder` branch](https://github.com/Streetblock/fritzos-crypto/tree/app/secret-finder)
 
-## ✨ Features
+## Features
 
-* **Modern FRITZ!OS Support:** Supports the Type 5 CBC Master-Key method introduced in FRITZ!OS 7.50 and newer.
+- AVM secret types 1 through 4 and modern type-5 secrets introduced with FRITZ!OS 7.50
+- two-stage decryption using the password-protected export master key
+- structured secret discovery with file, field, line, and category metadata
+- targeted re-encryption of changed secrets
+- export-password changes without changing the export master key
+- atomic export-master-key rotation including all bound type-5 secrets
+- AVM-compatible CRC32 calculation, replacement, and validation
+- WireGuard public-key derivation from validated private keys
+- Node.js and direct browser usage
 
-* **Backwards Compatible:** Supports the classic AVM Types 1 through 4 (MD5+RC4, PBKDF2+AES-CBC, PBKDF2+AES-GCM).
+Every write operation in `FritzExportEditor` creates a new string and returns it only after a successful secret roundtrip and CRC32 validation. The input text is never mutated.
 
-* **Local processing:** Configuration data and passwords are processed in the browser. The current HTML version still loads its JavaScript dependencies from CDNs and therefore requires an internet connection.
+## Layout
 
-* **Edit secrets selectively:** Decrypted Type 4 and Type 5 values can be changed individually and re-encrypted in the working copy. Every new value is verified through a decryption roundtrip. This does not guarantee that an arbitrarily restructured backup file is importable.
-
-* **Change the export password:** For modern exports, the existing export master key can be protected with a new password without changing the key itself. The master-key roundtrip, bound payload secrets, and CRC32 are verified before download. Mixed exports containing secrets still bound directly to the old password are rejected safely.
-
-* **Rotate the export master key:** A new 128-bit master key can be generated securely by the operating system through `crypto.getRandomValues()` or supplied as a 32-character hexadecimal value in expert mode. Every bound Type 5 secret is re-encrypted and verified byte-for-byte, while password-bound legacy secrets remain unchanged.
-
-* **View embedded files:** Phonebook files are decoded locally and presented by phonebook and contact on a dedicated read-only page. Other unencrypted `B64FILE` blocks can be expanded individually; text is shown directly and binary data as a hex preview. The overview shows the number of detected phonebooks and contacts.
-
-* **Sipgate webphone:** Fully decrypted Sipgate accounts can be connected deliberately using the officially supported WSS endpoint. Embedded phonebooks act as a contact picker. Unknown providers and Telekom accounts never receive a guessed WebSocket endpoint, and selecting a contact never starts a call by itself.
-
-* **AVM checksum:** After re-encryption and before saving an export, the CRC32 value at `END OF EXPORT` is updated using AVM's section-aware procedure and verified again.
-
-* **Modular:** Crypto, export checksums, and the atomic editing workflow are separated and can be used directly in Node.js projects.
-
-## 🧩 Library structure
-
-* `lib/FritzOSCrypto.js`: Secret encryption/decryption and structured occurrence detection.
-* `lib/FritzExportChecksum.js`: Calculate, replace, and verify the AVM CRC32.
-* `lib/FritzWireGuardKeys.js`: Strictly validate WireGuard private keys and derive the matching Curve25519 public key through TweetNaCl.
-* `src/FritzExportEditor.js`: Apply edits atomically. It verifies the existing ciphertext, encrypts the new value, performs the secret roundtrip, and then updates CRC32.
-* `src/ConfigState.js`: UI state for pending and validated changes; no cryptography.
-* `src/FritzEmbeddedFiles.js`: Detect embedded B64 files and read supported content such as phonebooks without modifying it.
-* `src/FritzSipWebPhone.js`: Allowlisted SIP-over-WSS provider profiles, dial-target validation, and the browser SIP/WebRTC session workflow.
-* `src/SipWebPhoneProviders.json`: Maintained lookup from exact `registrar` values to provider and WSS configurations. `src/SipWebPhoneProviders.js` is generated from it for direct local browser use and must not be edited manually.
-
-`FritzExportEditor.applySecretChanges()` and `FritzExportEditor.changeExportPassword()` return a new export text only when every verification step succeeds. The provided text remains unchanged on failure.
-
-## 🚀 Usage in Browser (UI)
-
-The easiest method for end-users:
-
-1. Download or clone this repository.
-2. Open the `index.html` file in any modern web browser (Chrome, Firefox, Safari).
-3. Drag and drop your `.export` file onto the large start area or select it there.
-4. Enter the password you assigned when creating the backup in the FRITZ!Box web interface.
-5. Click "Decrypt secrets". Results appear in the **Secrets** area, while the complete text remains available in the optional **Expert editor**.
-
-## 💻 Usage as a Node.js Library
-
-For developers looking to automate decryption or build backend tools.
-
-**1. Install dependencies:**
-
-```bash
-npm install pako crypto-js
+```text
+lib/
+  index.js                    central package entry point
+  FritzOSCrypto.js            secret crypto and structured discovery
+  FritzExportChecksum.js      AVM CRC32
+  FritzExportEditor.js        atomic export updates
+  FritzWireGuardKeys.js       Curve25519 key derivation
+examples/
+  browser/                    small local browser example
+  node/inspect-export.js      minimal Node.js example
+test/                         focused core tests
 ```
 
-**2. Import and use the module:**
+SIP cards, phonebooks, webphone support, the expert editor, and other UI models belong to the app and are therefore not part of `main`.
+
+## Node.js
+
+After cloning the repository:
+
+```bash
+npm install
+```
+
+The package entry point exposes the public building blocks:
 
 ```javascript
-// Provide WebCrypto for Node.js
-const crypto = require('crypto');
-if (typeof globalThis.crypto === 'undefined') {
-    globalThis.crypto = crypto.webcrypto;
-}
-globalThis.pako = require('pako');
-globalThis.CryptoJS = require('crypto-js');
-
-// Load FritzOSCrypto
-const { AVMCrypto } = require('./lib/FritzOSCrypto.js');
-
-async function decryptMyConfig() {
-    const password = "YourRouterPassword123!";
-    const encryptedString = "$$$$1234567890ABCDEF..."; // Your AVM string from the .export file
-    
-    try {
-        const result = await AVMCrypto.decryptSecret(encryptedString, password);
-        console.log("Successfully decrypted:", result.plaintext);
-        console.log("Encryption Type used:", result.label);
-    } catch (error) {
-        console.error("Decryption failed:", error.message);
-    }
-}
-
-decryptMyConfig();
+const {
+  FritzOSCrypto,
+  AVMCrypto,
+  FritzBoxParser,
+  FritzExportChecksum,
+  FritzExportEditor,
+  FritzWireGuardKeys
+} = require("fritzos-crypto");
 ```
 
-## 🧪 Running Tests
+Under Node.js, the package entry point loads `crypto-js`, `pako`, TweetNaCl, and WebCrypto when needed.
 
-The included test suite (`FritzOSCrypto.test.js`) verifies the entire cryptography chain.
+Run the included inspection example like this on PowerShell:
+
+```powershell
+$env:FRITZ_EXPORT_PASSWORD="your-export-password"
+node .\examples\node\inspect-export.js C:\path\to\backup.export
+```
+
+The example prints sensitive values to the console. Only run it in a trusted local environment.
+
+### Change the export password
+
+```javascript
+const result = await FritzExportEditor.changeExportPassword({
+  text: exportText,
+  oldPassword: "old password",
+  newPassword: "new password"
+});
+
+// Only returned after the master-key roundtrip, payload checks, and CRC32 validation:
+const verifiedExportText = result.updatedText;
+```
+
+### Rotate the export master key
+
+```javascript
+const result = await FritzExportEditor.rotateExportMasterKey({
+  text: exportText,
+  password: "export password"
+  // crypto.getRandomValues() is used when newMasterKeyBytes is omitted.
+});
+```
+
+## Browser example
+
+Open [examples/browser/index.html](examples/browser/index.html) in a modern browser. The example deliberately shows only:
+
+- model and firmware
+- main and guest Wi-Fi
+- the masked export master key
+- verified export-password changes
+
+Files and passwords never leave the browser. The example currently loads `pako` and `crypto-js` from jsDelivr, so it needs an internet connection when opened.
+
+## Tests
 
 ```bash
-npm install pako crypto-js
 npm test
-# Alternatively: node test/fritzoscrypto.test.js
 ```
 
-## ⚠️ Security Warning
+The suite covers the package entry point, secret inventory, WireGuard key derivation, CRC32, atomic export editing, and all supported crypto roundtrips.
 
-FRITZ!Box `.export` files contain highly sensitive data (Wi-Fi passwords, SIP/VoIP credentials, DynDNS passwords, PPP credentials).
-**Never upload your uncensored `.export` files or extracted `$$$$` strings to GitHub or public forums!** This repository includes a preconfigured `.gitignore` file that prevents you from accidentally committing such files.
+## Security
 
-## 📜 License
+FRITZ!Box exports contain Wi-Fi, SIP, VPN, provider, and user credentials. Never publish unredacted `.export` files or extracted `$$$$` values. The included `.gitignore` blocks common export-file names.
 
-Copyright (c) 2026 David Block.
-Published under the [MIT License](LICENSE).
+## License
 
----
-*Disclaimer: This project is not affiliated with AVM GmbH in any way. FRITZ! and FRITZ!Box are registered trademarks of AVM GmbH.*
+Copyright (c) 2026 David Block. Released under the MIT License. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for notices covering adapted components.
+
+This project is not affiliated with AVM GmbH. FRITZ! and FRITZ!Box are registered trademarks of AVM GmbH.

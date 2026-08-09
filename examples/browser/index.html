@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>fritzos-crypto · Browserbeispiel</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">fritzos-crypto · kleines Browserbeispiel</p>
+      <h1>FRITZ!Box-Export lokal prüfen</h1>
+      <p>Zeigt Haupt- und Gast-WLAN sowie den Export-Master-Key. Bei modernen Exporten kann außerdem das Sicherungskennwort gewechselt werden.</p>
+    </header>
+
+    <section class="panel input-panel">
+      <label>Datei <input id="file" type="file" accept=".export"></label>
+      <label>Sicherungskennwort <input id="password" type="password" autocomplete="current-password"></label>
+      <button id="analyze" class="primary">Export entschlüsseln</button>
+      <p id="status" role="status">Alle Daten bleiben in diesem Browser.</p>
+    </section>
+
+    <section id="result" hidden>
+      <div class="summary">
+        <article class="panel">
+          <span class="label">Modell</span>
+          <strong id="model">–</strong>
+        </article>
+        <article class="panel">
+          <span class="label">Firmware</span>
+          <strong id="firmware">–</strong>
+        </article>
+      </div>
+
+      <section class="panel">
+        <div class="row">
+          <div>
+            <span class="label">Export-Master-Key</span>
+            <h2>Schlüssel des modernen Exports</h2>
+          </div>
+          <button id="toggle-key" class="secondary">Anzeigen</button>
+        </div>
+        <code id="master-key">Nicht vorhanden</code>
+      </section>
+
+      <section>
+        <p class="eyebrow">WLAN</p>
+        <div id="wifi" class="cards"></div>
+      </section>
+
+      <section id="password-change" class="panel">
+        <p class="eyebrow">Sicherer Roundtrip</p>
+        <h2>Sicherungskennwort ändern</h2>
+        <p>Der Export-Master-Key bleibt unverändert. Die Library verpackt ihn neu und gibt den Download erst nach Secret- und CRC32-Prüfung frei.</p>
+        <div class="password-grid">
+          <label>Neues Kennwort <input id="new-password" type="password" autocomplete="new-password"></label>
+          <label>Wiederholen <input id="confirm-password" type="password" autocomplete="new-password"></label>
+        </div>
+        <div class="actions">
+          <button id="change-password" class="primary">Kennwort ändern und prüfen</button>
+          <button id="download" class="secondary" disabled>Geprüften Export laden</button>
+        </div>
+        <p id="verification" role="status"></p>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js"></script>
+  <script src="../../lib/FritzOSCrypto.js"></script>
+  <script src="../../lib/FritzExportChecksum.js"></script>
+  <script src="../../lib/FritzExportEditor.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
