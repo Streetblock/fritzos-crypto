@@ -944,10 +944,10 @@
                     this.renderState();
                     return;
                 }
-                this.cancelAutoValidation();
-                this.hideReencryptSummary();
                 this.state.setWorkingText(this.editor.value);
+                this.updateChangedButton();
                 this.updateCharCount();
+                this.scheduleAutoValidation();
                 this.renderState();
             }
 
@@ -3515,12 +3515,14 @@
             updateChangedButton() {
                 const changedCount = this.state.getChangedSecrets().filter(secret => secret.type === 4 || secret.type === 5).length;
                 const modifiedCount = this.state.getModifiedSecrets().filter(secret => secret.type === 4 || secret.type === 5).length;
+                const structuralEditPending = changedCount === 0 &&
+                    this.state.hasUnsavedChanges() && !this.state.isDownloadReady();
                 if (modifiedCount > 0) {
                     this.showReencryptSummary();
                 } else {
                     this.hideReencryptSummary();
                 }
-                if (changedCount === 0) {
+                if (changedCount === 0 && !structuralEditPending) {
                     this.clearAutoValidationTimer();
                     if (!this.autoValidationRunning) {
                         this.setAutoValidationStatus(

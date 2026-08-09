@@ -221,6 +221,28 @@ assert.match(html, /credential\.querySelector\('\[data-credential-actions\]'\)\?
 assert.match(cardEditor, /this\.state\.setEditedPlaintext\(secret\.id, value\.value\)/, 'card edits must use the shared config state');
 assert.match(cardEditor, /this\.scheduleAutoValidation\(\)/, 'card edits must schedule the verified re-encryption flow');
 assert.match(cardEditor, /this\.syncSecretEditorRow\(secret\)/, 'card edits must keep the detailed secret row synchronized');
+const expertEditorInput = html.match(/handleEditorInput\(\)\s*\{[\s\S]*?(?=\n\s*switchView\()/)?.[0] || '';
+assert.equal(
+  (expertEditorInput.match(/this\.scheduleAutoValidation\(\)/g) || []).length,
+  2,
+  'both decrypted and structural expert-editor changes must schedule automatic validation'
+);
+assert.equal(
+  expertEditorInput.includes('this.cancelAutoValidation()'),
+  false,
+  'expert-editor input must not cancel its own pending validation'
+);
+const changedButtonState = html.match(/updateChangedButton\(\)\s*\{[\s\S]*?(?=\n\s*clearAll\()/)?.[0] || '';
+assert.match(
+  changedButtonState,
+  /structuralEditPending\s*=\s*changedCount\s*===\s*0[\s\S]*this\.state\.hasUnsavedChanges\(\)[\s\S]*!this\.state\.isDownloadReady\(\)/,
+  'secret-list rendering must preserve validation timers for structural editor changes'
+);
+assert.match(
+  changedButtonState,
+  /changedCount\s*===\s*0\s*&&\s*!structuralEditPending/,
+  'automatic validation may only be cleared when no secret or structural change is pending'
+);
 assert.equal(/href\s*=\s*["']sip:/i.test(html), false, 'SIP cards must not launch a softphone');
 assert.equal(html.includes('qrcode_UTF8.js'), true, 'UTF-8 QR encoding support is missing');
 assert.match(html, /this\.btnSave\.disabled\s*=\s*!ready/, 'download button must follow the verification gate');
