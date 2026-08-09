@@ -222,15 +222,21 @@ assert.match(cardEditor, /this\.scheduleAutoValidation\(\)/, 'card edits must sc
 assert.match(cardEditor, /this\.syncSecretEditorRow\(secret\)/, 'card edits must keep the detailed secret row synchronized');
 const expertEditorInput = html.match(/handleEditorInput\(\)\s*\{[\s\S]*?(?=\n\s*switchView\()/)?.[0] || '';
 assert.equal(
-  (expertEditorInput.match(/this\.scheduleAutoValidation\(\)/g) || []).length,
+  (expertEditorInput.match(/this\.commitConfigMutation\(/g) || []).length,
   2,
-  'both decrypted and structural expert-editor changes must schedule automatic validation'
+  'both decrypted and structural expert-editor changes must use the shared mutation pipeline'
 );
 assert.equal(
   expertEditorInput.includes('this.cancelAutoValidation()'),
   false,
   'expert-editor input must not cancel its own pending validation'
 );
+const configMutation = html.match(/commitConfigMutation\(mutation, options = \{\}\)\s*\{[\s\S]*?(?=\n\s*switchView\()/)?.[0] || '';
+assert.match(configMutation, /this\.state\.setEditedPlaintext\(mutation\.secretId, mutation\.plaintext\)/, 'the mutation pipeline must handle decrypted secret edits');
+assert.match(configMutation, /this\.state\.setWorkingText\(mutation\.workingText\)/, 'the mutation pipeline must handle structural edits');
+assert.match(configMutation, /keepPreviewVisible\s*=\s*this\.state\.viewMode === 'preview'[\s\S]*if \(keepPreviewVisible\) this\.renderPreviewText/, 'structural edits must preserve the decrypted editor view');
+assert.match(configMutation, /this\.renderState\(\);[\s\S]*this\.scheduleAutoValidation\(\)/, 'state rendering must complete before validation is scheduled');
+assert.match(html, /applyStructuredConfigText\(updatedText, message, afterStateUpdate = null\)[\s\S]*this\.commitConfigMutation\(/, 'structured card settings must use the shared mutation pipeline');
 const changedButtonState = html.match(/updateChangedButton\(\)\s*\{[\s\S]*?(?=\n\s*clearAll\()/)?.[0] || '';
 assert.equal(changedButtonState.includes('autoValidation'), false, 'rendering the secret list must not mutate validation scheduling');
 assert.equal(changedButtonState.includes('setAutoValidationStatus'), false, 'rendering must not overwrite validation status');

@@ -939,22 +939,28 @@
                         this.renderPreviewText(selection);
                         return;
                     }
-                    if (edit.kind === 'secret') {
-                        this.state.setEditedPlaintext(edit.secretId, edit.plaintext);
-                    } else if (edit.kind === 'structure') {
-                        this.state.setWorkingText(edit.workingText);
-                    }
-                    this.renderPreviewText(selection);
-                    this.updateChangedButton();
-                    this.scheduleAutoValidation();
-                    this.renderState();
+                    this.commitConfigMutation(edit, { selection });
                     return;
                 }
-                this.state.setWorkingText(this.editor.value);
-                this.updateChangedButton();
-                this.updateCharCount();
-                this.scheduleAutoValidation();
+                this.commitConfigMutation({ kind: 'structure', workingText: this.editor.value });
+            }
+
+            commitConfigMutation(mutation, options = {}) {
+                const keepPreviewVisible = this.state.viewMode === 'preview';
+                if (mutation.kind === 'secret') {
+                    this.state.setEditedPlaintext(mutation.secretId, mutation.plaintext);
+                } else if (mutation.kind === 'structure') {
+                    this.state.setWorkingText(mutation.workingText);
+                } else {
+                    throw new Error(`Unbekannte Konfigurationsänderung: ${mutation.kind}`);
+                }
+
+                if (typeof options.afterStateUpdate === 'function') options.afterStateUpdate();
+                if (keepPreviewVisible) this.renderPreviewText(options.selection ?? null);
+                else this.updateCharCount();
                 this.renderState();
+                this.scheduleAutoValidation();
+                if (options.message) this.showStatus(options.message, options.tone || 'success');
             }
 
             switchView(view) {
@@ -2372,14 +2378,10 @@
             }
 
             applyStructuredConfigText(updatedText, message, afterStateUpdate = null) {
-                const keepDecryptedView = this.state.viewMode === 'preview';
-                this.state.setWorkingText(updatedText);
-                if (afterStateUpdate) afterStateUpdate();
-                this.updateCharCount();
-                this.renderState();
-                if (keepDecryptedView) this.showDecryptedPreview();
-                this.scheduleAutoValidation();
-                this.showStatus(message, 'success');
+                this.commitConfigMutation(
+                    { kind: 'structure', workingText: updatedText },
+                    { afterStateUpdate, message }
+                );
             }
 
             initializeClonedSipSecrets(sourceGroup, accountName, clearCredentials) {
