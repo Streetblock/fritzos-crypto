@@ -7,7 +7,7 @@ globalThis.CryptoJS = require('crypto-js');
 
 const FritzOSCrypto = require('../lib/FritzOSCrypto.js');
 const FritzExportChecksum = require('../lib/FritzExportChecksum.js');
-const { API_VERSION, FritzExportEditor } = require('../src/FritzExportEditor.js');
+const { API_VERSION, FritzExportEditor } = require('../lib/FritzExportEditor.js');
 
 async function run() {
   assert.equal(API_VERSION, '1');
