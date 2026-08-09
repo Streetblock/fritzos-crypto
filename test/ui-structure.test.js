@@ -81,7 +81,6 @@ for (const id of [
   'checksumCheckMessage',
   'reencryptSummary',
   'reencryptSummaryList',
-  'autoValidationStatus',
   'autoValidationBadge',
   'viewEditor',
   'credentialCards',
@@ -233,16 +232,8 @@ assert.equal(
   'expert-editor input must not cancel its own pending validation'
 );
 const changedButtonState = html.match(/updateChangedButton\(\)\s*\{[\s\S]*?(?=\n\s*clearAll\()/)?.[0] || '';
-assert.match(
-  changedButtonState,
-  /structuralEditPending\s*=\s*changedCount\s*===\s*0[\s\S]*this\.state\.hasUnsavedChanges\(\)[\s\S]*!this\.state\.isDownloadReady\(\)/,
-  'secret-list rendering must preserve validation timers for structural editor changes'
-);
-assert.match(
-  changedButtonState,
-  /changedCount\s*===\s*0\s*&&\s*!structuralEditPending/,
-  'automatic validation may only be cleared when no secret or structural change is pending'
-);
+assert.equal(changedButtonState.includes('autoValidation'), false, 'rendering the secret list must not mutate validation scheduling');
+assert.equal(changedButtonState.includes('setAutoValidationStatus'), false, 'rendering must not overwrite validation status');
 assert.equal(/href\s*=\s*["']sip:/i.test(html), false, 'SIP cards must not launch a softphone');
 assert.equal(html.includes('qrcode_UTF8.js'), true, 'UTF-8 QR encoding support is missing');
 assert.match(html, /this\.btnSave\.disabled\s*=\s*!ready/, 'download button must follow the verification gate');
@@ -251,10 +242,19 @@ assert.equal(html.includes('1. Secret-Roundtrip'), true, 'roundtrip verification
 assert.equal(html.includes('2. CRC32-Prüfung'), true, 'checksum verification step is missing');
 assert.equal(html.includes('Ungespeicherte Änderungen'), true, 'unsaved changes indicator is missing');
 assert.equal(html.includes('Originaldatei wiederherstellen?'), true, 'original restore flow is missing');
-assert.match(html, /this\.autoValidationDelay\s*=\s*15000/, 'automatic validation must wait for a typing pause');
-assert.match(html, /setTimeout\(\(\)\s*=>[\s\S]*this\.reencryptChangedSecrets\(generation\)/, 'debounced validation trigger is missing');
+assert.match(html, /src\/ValidationCoordinator\.js\?v=\d{8}-\d+/, 'validation coordinator needs a deployment cache key');
+assert.match(html, /new window\.FritzValidationCoordinator\.ValidationCoordinator\(\{[\s\S]*delay:\s*15000/, 'automatic validation must wait for a typing pause');
+assert.match(html, /request\.kind === 'secrets'[\s\S]*this\.reencryptChangedSecrets\(generation\)[\s\S]*this\.validateWorkingCopy\(generation\)/, 'the coordinator must dispatch secret and structural validation');
+assert.equal(html.includes('ValidationCoordinator API v1'), true, 'validation coordinator compatibility guard is missing');
 assert.equal(html.includes('Jetzt neu verschlüsseln und prüfen'), false, 'manual double-confirmation must not return');
 assert.match(html, /<details id="reencryptSummary"/, 'change overview must be collapsible');
+assert.ok(
+  html.indexOf('id="exportSafetyPanel"') < html.indexOf('id="reencryptSummary"') &&
+  html.indexOf('id="reencryptSummary"') < html.indexOf('id="exportMasterKeySection"'),
+  'change overview must sit below download verification and above master-key protection'
+);
+assert.match(html, /<main class="min-w-0 space-y-5">\s*<section id="exportSafetyPanel"[\s\S]*?<section id="viewOverview"/, 'download verification must remain visible on every workspace page');
+assert.equal(html.includes('Strukturänderungen und verschlüsselte Werte wurden geprüft. Der Download ist freigegeben.'), true, 'successful automatic validation must remain visible in export safety');
 assert.match(html, /markReencrypted\(/, 'validated changes must retain their audit state');
 assert.equal(html.includes('Geändert · validiert'), true, 'validated change label is missing');
 assert.match(html, /src\/ConfigState\.js\?v=\d{8}-\d+/, 'local state script must load from src with a deployment cache key');
