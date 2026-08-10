@@ -825,6 +825,17 @@
                 this.secretView = new window.FritzSecretView.SecretView({
                     controller: this.secretController,
                     document,
+                    createLocationLink: (secret, className) => this.createSecretLocationLink(secret, className),
+                    isExportMasterKey: secret => this.isExportMasterKey(secret),
+                    isWireGuardPrivateKey: secret => this.isWireGuardPrivateKey(secret),
+                    confirmEdit: secret => this.confirmWireGuardPrivateKeyEdit(secret),
+                    copyPlaintext: secret => this.copySecretPlaintext(secret),
+                    onRender: () => this.renderSecretEditor(),
+                    onChange: () => {
+                        this.renderChangeState();
+                        this.renderCredentialCards();
+                    },
+                    createIcons: () => lucide.createIcons(),
                     elements: {
                         list: this.secretEditorList,
                         masterCard: this.exportMasterKeyCard,
@@ -3025,146 +3036,12 @@
                     getSearchText: secret => this.getSecretSearchText(secret)
                 });
 
-                this.secretView.prepare({
+                this.secretView.render({
                     allSecrets,
                     regularSecrets,
                     visibleSecrets,
                     exportMasterKey
                 });
-                const renderedSecrets = exportMasterKey ? [exportMasterKey, ...visibleSecrets] : visibleSecrets;
-                for (const secret of renderedSecrets) {
-                    const decrypted = secret.status === 'decrypted';
-                    const supported = decrypted && (secret.type === 4 || secret.type === 5);
-                    const editable = supported && !this.isExportMasterKey(secret);
-                    const displayStatus = this.secretController.getDisplayStatus(secret);
-                    const statusStyle = this.secretView.getStatusStyle(secret);
-                    const row = document.createElement('article');
-                    row.className = 'p-5 grid grid-cols-1 xl:grid-cols-[minmax(210px,0.8fr)_minmax(300px,1.2fr)] gap-4 items-start';
-                    row.dataset.secretId = secret.id;
-
-                    const description = document.createElement('div');
-                    const headingLine = document.createElement('div');
-                    headingLine.className = 'flex items-center gap-2 flex-wrap';
-                    const title = document.createElement('h4');
-                    title.className = 'text-sm font-bold text-slate-800';
-                    title.textContent = secret.displayLabel;
-                    const categoryBadge = document.createElement('span');
-                    categoryBadge.className = 'text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 text-slate-600';
-                    categoryBadge.textContent = this.secretView.getCategoryName(secret.category);
-                    const statusBadge = document.createElement('span');
-                    statusBadge.dataset.secretStatus = '';
-                    statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyle.className}`;
-                    statusBadge.textContent = statusStyle.label;
-                    headingLine.append(title, categoryBadge, statusBadge);
-
-                    const location = this.createSecretLocationLink(secret, 'mt-1.5');
-                    description.append(headingLine, location);
-
-                    if (secret.validatedChange && secret.editedPlaintext === secret.plaintext) {
-                        const validationNote = document.createElement('p');
-                        validationNote.className = 'text-[11px] font-medium text-emerald-700 mt-1.5';
-                        const previousLength = secret.previousPlaintext == null ? null : secret.previousPlaintext.length;
-                        validationNote.textContent = previousLength === null
-                            ? 'Änderung durch Roundtrip und CRC32 validiert'
-                            : `Validierte Änderung: ${previousLength} → ${secret.plaintext.length} Zeichen`;
-                        description.appendChild(validationNote);
-                    }
-
-                    if (secret.account) {
-                        const account = document.createElement('p');
-                        account.className = 'text-xs text-slate-600 mt-2 flex items-center gap-1.5';
-                        const accountParts = [secret.account.username, secret.account.registrar].filter(Boolean);
-                        account.textContent = accountParts.length ? `SIP-Konto: ${accountParts.join(' · ')}` : secret.account.name;
-                        description.appendChild(account);
-                    }
-
-                    const valueArea = document.createElement('div');
-                    const input = document.createElement('input');
-                    input.type = this.secretController.isRevealed(secret) ? 'text' : 'password';
-                    input.value = decrypted ? (secret.editedPlaintext ?? '') : '';
-                    input.placeholder = displayStatus === 'failed' ? 'Entschlüsselung fehlgeschlagen' : 'Noch nicht entschlüsselt';
-                    input.readOnly = true;
-                    input.disabled = !decrypted;
-                    input.className = 'w-full rounded-xl border border-slate-300 px-3 py-2.5 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-400';
-                    input.setAttribute('aria-label', `${secret.displayLabel} Klartext`);
-                    input.dataset.secretValue = '';
-
-                    const actions = document.createElement('div');
-                    actions.className = 'flex items-center gap-2 flex-wrap mt-2';
-                    const revealButton = this.secretView.createAction(
-                        this.secretController.isRevealed(secret) ? 'Verbergen' : 'Anzeigen',
-                        this.secretController.isRevealed(secret) ? 'eye-off' : 'eye',
-                        () => {
-                            this.secretController.toggleReveal(secret);
-                            this.renderSecretEditor();
-                        },
-                        !decrypted
-                    );
-                    const copyButton = this.secretView.createAction('Kopieren', 'copy', () => this.copySecretPlaintext(secret), !decrypted);
-                    const editButton = this.secretView.createAction('Bearbeiten', 'pencil', () => {
-                        if (!this.confirmWireGuardPrivateKeyEdit(secret)) return;
-                        this.secretController.reveal(secret);
-                        input.type = 'text';
-                        input.readOnly = false;
-                        input.focus();
-                        input.select();
-                    }, !editable);
-                    let resetButton;
-                    resetButton = this.secretView.createAction('Zurücksetzen', 'undo-2', () => {
-                        this.secretController.reset(
-                            secret,
-                            { render: () => this.renderSecretEditor() }
-                        );
-                    }, false);
-                    resetButton.dataset.secretReset = '';
-                    resetButton.classList.toggle('hidden', displayStatus !== 'changed');
-                    actions.append(revealButton, copyButton, editButton, resetButton);
-
-                    input.addEventListener('input', () => {
-                        this.secretController.edit(
-                            secret,
-                            input.value,
-                            { render: () => {
-                                const currentStyle = this.secretView.getStatusStyle(secret);
-                                statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${currentStyle.className}`;
-                                statusBadge.textContent = currentStyle.label;
-                                resetButton.classList.toggle('hidden', currentStyle.status !== 'changed');
-                                this.renderChangeState();
-                                this.renderCredentialCards();
-                                lucide.createIcons();
-                            } }
-                        );
-                    });
-                    valueArea.append(input, actions);
-
-                    if (decrypted && !supported) {
-                        const hint = document.createElement('p');
-                        hint.className = 'text-[11px] text-amber-600 mt-2';
-                        hint.textContent = 'Dieser Verschlüsselungstyp kann angezeigt, aber noch nicht neu verschlüsselt werden.';
-                        valueArea.appendChild(hint);
-                    } else if (decrypted && this.isExportMasterKey(secret)) {
-                        const hint = document.createElement('p');
-                        hint.className = 'text-[11px] text-blue-700 mt-2';
-                        hint.textContent = 'Der Export-Master-Key selbst bleibt schreibgeschützt. Geändert wird nur sein Sicherungskennwort.';
-                        valueArea.appendChild(hint);
-                    } else if (decrypted && this.isWireGuardPrivateKey(secret)) {
-                        const hint = document.createElement('p');
-                        hint.className = 'text-[11px] font-medium leading-4 text-amber-700 mt-2';
-                        hint.textContent = 'Der öffentliche FRITZ!Box-Schlüssel wird automatisch neu berechnet. Danach müssen alle WireGuard-Gegenstellen aktualisiert werden.';
-                        valueArea.appendChild(hint);
-                    } else if (displayStatus === 'failed' && secret.error) {
-                        const hint = document.createElement('p');
-                        hint.className = 'text-[11px] text-red-600 mt-2';
-                        hint.textContent = secret.error;
-                        valueArea.appendChild(hint);
-                    }
-
-                    row.append(description, valueArea);
-                    const target = this.isExportMasterKey(secret) ? this.exportMasterKeyCard : this.secretEditorList;
-                    target.appendChild(row);
-                }
-                this.renderChangeState();
-                lucide.createIcons();
             }
 
             renderChangeState() {

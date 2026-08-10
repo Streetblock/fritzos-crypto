@@ -28,6 +28,14 @@
       this.controller = settings.controller;
       this.elements = settings.elements || {};
       this.document = settings.document || root.document;
+      this.createLocationLink = settings.createLocationLink || function () { return null; };
+      this.isExportMasterKey = settings.isExportMasterKey || function () { return false; };
+      this.isWireGuardPrivateKey = settings.isWireGuardPrivateKey || function () { return false; };
+      this.confirmEdit = settings.confirmEdit || function () { return true; };
+      this.copyPlaintext = settings.copyPlaintext || function () {};
+      this.onRender = settings.onRender || function () {};
+      this.onChange = settings.onChange || function () {};
+      this.createIcons = settings.createIcons || function () {};
     }
 
     getCategoryName(category) {
@@ -78,6 +86,140 @@
         noResults.textContent = "Keine Fundstelle passt zu Suche und Filtern.";
         this.elements.list.appendChild(noResults);
       }
+    }
+
+    render(model) {
+      const settings = model || {};
+      this.prepare(settings);
+      const visibleSecrets = settings.visibleSecrets || [];
+      const renderedSecrets = settings.exportMasterKey
+        ? [settings.exportMasterKey, ...visibleSecrets]
+        : visibleSecrets;
+      renderedSecrets.forEach(secret => this.renderRow(secret));
+      this.onChange();
+      this.createIcons();
+    }
+
+    renderRow(secret) {
+      const decrypted = secret.status === "decrypted";
+      const supported = decrypted && (secret.type === 4 || secret.type === 5);
+      const editable = supported && !this.isExportMasterKey(secret);
+      const style = this.getStatusStyle(secret);
+      const row = this.document.createElement("article");
+      row.className = "p-5 grid grid-cols-1 xl:grid-cols-[minmax(210px,0.8fr)_minmax(300px,1.2fr)] gap-4 items-start";
+      row.dataset.secretId = secret.id;
+
+      const description = this.document.createElement("div");
+      const headingLine = this.document.createElement("div");
+      headingLine.className = "flex items-center gap-2 flex-wrap";
+      const title = this.document.createElement("h4");
+      title.className = "text-sm font-bold text-slate-800";
+      title.textContent = secret.displayLabel;
+      const categoryBadge = this.document.createElement("span");
+      categoryBadge.className = "text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 text-slate-600";
+      categoryBadge.textContent = this.getCategoryName(secret.category);
+      const statusBadge = this.document.createElement("span");
+      statusBadge.dataset.secretStatus = "";
+      this.updateStatusBadge(statusBadge, style);
+      headingLine.append(title, categoryBadge, statusBadge);
+      description.appendChild(headingLine);
+      const location = this.createLocationLink(secret, "mt-1.5");
+      if (location) description.appendChild(location);
+
+      if (secret.validatedChange && secret.editedPlaintext === secret.plaintext) {
+        const note = this.document.createElement("p");
+        note.className = "text-[11px] font-medium text-emerald-700 mt-1.5";
+        const previousLength = secret.previousPlaintext == null ? null : secret.previousPlaintext.length;
+        note.textContent = previousLength === null
+          ? "Änderung durch Roundtrip und CRC32 validiert"
+          : `Validierte Änderung: ${previousLength} → ${secret.plaintext.length} Zeichen`;
+        description.appendChild(note);
+      }
+      if (secret.account) {
+        const account = this.document.createElement("p");
+        account.className = "text-xs text-slate-600 mt-2 flex items-center gap-1.5";
+        const parts = [secret.account.username, secret.account.registrar].filter(Boolean);
+        account.textContent = parts.length ? `SIP-Konto: ${parts.join(" · ")}` : secret.account.name;
+        description.appendChild(account);
+      }
+
+      const valueArea = this.document.createElement("div");
+      const input = this.document.createElement("input");
+      input.type = this.controller.isRevealed(secret) ? "text" : "password";
+      input.value = decrypted ? (secret.editedPlaintext ?? "") : "";
+      input.placeholder = style.status === "failed" ? "Entschlüsselung fehlgeschlagen" : "Noch nicht entschlüsselt";
+      input.readOnly = true;
+      input.disabled = !decrypted;
+      input.className = "w-full rounded-xl border border-slate-300 px-3 py-2.5 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-400";
+      input.setAttribute("aria-label", `${secret.displayLabel} Klartext`);
+      input.dataset.secretValue = "";
+
+      const actions = this.document.createElement("div");
+      actions.className = "flex items-center gap-2 flex-wrap mt-2";
+      const revealButton = this.createAction(
+        this.controller.isRevealed(secret) ? "Verbergen" : "Anzeigen",
+        this.controller.isRevealed(secret) ? "eye-off" : "eye",
+        () => { this.controller.toggleReveal(secret); this.onRender(); },
+        !decrypted
+      );
+      const copyButton = this.createAction("Kopieren", "copy", () => this.copyPlaintext(secret), !decrypted);
+      const editButton = this.createAction("Bearbeiten", "pencil", () => {
+        if (!this.confirmEdit(secret)) return;
+        this.controller.reveal(secret);
+        input.type = "text";
+        input.readOnly = false;
+        input.focus();
+        input.select();
+      }, !editable);
+      const resetButton = this.createAction("Zurücksetzen", "undo-2", () => {
+        this.controller.reset(secret, { render: () => this.onRender() });
+      }, false);
+      resetButton.dataset.secretReset = "";
+      resetButton.classList.toggle("hidden", style.status !== "changed");
+      actions.append(revealButton, copyButton, editButton, resetButton);
+
+      input.addEventListener("input", () => {
+        this.controller.edit(secret, input.value, { render: () => {
+          const currentStyle = this.getStatusStyle(secret);
+          this.updateStatusBadge(statusBadge, currentStyle);
+          resetButton.classList.toggle("hidden", currentStyle.status !== "changed");
+          this.onChange();
+          this.createIcons();
+        } });
+      });
+      valueArea.append(input, actions);
+      this.appendHint(valueArea, secret, decrypted, supported, style.status);
+      row.append(description, valueArea);
+      const target = this.isExportMasterKey(secret) ? this.elements.masterCard : this.elements.list;
+      target.appendChild(row);
+    }
+
+    updateStatusBadge(badge, style) {
+      badge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${style.className}`;
+      badge.textContent = style.label;
+    }
+
+    appendHint(valueArea, secret, decrypted, supported, status) {
+      let text = "";
+      let className = "text-[11px] mt-2";
+      if (decrypted && !supported) {
+        text = "Dieser Verschlüsselungstyp kann angezeigt, aber noch nicht neu verschlüsselt werden.";
+        className += " text-amber-600";
+      } else if (decrypted && this.isExportMasterKey(secret)) {
+        text = "Der Export-Master-Key selbst bleibt schreibgeschützt. Geändert wird nur sein Sicherungskennwort.";
+        className += " text-blue-700";
+      } else if (decrypted && this.isWireGuardPrivateKey(secret)) {
+        text = "Der öffentliche FRITZ!Box-Schlüssel wird automatisch neu berechnet. Danach müssen alle WireGuard-Gegenstellen aktualisiert werden.";
+        className += " font-medium leading-4 text-amber-700";
+      } else if (status === "failed" && secret.error) {
+        text = secret.error;
+        className += " text-red-600";
+      }
+      if (!text) return;
+      const hint = this.document.createElement("p");
+      hint.className = className;
+      hint.textContent = text;
+      valueArea.appendChild(hint);
     }
 
     syncRow(secret) {
