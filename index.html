@@ -24,6 +24,7 @@
     <script src="./src/ValidationCoordinator.js?v=20260810-2"></script>
     <script src="./src/DecryptedEditor.js?v=20260808-2"></script>
     <script src="./src/EditorController.js?v=20260810-1"></script>
+    <script src="./src/EditorView.js?v=20260810-1"></script>
     <script src="./src/SecretController.js?v=20260810-1"></script>
     <script src="./src/SecretView.js?v=20260810-1"></script>
     <script src="./src/FilesController.js?v=20260810-1"></script>
@@ -879,6 +880,20 @@
                     onStatus: (message, tone) => this.showStatus(message, tone),
                     onTextRendered: () => this.updateCharCount()
                 });
+                this.editorView = new window.FritzEditorView.EditorView({
+                    document,
+                    getComputedStyle,
+                    requestFrame: callback => requestAnimationFrame(callback),
+                    onJumpRequest: line => this.jumpToEditorLine(line),
+                    elements: {
+                        editor: this.editor,
+                        charCount: this.charCount,
+                        lineNumbers: this.editorLineNumbers,
+                        sectionNav: this.editorSectionNav,
+                        shell: this.editorShell,
+                        themeButton: this.btnEditorTheme
+                    }
+                });
                 this.autoValidation = new window.FritzValidationCoordinator.ValidationCoordinator({
                     delay: 15000,
                     getSnapshot: () => this.getValidationSnapshot(),
@@ -1049,73 +1064,30 @@
             }
 
             updateCharCount() {
-                this.charCount.textContent = `${this.editor.value.length.toLocaleString('de-DE')} Zeichen`;
-                this.renderEditorNavigation();
+                this.editorView.updateTextMetrics();
             }
 
             syncEditorScroll() {
-                if (!this.editorLineNumbers) return;
-                this.editorLineNumbers.scrollTop = this.editor.scrollTop;
+                this.editorView.syncScroll();
             }
 
             getEditorSections(text = this.editor.value) {
-                const sections = [];
-                String(text).split(/\r\n|\n|\r/).forEach((line, index) => {
-                    const match = line.match(/^\*+\s+(CFGFILE|(?:CRYPTED)?BINFILE|(?:CRYPTED)?B64FILE):\s*(\S+)/i);
-                    if (!match) return;
-                    sections.push({ type: match[1].toUpperCase(), name: match[2], line: index + 1 });
-                });
-                return sections;
+                return this.editorView.getSections(text);
             }
 
             renderEditorNavigation() {
-                if (!this.editorLineNumbers || !this.editorSectionNav) return;
-                const lineCount = Math.max(1, String(this.editor.value).split(/\r\n|\n|\r/).length);
-                this.editorLineNumbers.textContent = Array.from({ length: lineCount }, (_, index) => index + 1).join('\n');
-                this.syncEditorScroll();
-
-                this.editorSectionNav.innerHTML = '';
-                const sections = this.getEditorSections();
-                const targets = [{ type: 'HEADER', name: 'Dateianfang', line: 1 }, ...sections];
-                targets.forEach(section => {
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.className = 'shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700';
-                    button.textContent = `${section.name} · Z. ${section.line}`;
-                    button.title = section.type === 'HEADER' ? 'Zum Anfang der Exportdatei' : `${section.type} ab Zeile ${section.line}`;
-                    button.addEventListener('click', () => this.jumpToEditorLine(section.line));
-                    this.editorSectionNav.appendChild(button);
-                });
+                this.editorView.renderNavigation(this.editor.value);
             }
 
             getEditorLineRange(lineNumber) {
-                const text = this.editor.value;
-                const target = Math.max(1, Number(lineNumber) || 1);
-                let line = 1;
-                let start = 0;
-                const separator = /\r\n|\n|\r/g;
-                let match;
-                while (line < target && (match = separator.exec(text))) {
-                    start = match.index + match[0].length;
-                    line += 1;
-                }
-                const relativeEnd = text.slice(start).search(/\r\n|\n|\r/);
-                const end = relativeEnd >= 0 ? start + relativeEnd : text.length;
-                return { start, end, line };
+                return this.editorView.getLineRange(lineNumber);
             }
 
             jumpToEditorLine(lineNumber) {
                 if (!this.state.originalText) return;
                 if (this.state.viewMode !== 'preview' && this.state.getCounts().decrypted > 0) this.showDecryptedPreview();
                 this.switchView('editor');
-                requestAnimationFrame(() => {
-                    const range = this.getEditorLineRange(lineNumber);
-                    const lineHeight = parseFloat(getComputedStyle(this.editor).lineHeight) || 24;
-                    this.editor.focus({ preventScroll: true });
-                    this.editor.setSelectionRange(range.start, range.end);
-                    this.editor.scrollTop = Math.max(0, (range.line - 1) * lineHeight - this.editor.clientHeight * 0.25);
-                    this.syncEditorScroll();
-                });
+                this.editorView.focusLine(lineNumber);
             }
 
             clearLog() {
@@ -3126,24 +3098,7 @@
             }
 
             applyEditorTheme() {
-                const consoleTheme = this.state.viewMode === 'preview' && this.editorTheme === 'console';
-                this.editor.classList.toggle('bg-slate-900', consoleTheme);
-                this.editor.classList.toggle('text-green-400', consoleTheme);
-                this.editor.classList.toggle('bg-slate-50', !consoleTheme);
-                this.editor.classList.toggle('text-slate-700', !consoleTheme);
-                this.editorLineNumbers.classList.toggle('bg-slate-950', consoleTheme);
-                this.editorLineNumbers.classList.toggle('text-green-700', consoleTheme);
-                this.editorLineNumbers.classList.toggle('border-slate-700', consoleTheme);
-                this.editorLineNumbers.classList.toggle('bg-slate-100', !consoleTheme);
-                this.editorLineNumbers.classList.toggle('text-slate-400', !consoleTheme);
-                this.editorLineNumbers.classList.toggle('border-slate-200', !consoleTheme);
-                this.editorShell.classList.toggle('bg-slate-900', consoleTheme);
-                this.editorShell.classList.toggle('border-slate-700', consoleTheme);
-                this.editorShell.classList.toggle('bg-slate-50', !consoleTheme);
-                this.editorShell.classList.toggle('border-slate-300', !consoleTheme);
-                this.btnEditorTheme.innerHTML = consoleTheme
-                    ? '<i data-lucide="panel-top" class="w-4 h-4"></i> Editor-Look'
-                    : '<i data-lucide="terminal" class="w-4 h-4"></i> Konsolen-Look';
+                this.editorView.applyTheme(this.state.viewMode, this.editorTheme);
             }
 
             escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -3476,6 +3431,10 @@
             if (window.FritzEditorController?.API_VERSION !== '1' ||
                 typeof window.FritzEditorController?.EditorController !== 'function') {
                 missingCapabilities.unshift('EditorController API v1');
+            }
+            if (window.FritzEditorView?.API_VERSION !== '1' ||
+                typeof window.FritzEditorView?.EditorView !== 'function') {
+                missingCapabilities.unshift('EditorView API v1');
             }
             if (window.FritzSecretController?.API_VERSION !== '1' ||
                 typeof window.FritzSecretController?.SecretController !== 'function') {
