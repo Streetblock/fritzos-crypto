@@ -239,6 +239,16 @@ assert.match(html, /applyStructuredConfigText\(updatedText, message, afterStateU
 const changeStateRender = html.match(/renderChangeState\(\)\s*\{[\s\S]*?(?=\n\s*clearAll\()/)?.[0] || '';
 assert.equal(changeStateRender.includes('autoValidation'), false, 'rendering the change state must not mutate validation scheduling');
 assert.equal(changeStateRender.includes('setAutoValidationStatus'), false, 'rendering must not overwrite validation status');
+const pureRenderMethods = {
+  renderSafetyState: html.match(/renderSafetyState\(\)\s*\{[\s\S]*?(?=\n\s*showReencryptSummary\()/)?.[0] || '',
+  renderState: html.match(/renderState\(\)\s*\{[\s\S]*?(?=\n\s*getSecretDisplayStatus\()/)?.[0] || '',
+  renderChangeState: changeStateRender
+};
+for (const [name, source] of Object.entries(pureRenderMethods)) {
+  assert.notEqual(source, '', `${name} must remain an explicit render boundary`);
+  assert.equal(/this\.state\.(?:set|mark|invalidate|load|reset|restore)/.test(source), false, `${name} must not mutate domain state`);
+  assert.equal(/(?:schedule|cancel)AutoValidation/.test(source), false, `${name} must not control validation`);
+}
 assert.equal(/href\s*=\s*["']sip:/i.test(html), false, 'SIP cards must not launch a softphone');
 assert.equal(html.includes('qrcode_UTF8.js'), true, 'UTF-8 QR encoding support is missing');
 assert.match(html, /this\.btnSave\.disabled\s*=\s*!ready/, 'download button must follow the verification gate');
