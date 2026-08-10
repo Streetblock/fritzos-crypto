@@ -16,6 +16,7 @@ yarn-error.log
 !ConfigState.js
 !FritzConfigDocument.js
 !src/SecretController.js
+!src/SecretView.js
 !test/*.test.js
 
 # ------- macOS ------- 

@@ -5,6 +5,7 @@ const html = fs.readFileSync(require.resolve('../index.html'), 'utf8');
 const cryptoSource = fs.readFileSync(require.resolve('../lib/FritzOSCrypto.js'), 'utf8');
 const editorControllerSource = fs.readFileSync(require.resolve('../src/EditorController.js'), 'utf8');
 const secretControllerSource = fs.readFileSync(require.resolve('../src/SecretController.js'), 'utf8');
+const secretViewSource = fs.readFileSync(require.resolve('../src/SecretView.js'), 'utf8');
 const filesControllerSource = fs.readFileSync(require.resolve('../src/FilesController.js'), 'utf8');
 const filesViewSource = fs.readFileSync(require.resolve('../src/FilesView.js'), 'utf8');
 const telephonyControllerSource = fs.readFileSync(require.resolve('../src/TelephonyController.js'), 'utf8');
@@ -214,8 +215,8 @@ assert.match(html, /input\.type\s*=\s*this\.secretController\.isRevealed\(secret
 for (const action of ['Anzeigen', 'Kopieren', 'Bearbeiten', 'Zurücksetzen']) {
   assert.equal(html.includes(`'${action}'`), true, `secret action ${action} is missing`);
 }
-assert.equal(html.includes('Alle anzeigen'), true, 'global reveal action is missing');
-assert.equal(html.includes('Alle verbergen'), true, 'global hide action is missing');
+assert.equal((html + secretViewSource).includes('Alle anzeigen'), true, 'global reveal action is missing');
+assert.equal((html + secretViewSource).includes('Alle verbergen'), true, 'global hide action is missing');
 assert.equal(html.includes('In Zwischenablage kopieren'), true, 'SIP clipboard action is missing');
 const cardEditor = html.match(/createMaskedCredential\(secret, options = \{\}\)\s*\{[\s\S]*?(?=\n\s*isWifiPasswordSecret\()/)?.[0] || '';
 assert.match(cardEditor, /createCredentialAction\('', 'pencil'/, 'credential cards need a direct edit action');
@@ -242,6 +243,10 @@ assert.match(html, /src\/EditorController\.js\?v=\d{8}-\d+/, 'editor controller 
 assert.equal(html.includes('EditorController API v1'), true, 'editor controller compatibility guard is missing');
 assert.match(html, /src\/SecretController\.js\?v=\d{8}-\d+/, 'secret controller needs a deployment cache key');
 assert.equal(html.includes('SecretController API v1'), true, 'secret controller compatibility guard is missing');
+assert.match(html, /src\/SecretView\.js\?v=\d{8}-\d+/, 'secret view needs a deployment cache key');
+assert.equal(html.includes('SecretView API v1'), true, 'secret view compatibility guard is missing');
+assert.match(secretViewSource, /prepare\(model\)/, 'secret list shell rendering belongs in the secret view');
+assert.match(secretViewSource, /syncRow\(secret\)/, 'secret row synchronization belongs in the secret view');
 assert.match(html, /src\/FilesController\.js\?v=\d{8}-\d+/, 'files controller needs a deployment cache key');
 assert.equal(html.includes('FilesController API v1'), true, 'files controller compatibility guard is missing');
 assert.match(html, /this\.filesController\.load\(text\)/, 'loaded exports must enter the file controller');

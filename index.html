@@ -25,6 +25,7 @@
     <script src="./src/DecryptedEditor.js?v=20260808-2"></script>
     <script src="./src/EditorController.js?v=20260810-1"></script>
     <script src="./src/SecretController.js?v=20260810-1"></script>
+    <script src="./src/SecretView.js?v=20260810-1"></script>
     <script src="./src/FilesController.js?v=20260810-1"></script>
     <script src="./src/FilesView.js?v=20260810-1"></script>
     <script src="./src/TelephonyController.js?v=20260810-1"></script>
@@ -821,6 +822,19 @@
                 this.secretController = new window.FritzSecretController.SecretController({
                     commitMutation: (mutation, options) => this.commitMutation(mutation, options)
                 });
+                this.secretView = new window.FritzSecretView.SecretView({
+                    controller: this.secretController,
+                    document,
+                    elements: {
+                        list: this.secretEditorList,
+                        masterCard: this.exportMasterKeyCard,
+                        masterSection: this.exportMasterKeySection,
+                        editorSection: this.secretEditorSection,
+                        emptyState: this.secretEmptyState,
+                        resultsSummary: this.secretResultsSummary,
+                        toggleAll: this.btnToggleAllSecrets
+                    }
+                });
                 this.filesController = new window.FritzFilesController.FilesController({
                     extractPhonebooks: text => this.embeddedFiles.extractPhonebooks(text)
                 });
@@ -1487,28 +1501,7 @@
             }
 
             syncSecretEditorRow(secret) {
-                const row = [...this.secretEditorList.querySelectorAll('[data-secret-id]')]
-                    .find(candidate => candidate.dataset.secretId === secret.id);
-                if (!row) return;
-                const input = row.querySelector('[data-secret-value]');
-                const statusBadge = row.querySelector('[data-secret-status]');
-                const resetButton = row.querySelector('[data-secret-reset]');
-                const statusStyles = {
-                    pending: ['Offen', 'bg-blue-50 text-blue-700 border-blue-200'],
-                    decrypted: ['Entschlüsselt', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
-                    changed: ['Geändert', 'bg-amber-50 text-amber-700 border-amber-200'],
-                    failed: ['Fehlgeschlagen', 'bg-red-50 text-red-700 border-red-200']
-                };
-                const displayStatus = this.secretController.getDisplayStatus(secret);
-                if (input && document.activeElement !== input) {
-                    input.value = secret.status === 'decrypted' ? (secret.editedPlaintext ?? '') : '';
-                    input.type = this.secretController.isRevealed(secret) ? 'text' : 'password';
-                }
-                if (statusBadge) {
-                    statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[displayStatus][1]}`;
-                    statusBadge.textContent = this.secretController.getStatusLabel(secret) || statusStyles[displayStatus][0];
-                }
-                resetButton?.classList.toggle('hidden', displayStatus !== 'changed');
+                this.secretView.syncRow(secret);
             }
 
             getSecretSearchText(secret) {
@@ -3018,8 +3011,6 @@
             }
 
             renderSecretEditor() {
-                this.secretEditorList.innerHTML = '';
-                this.exportMasterKeyCard.innerHTML = '';
                 this.renderCredentialCards();
                 const allSecrets = this.state.secrets;
                 const exportMasterKey = allSecrets.find(secret => this.isExportMasterKey(secret));
@@ -3034,66 +3025,19 @@
                     getSearchText: secret => this.getSecretSearchText(secret)
                 });
 
-                this.exportMasterKeySection.classList.toggle('hidden', !exportMasterKey);
-                this.secretEditorSection.classList.toggle('hidden', regularSecrets.length === 0);
-                this.secretEmptyState.classList.toggle('hidden', allSecrets.length > 0);
-                this.secretResultsSummary.textContent = `${visibleSecrets.length} von ${regularSecrets.length} Fundstellen angezeigt`;
-                const decryptedSecrets = allSecrets.filter(secret => secret.status === 'decrypted');
-                const allRevealed = decryptedSecrets.length > 0 &&
-                    decryptedSecrets.every(secret => this.secretController.isRevealed(secret));
-                this.btnToggleAllSecrets.disabled = decryptedSecrets.length === 0;
-                this.btnToggleAllSecrets.innerHTML = allRevealed
-                    ? '<i data-lucide="eye-off" class="w-4 h-4"></i> Alle verbergen'
-                    : '<i data-lucide="eye" class="w-4 h-4"></i> Alle anzeigen';
-
-                const categoryNames = {
-                    wlan: 'WLAN',
-                    'guest-wlan': 'Gast-WLAN',
-                    sip: 'SIP',
-                    'internal-telephony': 'Interne Nebenstelle',
-                    'online-phonebook': 'Online-Telefonbuch',
-                    telephony: 'Weitere Telefonie',
-                    vpn: 'VPN',
-                    'fritz-user': 'FRITZ!Box-Benutzer',
-                    'app-access': 'FRITZ!App',
-                    email: 'E-Mail / SMTP',
-                    myfritz: 'MyFRITZ!',
-                    dyndns: 'Eigener DynDNS-Anbieter',
-                    'remote-management': 'AVM-Fernkonfiguration',
-                    'avm-remote-ddns': 'AVM-Fernkonfig-DDNS',
-                    provider: 'Provider',
-                    system: 'System',
-                    other: 'Weitere'
-                };
-                const statusStyles = {
-                    pending: ['Offen', 'bg-blue-50 text-blue-700 border-blue-200'],
-                    decrypted: ['Entschlüsselt', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
-                    changed: ['Geändert', 'bg-amber-50 text-amber-700 border-amber-200'],
-                    failed: ['Fehlgeschlagen', 'bg-red-50 text-red-700 border-red-200']
-                };
-                const makeAction = (label, icon, handler, disabled) => {
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.disabled = Boolean(disabled);
-                    button.className = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed';
-                    button.innerHTML = `<i data-lucide="${icon}" class="w-3.5 h-3.5"></i><span>${label}</span>`;
-                    if (handler) button.addEventListener('click', handler);
-                    return button;
-                };
-
-                if (visibleSecrets.length === 0 && regularSecrets.length > 0) {
-                    const noResults = document.createElement('div');
-                    noResults.className = 'p-10 text-center text-sm text-slate-500';
-                    noResults.textContent = 'Keine Fundstelle passt zu Suche und Filtern.';
-                    this.secretEditorList.appendChild(noResults);
-                }
-
+                this.secretView.prepare({
+                    allSecrets,
+                    regularSecrets,
+                    visibleSecrets,
+                    exportMasterKey
+                });
                 const renderedSecrets = exportMasterKey ? [exportMasterKey, ...visibleSecrets] : visibleSecrets;
                 for (const secret of renderedSecrets) {
                     const decrypted = secret.status === 'decrypted';
                     const supported = decrypted && (secret.type === 4 || secret.type === 5);
                     const editable = supported && !this.isExportMasterKey(secret);
                     const displayStatus = this.secretController.getDisplayStatus(secret);
+                    const statusStyle = this.secretView.getStatusStyle(secret);
                     const row = document.createElement('article');
                     row.className = 'p-5 grid grid-cols-1 xl:grid-cols-[minmax(210px,0.8fr)_minmax(300px,1.2fr)] gap-4 items-start';
                     row.dataset.secretId = secret.id;
@@ -3106,11 +3050,11 @@
                     title.textContent = secret.displayLabel;
                     const categoryBadge = document.createElement('span');
                     categoryBadge.className = 'text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 text-slate-600';
-                    categoryBadge.textContent = categoryNames[secret.category] || categoryNames.other;
+                    categoryBadge.textContent = this.secretView.getCategoryName(secret.category);
                     const statusBadge = document.createElement('span');
                     statusBadge.dataset.secretStatus = '';
-                    statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[displayStatus][1]}`;
-                    statusBadge.textContent = this.secretController.getStatusLabel(secret) || statusStyles[displayStatus][0];
+                    statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyle.className}`;
+                    statusBadge.textContent = statusStyle.label;
                     headingLine.append(title, categoryBadge, statusBadge);
 
                     const location = this.createSecretLocationLink(secret, 'mt-1.5');
@@ -3147,7 +3091,7 @@
 
                     const actions = document.createElement('div');
                     actions.className = 'flex items-center gap-2 flex-wrap mt-2';
-                    const revealButton = makeAction(
+                    const revealButton = this.secretView.createAction(
                         this.secretController.isRevealed(secret) ? 'Verbergen' : 'Anzeigen',
                         this.secretController.isRevealed(secret) ? 'eye-off' : 'eye',
                         () => {
@@ -3156,8 +3100,8 @@
                         },
                         !decrypted
                     );
-                    const copyButton = makeAction('Kopieren', 'copy', () => this.copySecretPlaintext(secret), !decrypted);
-                    const editButton = makeAction('Bearbeiten', 'pencil', () => {
+                    const copyButton = this.secretView.createAction('Kopieren', 'copy', () => this.copySecretPlaintext(secret), !decrypted);
+                    const editButton = this.secretView.createAction('Bearbeiten', 'pencil', () => {
                         if (!this.confirmWireGuardPrivateKeyEdit(secret)) return;
                         this.secretController.reveal(secret);
                         input.type = 'text';
@@ -3166,7 +3110,7 @@
                         input.select();
                     }, !editable);
                     let resetButton;
-                    resetButton = makeAction('Zurücksetzen', 'undo-2', () => {
+                    resetButton = this.secretView.createAction('Zurücksetzen', 'undo-2', () => {
                         this.secretController.reset(
                             secret,
                             { render: () => this.renderSecretEditor() }
@@ -3181,10 +3125,10 @@
                             secret,
                             input.value,
                             { render: () => {
-                                const currentStatus = this.secretController.getDisplayStatus(secret);
-                                statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[currentStatus][1]}`;
-                                statusBadge.textContent = this.secretController.getStatusLabel(secret) || statusStyles[currentStatus][0];
-                                resetButton.classList.toggle('hidden', currentStatus !== 'changed');
+                                const currentStyle = this.secretView.getStatusStyle(secret);
+                                statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${currentStyle.className}`;
+                                statusBadge.textContent = currentStyle.label;
+                                resetButton.classList.toggle('hidden', currentStyle.status !== 'changed');
                                 this.renderChangeState();
                                 this.renderCredentialCards();
                                 lucide.createIcons();
@@ -3659,6 +3603,10 @@
             if (window.FritzSecretController?.API_VERSION !== '1' ||
                 typeof window.FritzSecretController?.SecretController !== 'function') {
                 missingCapabilities.unshift('SecretController API v1');
+            }
+            if (window.FritzSecretView?.API_VERSION !== '1' ||
+                typeof window.FritzSecretView?.SecretView !== 'function') {
+                missingCapabilities.unshift('SecretView API v1');
             }
             if (window.FritzFilesController?.API_VERSION !== '1' ||
                 typeof window.FritzFilesController?.FilesController !== 'function') {
