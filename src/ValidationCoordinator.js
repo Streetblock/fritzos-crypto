@@ -27,10 +27,22 @@
       this.onStatus = typeof settings.onStatus === "function" ? settings.onStatus : function () {};
       this.onError = typeof settings.onError === "function" ? settings.onError : function () {};
       this.now = typeof settings.now === "function" ? settings.now : () => Date.now();
-      this.setTimeoutFn = settings.setTimeoutFn || setTimeout;
-      this.clearTimeoutFn = settings.clearTimeoutFn || clearTimeout;
-      this.setIntervalFn = settings.setIntervalFn || setInterval;
-      this.clearIntervalFn = settings.clearIntervalFn || clearInterval;
+      const customSetTimeout = settings.setTimeoutFn;
+      const customClearTimeout = settings.clearTimeoutFn;
+      const customSetInterval = settings.setIntervalFn;
+      const customClearInterval = settings.clearIntervalFn;
+      this.setTimeoutFn = customSetTimeout
+        ? (...args) => customSetTimeout(...args)
+        : (...args) => globalThis.setTimeout(...args);
+      this.clearTimeoutFn = customClearTimeout
+        ? (...args) => customClearTimeout(...args)
+        : (...args) => globalThis.clearTimeout(...args);
+      this.setIntervalFn = customSetInterval
+        ? (...args) => customSetInterval(...args)
+        : (...args) => globalThis.setInterval(...args);
+      this.clearIntervalFn = customClearInterval
+        ? (...args) => customClearInterval(...args)
+        : (...args) => globalThis.clearInterval(...args);
 
       this.timer = null;
       this.ticker = null;

@@ -1,3 +1,5 @@
+'use strict';
+
 const assert = require('node:assert/strict');
 const {
   API_VERSION,
@@ -111,6 +113,28 @@ async function run() {
   snapshot = { changedSecrets: 0, hasUnsavedChanges: true, downloadReady: true };
   coordinator.schedule();
   assert.equal(statuses.at(-1).phase, 'verified');
+
+  let timerCalls = 0;
+  function receiverFreeTimer() {
+    assert.equal(this, undefined, 'timer adapters must not be invoked as coordinator methods');
+    timerCalls += 1;
+    return timerCalls;
+  }
+  function receiverFreeClear() {
+    assert.equal(this, undefined, 'timer cleanup adapters must not be invoked as coordinator methods');
+  }
+  const receiverSafeCoordinator = new ValidationCoordinator({
+    delay: 10,
+    getSnapshot: () => ({ changedSecrets: 0, hasUnsavedChanges: true, downloadReady: false }),
+    run: async () => {},
+    setTimeoutFn: receiverFreeTimer,
+    clearTimeoutFn: receiverFreeClear,
+    setIntervalFn: receiverFreeTimer,
+    clearIntervalFn: receiverFreeClear
+  });
+  receiverSafeCoordinator.schedule();
+  assert.equal(timerCalls, 2);
+  receiverSafeCoordinator.cancel();
 
   console.log('Validation coordinator behavior tests passed.');
 }
