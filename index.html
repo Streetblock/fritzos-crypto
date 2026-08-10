@@ -20,6 +20,7 @@
     <!-- ========================================== -->
     <script src="./lib/FritzOSCrypto.js?v=20260809-1"></script>
     <script src="./src/ConfigState.js?v=20260808-1"></script>
+    <script src="./src/MutationFlow.js?v=20260810-1"></script>
     <script src="./src/ValidationCoordinator.js?v=20260810-2"></script>
     <script src="./src/DecryptedEditor.js?v=20260808-2"></script>
     <script src="./src/FritzConfigDocument.js?v=20260808-3"></script>
@@ -815,6 +816,7 @@
                 this.sipAccountsApi = window.FritzSipAccounts;
                 this.wireGuardApi = window.FritzWireGuardConnections;
                 this.wireGuardKeys = window.FritzWireGuardKeys;
+                this.mutationFlow = window.FritzMutationFlow;
                 this.state = new window.FritzConfigState.ConfigState(this.parser);
                 this.autoValidation = new window.FritzValidationCoordinator.ValidationCoordinator({
                     delay: 15000,
@@ -939,28 +941,30 @@
                         this.renderPreviewText(selection);
                         return;
                     }
-                    this.commitConfigMutation(edit, { selection });
+                    this.commitMutation(edit, { selection });
                     return;
                 }
-                this.commitConfigMutation({ kind: 'structure', workingText: this.editor.value });
+                this.commitMutation({ kind: 'structure', workingText: this.editor.value });
             }
 
-            commitConfigMutation(mutation, options = {}) {
-                const keepPreviewVisible = this.state.viewMode === 'preview';
-                if (mutation.kind === 'secret') {
-                    this.state.setEditedPlaintext(mutation.secretId, mutation.plaintext);
-                } else if (mutation.kind === 'structure') {
-                    this.state.setWorkingText(mutation.workingText);
-                } else {
-                    throw new Error(`Unbekannte Konfigurationsänderung: ${mutation.kind}`);
-                }
-
+            commitMutation(mutation, options = {}) {
+                const result = this.mutationFlow.commitMutation(this.state, mutation);
                 if (typeof options.afterStateUpdate === 'function') options.afterStateUpdate();
-                if (keepPreviewVisible) this.renderPreviewText(options.selection ?? null);
-                else this.updateCharCount();
-                this.renderState();
+                if (typeof options.render === 'function') {
+                    if (result.keepPreviewVisible && options.refreshPreview !== false) {
+                        this.renderPreviewText(options.selection ?? null);
+                    } else {
+                        this.updateCharCount();
+                    }
+                    options.render(result);
+                } else {
+                    if (result.keepPreviewVisible) this.renderPreviewText(options.selection ?? null);
+                    else this.updateCharCount();
+                    this.renderState();
+                }
                 this.scheduleAutoValidation();
                 if (options.message) this.showStatus(options.message, options.tone || 'success');
+                return result;
             }
 
             switchView(view) {
@@ -2207,14 +2211,17 @@
                 edit.title = editable ? 'Direkt bearbeiten' : 'Dieser Wert kann nicht neu verschlüsselt werden';
 
                 const reset = this.createCredentialAction('', 'undo-2', () => {
-                    this.state.setEditedPlaintext(secret.id, secret.plaintext);
-                    value.value = secret.plaintext ?? '';
-                    value.readOnly = true;
-                    edit.classList.remove('border-blue-300', 'bg-blue-50', 'text-blue-700');
-                    updateCardStatus();
-                    this.syncSecretEditorRow(secret);
-                    this.updateChangedButton();
-                    this.scheduleAutoValidation();
+                    this.commitMutation(
+                        { kind: 'secret', secretId: secret.id, plaintext: secret.plaintext },
+                        { render: () => {
+                            value.value = secret.plaintext ?? '';
+                            value.readOnly = true;
+                            edit.classList.remove('border-blue-300', 'bg-blue-50', 'text-blue-700');
+                            updateCardStatus();
+                            this.syncSecretEditorRow(secret);
+                            this.renderChangeState();
+                        } }
+                    );
                 }, !editable);
                 reset.classList.add('px-2.5');
                 reset.setAttribute('aria-label', `${secret.displayLabel} Änderung zurücksetzen`);
@@ -2236,14 +2243,17 @@
                 };
 
                 value.addEventListener('input', () => {
-                    this.state.setEditedPlaintext(secret.id, value.value);
-                    updateCardStatus();
-                    this.syncSecretEditorRow(secret);
-                    this.updateChangedButton();
-                    this.scheduleAutoValidation();
-                    if (secret.category === 'sip') {
-                        this.renderSipPhoneAccounts(this.state.secrets.filter(item => item.category === 'sip'));
-                    }
+                    this.commitMutation(
+                        { kind: 'secret', secretId: secret.id, plaintext: value.value },
+                        { render: () => {
+                            updateCardStatus();
+                            this.syncSecretEditorRow(secret);
+                            this.renderChangeState();
+                            if (secret.category === 'sip') {
+                                this.renderSipPhoneAccounts(this.state.secrets.filter(item => item.category === 'sip'));
+                            }
+                        } }
+                    );
                 });
                 value.addEventListener('keydown', event => {
                     if (event.key === 'Enter') {
@@ -2378,7 +2388,7 @@
             }
 
             applyStructuredConfigText(updatedText, message, afterStateUpdate = null) {
-                this.commitConfigMutation(
+                this.commitMutation(
                     { kind: 'structure', workingText: updatedText },
                     { afterStateUpdate, message }
                 );
@@ -3456,26 +3466,28 @@
                     }, !editable);
                     let resetButton;
                     resetButton = makeAction('Zurücksetzen', 'undo-2', () => {
-                        this.state.setEditedPlaintext(secret.id, secret.plaintext);
-                        this.scheduleAutoValidation();
-                        if (this.state.viewMode === 'preview') this.renderPreviewText();
-                        this.renderSecretEditor();
+                        this.commitMutation(
+                            { kind: 'secret', secretId: secret.id, plaintext: secret.plaintext },
+                            { render: () => this.renderSecretEditor() }
+                        );
                     }, false);
                     resetButton.dataset.secretReset = '';
                     resetButton.classList.toggle('hidden', displayStatus !== 'changed');
                     actions.append(revealButton, copyButton, editButton, resetButton);
 
                     input.addEventListener('input', () => {
-                        this.state.setEditedPlaintext(secret.id, input.value);
-                        const currentStatus = this.getSecretDisplayStatus(secret);
-                        statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[currentStatus][1]}`;
-                        statusBadge.textContent = this.getSecretStatusLabel(secret) || statusStyles[currentStatus][0];
-                        resetButton.classList.toggle('hidden', currentStatus !== 'changed');
-                        this.updateChangedButton();
-                        this.scheduleAutoValidation();
-                        this.renderCredentialCards();
-                        lucide.createIcons();
-                        if (this.state.viewMode === 'preview') this.renderPreviewText();
+                        this.commitMutation(
+                            { kind: 'secret', secretId: secret.id, plaintext: input.value },
+                            { render: () => {
+                                const currentStatus = this.getSecretDisplayStatus(secret);
+                                statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[currentStatus][1]}`;
+                                statusBadge.textContent = this.getSecretStatusLabel(secret) || statusStyles[currentStatus][0];
+                                resetButton.classList.toggle('hidden', currentStatus !== 'changed');
+                                this.renderChangeState();
+                                this.renderCredentialCards();
+                                lucide.createIcons();
+                            } }
+                        );
                     });
                     valueArea.append(input, actions);
 
@@ -3505,11 +3517,11 @@
                     const target = this.isExportMasterKey(secret) ? this.exportMasterKeyCard : this.secretEditorList;
                     target.appendChild(row);
                 }
-                this.updateChangedButton();
+                this.renderChangeState();
                 lucide.createIcons();
             }
 
-            updateChangedButton() {
+            renderChangeState() {
                 const modifiedCount = this.state.getModifiedSecrets().filter(secret => secret.type === 4 || secret.type === 5).length;
                 if (modifiedCount > 0) {
                     this.showReencryptSummary();
@@ -3923,6 +3935,10 @@
             const statePrototype = window.FritzConfigState?.ConfigState?.prototype;
             const missingCapabilities = requiredStateMethods.filter(method => typeof statePrototype?.[method] !== 'function');
             if (window.FritzConfigState?.API_VERSION !== '2') missingCapabilities.unshift('ConfigState API v2');
+            if (window.FritzMutationFlow?.API_VERSION !== '1' ||
+                typeof window.FritzMutationFlow?.commitMutation !== 'function') {
+                missingCapabilities.unshift('MutationFlow API v1');
+            }
             if (window.FritzValidationCoordinator?.API_VERSION !== '1' ||
                 typeof window.FritzValidationCoordinator?.ValidationCoordinator !== 'function' ||
                 typeof window.FritzValidationCoordinator?.selectValidationRequest !== 'function') {

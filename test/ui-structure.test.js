@@ -217,12 +217,12 @@ assert.match(cardEditor, /createCredentialAction\('', 'undo-2'/, 'credential car
 assert.match(cardEditor, /if \(editInInputRow\) inputRow\.appendChild\(edit\)/, 'credential card edit actions belong next to the reveal action by default');
 assert.match(html, /createMaskedCredential\(secret, \{ editInInputRow: false \}\)/, 'WLAN cards need their edit action on the second row');
 assert.match(html, /credential\.querySelector\('\[data-credential-actions\]'\)\?\.append\(copyPassword\)/, 'the WLAN edit action must remain left of the copy action');
-assert.match(cardEditor, /this\.state\.setEditedPlaintext\(secret\.id, value\.value\)/, 'card edits must use the shared config state');
-assert.match(cardEditor, /this\.scheduleAutoValidation\(\)/, 'card edits must schedule the verified re-encryption flow');
+assert.match(cardEditor, /this\.commitMutation\([\s\S]*kind: 'secret'[\s\S]*secretId: secret\.id/, 'card edits must use the shared mutation flow');
+assert.equal(cardEditor.includes('this.scheduleAutoValidation()'), false, 'card handlers must not schedule validation outside the mutation flow');
 assert.match(cardEditor, /this\.syncSecretEditorRow\(secret\)/, 'card edits must keep the detailed secret row synchronized');
 const expertEditorInput = html.match(/handleEditorInput\(\)\s*\{[\s\S]*?(?=\n\s*switchView\()/)?.[0] || '';
 assert.equal(
-  (expertEditorInput.match(/this\.commitConfigMutation\(/g) || []).length,
+  (expertEditorInput.match(/this\.commitMutation\(/g) || []).length,
   2,
   'both decrypted and structural expert-editor changes must use the shared mutation pipeline'
 );
@@ -231,15 +231,14 @@ assert.equal(
   false,
   'expert-editor input must not cancel its own pending validation'
 );
-const configMutation = html.match(/commitConfigMutation\(mutation, options = \{\}\)\s*\{[\s\S]*?(?=\n\s*switchView\()/)?.[0] || '';
-assert.match(configMutation, /this\.state\.setEditedPlaintext\(mutation\.secretId, mutation\.plaintext\)/, 'the mutation pipeline must handle decrypted secret edits');
-assert.match(configMutation, /this\.state\.setWorkingText\(mutation\.workingText\)/, 'the mutation pipeline must handle structural edits');
-assert.match(configMutation, /keepPreviewVisible\s*=\s*this\.state\.viewMode === 'preview'[\s\S]*if \(keepPreviewVisible\) this\.renderPreviewText/, 'structural edits must preserve the decrypted editor view');
+const configMutation = html.match(/commitMutation\(mutation, options = \{\}\)\s*\{[\s\S]*?(?=\n\s*switchView\()/)?.[0] || '';
+assert.match(configMutation, /this\.mutationFlow\.commitMutation\(this\.state, mutation\)/, 'all app mutations must delegate state changes to the shared mutation service');
+assert.match(configMutation, /result\.keepPreviewVisible[\s\S]*this\.renderPreviewText/, 'structural edits must preserve the decrypted editor view');
 assert.match(configMutation, /this\.renderState\(\);[\s\S]*this\.scheduleAutoValidation\(\)/, 'state rendering must complete before validation is scheduled');
-assert.match(html, /applyStructuredConfigText\(updatedText, message, afterStateUpdate = null\)[\s\S]*this\.commitConfigMutation\(/, 'structured card settings must use the shared mutation pipeline');
-const changedButtonState = html.match(/updateChangedButton\(\)\s*\{[\s\S]*?(?=\n\s*clearAll\()/)?.[0] || '';
-assert.equal(changedButtonState.includes('autoValidation'), false, 'rendering the secret list must not mutate validation scheduling');
-assert.equal(changedButtonState.includes('setAutoValidationStatus'), false, 'rendering must not overwrite validation status');
+assert.match(html, /applyStructuredConfigText\(updatedText, message, afterStateUpdate = null\)[\s\S]*this\.commitMutation\(/, 'structured card settings must use the shared mutation pipeline');
+const changeStateRender = html.match(/renderChangeState\(\)\s*\{[\s\S]*?(?=\n\s*clearAll\()/)?.[0] || '';
+assert.equal(changeStateRender.includes('autoValidation'), false, 'rendering the change state must not mutate validation scheduling');
+assert.equal(changeStateRender.includes('setAutoValidationStatus'), false, 'rendering must not overwrite validation status');
 assert.equal(/href\s*=\s*["']sip:/i.test(html), false, 'SIP cards must not launch a softphone');
 assert.equal(html.includes('qrcode_UTF8.js'), true, 'UTF-8 QR encoding support is missing');
 assert.match(html, /this\.btnSave\.disabled\s*=\s*!ready/, 'download button must follow the verification gate');
@@ -248,6 +247,8 @@ assert.equal(html.includes('1. Secret-Roundtrip'), true, 'roundtrip verification
 assert.equal(html.includes('2. CRC32-Prüfung'), true, 'checksum verification step is missing');
 assert.equal(html.includes('Ungespeicherte Änderungen'), true, 'unsaved changes indicator is missing');
 assert.equal(html.includes('Originaldatei wiederherstellen?'), true, 'original restore flow is missing');
+assert.match(html, /src\/MutationFlow\.js\?v=\d{8}-\d+/, 'mutation flow needs a deployment cache key');
+assert.equal(html.includes('MutationFlow API v1'), true, 'mutation flow compatibility guard is missing');
 assert.match(html, /src\/ValidationCoordinator\.js\?v=\d{8}-\d+/, 'validation coordinator needs a deployment cache key');
 assert.match(html, /new window\.FritzValidationCoordinator\.ValidationCoordinator\(\{[\s\S]*delay:\s*15000/, 'automatic validation must wait for a typing pause');
 assert.match(html, /request\.kind === 'secrets'[\s\S]*this\.reencryptChangedSecrets\(generation\)[\s\S]*this\.validateWorkingCopy\(generation\)/, 'the coordinator must dispatch secret and structural validation');
