@@ -252,6 +252,9 @@ assert.match(telephonyControllerSource, /findContact\(contacts, number\)/, 'tele
 for (const legacyState of ['this.compatibleSipAccounts', 'this.sipPhoneState', 'this.selectedSipContact']) {
   assert.equal(html.includes(legacyState), false, `${legacyState} must not remain on the app controller`);
 }
+const sipPhoneRenderer = html.match(/renderSipPhoneAccounts\(sipSecrets,[\s\S]*?(?=\n\s*getSelectedSipAccount\()/)?.[0] || '';
+assert.equal(sipPhoneRenderer.includes('setAccounts('), false, 'the SIP phone renderer must not mutate telephony state');
+assert.match(html, /refreshSipPhoneAccounts\(sipSecrets\)[\s\S]*telephonyController\.setAccounts/, 'telephony projection must be synchronized before rendering');
 assert.match(secretControllerSource, /edit\(secret, plaintext, options\)[\s\S]*this\.commitMutation/, 'secret edits must delegate to the shared mutation flow');
 const configMutation = html.match(/commitMutation\(mutation, options = \{\}\)\s*\{[\s\S]*?(?=\n\s*switchView\()/)?.[0] || '';
 assert.match(configMutation, /this\.mutationFlow\.commitMutation\(this\.state, mutation\)/, 'all app mutations must delegate state changes to the shared mutation service');
@@ -311,7 +314,7 @@ assert.equal(html.includes('cdnjs.cloudflare.com/ajax/libs/sip.js/0.20.0/sip.min
 assert.equal(html.includes('Aktuell wird nur Sipgate automatisch unterstützt'), true, 'webphone must communicate its provider allowlist');
 assert.equal(html.includes('Im Webphone verwenden'), true, 'compatible SIP cards need a webphone handoff');
 assert.match(html, /this\.sipWebPhoneApi\.createCompatibleAccount/, 'UI must delegate WSS provider matching to the webphone service');
-assert.match(html, /this\.renderSipPhoneAccounts\(sipSecrets\)/, 'decrypted SIP accounts must refresh the webphone');
+assert.match(html, /this\.refreshSipPhoneAccounts\(sipSecrets\)/, 'decrypted SIP accounts must refresh the webphone');
 assert.match(html, /this\.renderSipPhoneContacts\(\)/, 'embedded phonebooks must feed the phone contact picker');
 assert.match(html, /this\.sipDialTarget\.value = contact\.number/, 'contact selection must only prepare the dial target');
 assert.equal(/button\.addEventListener\('click',[\s\S]{0,200}sipPhone\.call\(contact/.test(html), false, 'selecting a contact must never place a call immediately');

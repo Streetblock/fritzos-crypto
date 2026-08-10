@@ -2228,7 +2228,7 @@
                             this.syncSecretEditorRow(secret);
                             this.renderChangeState();
                             if (secret.category === 'sip') {
-                                this.renderSipPhoneAccounts(this.state.secrets.filter(item => item.category === 'sip'));
+                                this.refreshSipPhoneAccounts(this.state.secrets.filter(item => item.category === 'sip'));
                             }
                         } }
                     );
@@ -2622,11 +2622,15 @@
                 }
             }
 
-            renderSipPhoneAccounts(sipSecrets) {
-                const selectedId = this.sipPhoneAccount.value;
+            refreshSipPhoneAccounts(sipSecrets) {
                 const compatibleAccounts = this.telephonyController.setAccounts(this.getSipAccountGroups(sipSecrets)
                     .map(group => this.createCompatibleSipAccount(group))
                     .filter(Boolean));
+                this.renderSipPhoneAccounts(sipSecrets, compatibleAccounts);
+            }
+
+            renderSipPhoneAccounts(sipSecrets, compatibleAccounts = this.telephonyController.getAccounts()) {
+                const selectedId = this.sipPhoneAccount.value;
                 this.sipPhoneNavCount.textContent = compatibleAccounts.length;
                 this.sipPhoneAccount.innerHTML = '';
                 if (compatibleAccounts.length === 0) {
@@ -3253,7 +3257,7 @@
                 this.renderStructuredCredentialCards(this.onlineServiceCards, onlineServiceSecrets);
                 this.renderStructuredCredentialCards(this.providerAccessCards, providerAccessSecrets);
                 this.renderWireGuardCards(vpnSecrets, wireGuardProjection);
-                this.renderSipPhoneAccounts(sipSecrets);
+                this.refreshSipPhoneAccounts(sipSecrets);
             }
 
             toggleAllSecrets() {
