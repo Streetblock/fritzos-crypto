@@ -15,6 +15,7 @@ yarn-error.log
 # Quellcode und Regressionstests mit diesen Begriffen bleiben versioniert.
 !ConfigState.js
 !FritzConfigDocument.js
+!src/SecretController.js
 !test/*.test.js
 
 # ------- macOS ------- 

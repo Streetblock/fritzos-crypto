@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const html = fs.readFileSync(require.resolve('../index.html'), 'utf8');
 const cryptoSource = fs.readFileSync(require.resolve('../lib/FritzOSCrypto.js'), 'utf8');
 const editorControllerSource = fs.readFileSync(require.resolve('../src/EditorController.js'), 'utf8');
+const secretControllerSource = fs.readFileSync(require.resolve('../src/SecretController.js'), 'utf8');
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
 
@@ -205,7 +206,7 @@ assert.match(html, /this\.state\.markDecrypted\(masterSecret\.id,[\s\S]*plaintex
 assert.equal(html.includes('exportKeyHex.substring'), false, 'master key material must not be written to the technical log');
 assert.match(html, /typeof window\.FritzExportEditor\?\.FritzExportEditor\?\.rotateExportMasterKey/, 'partial deployments must reject a missing rotation service');
 assert.match(html, /plaintext:\s*mkResult\.exportKeyHex/, 'decrypted master key must be available to the masked secret field');
-assert.match(html, /input\.type\s*=\s*this\.revealedSecrets\.has\(secret\.stableKey\)\s*\?\s*'text'\s*:\s*'password'/, 'plaintext fields must be masked by default');
+assert.match(html, /input\.type\s*=\s*this\.secretController\.isRevealed\(secret\)\s*\?\s*'text'\s*:\s*'password'/, 'plaintext fields must be masked by default');
 for (const action of ['Anzeigen', 'Kopieren', 'Bearbeiten', 'Zurücksetzen']) {
   assert.equal(html.includes(`'${action}'`), true, `secret action ${action} is missing`);
 }
@@ -218,7 +219,7 @@ assert.match(cardEditor, /createCredentialAction\('', 'undo-2'/, 'credential car
 assert.match(cardEditor, /if \(editInInputRow\) inputRow\.appendChild\(edit\)/, 'credential card edit actions belong next to the reveal action by default');
 assert.match(html, /createMaskedCredential\(secret, \{ editInInputRow: false \}\)/, 'WLAN cards need their edit action on the second row');
 assert.match(html, /credential\.querySelector\('\[data-credential-actions\]'\)\?\.append\(copyPassword\)/, 'the WLAN edit action must remain left of the copy action');
-assert.match(cardEditor, /this\.commitMutation\([\s\S]*kind: 'secret'[\s\S]*secretId: secret\.id/, 'card edits must use the shared mutation flow');
+assert.match(cardEditor, /this\.secretController\.edit\([\s\S]*secret,[\s\S]*value\.value/, 'card edits must use the secret controller');
 assert.equal(cardEditor.includes('this.scheduleAutoValidation()'), false, 'card handlers must not schedule validation outside the mutation flow');
 assert.match(cardEditor, /this\.syncSecretEditorRow\(secret\)/, 'card edits must keep the detailed secret row synchronized');
 const expertEditorInput = editorControllerSource.match(/handleInput\(\)\s*\{[\s\S]*?(?=\n\s*renderPreviewText\()/)?.[0] || '';
@@ -235,6 +236,9 @@ assert.equal(
 assert.match(html, /this\.editor\?\.addEventListener\('input', \(\) => this\.editorController\.handleInput\(\)\)/, 'editor input must delegate to the editor controller');
 assert.match(html, /src\/EditorController\.js\?v=\d{8}-\d+/, 'editor controller needs a deployment cache key');
 assert.equal(html.includes('EditorController API v1'), true, 'editor controller compatibility guard is missing');
+assert.match(html, /src\/SecretController\.js\?v=\d{8}-\d+/, 'secret controller needs a deployment cache key');
+assert.equal(html.includes('SecretController API v1'), true, 'secret controller compatibility guard is missing');
+assert.match(secretControllerSource, /edit\(secret, plaintext, options\)[\s\S]*this\.commitMutation/, 'secret edits must delegate to the shared mutation flow');
 const configMutation = html.match(/commitMutation\(mutation, options = \{\}\)\s*\{[\s\S]*?(?=\n\s*switchView\()/)?.[0] || '';
 assert.match(configMutation, /this\.mutationFlow\.commitMutation\(this\.state, mutation\)/, 'all app mutations must delegate state changes to the shared mutation service');
 assert.match(configMutation, /result\.keepPreviewVisible[\s\S]*this\.renderPreviewText/, 'structural edits must preserve the decrypted editor view');
@@ -245,7 +249,7 @@ assert.equal(changeStateRender.includes('autoValidation'), false, 'rendering the
 assert.equal(changeStateRender.includes('setAutoValidationStatus'), false, 'rendering must not overwrite validation status');
 const pureRenderMethods = {
   renderSafetyState: html.match(/renderSafetyState\(\)\s*\{[\s\S]*?(?=\n\s*showReencryptSummary\()/)?.[0] || '',
-  renderState: html.match(/renderState\(\)\s*\{[\s\S]*?(?=\n\s*getSecretDisplayStatus\()/)?.[0] || '',
+  renderState: html.match(/renderState\(\)\s*\{[\s\S]*?(?=\n\s*syncSecretEditorRow\()/)?.[0] || '',
   renderChangeState: changeStateRender
 };
 for (const [name, source] of Object.entries(pureRenderMethods)) {
@@ -277,7 +281,7 @@ assert.ok(
 assert.match(html, /<main class="min-w-0 space-y-5">\s*<section id="exportSafetyPanel"[\s\S]*?<section id="viewOverview"/, 'download verification must remain visible on every workspace page');
 assert.equal(html.includes('Strukturänderungen und verschlüsselte Werte wurden geprüft. Der Download ist freigegeben.'), true, 'successful automatic validation must remain visible in export safety');
 assert.match(html, /markReencrypted\(/, 'validated changes must retain their audit state');
-assert.equal(html.includes('Geändert · validiert'), true, 'validated change label is missing');
+assert.equal(secretControllerSource.includes('Geändert · validiert'), true, 'validated change label is missing');
 assert.match(html, /src\/ConfigState\.js\?v=\d{8}-\d+/, 'local state script must load from src with a deployment cache key');
 assert.equal(html.includes("ConfigState API v2"), true, 'state compatibility guard is missing');
 assert.equal(html.includes('Die Programmdateien wurden nicht gemeinsam aktualisiert.'), true, 'partial deployment must fail with a useful message');

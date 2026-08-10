@@ -24,6 +24,7 @@
     <script src="./src/ValidationCoordinator.js?v=20260810-2"></script>
     <script src="./src/DecryptedEditor.js?v=20260808-2"></script>
     <script src="./src/EditorController.js?v=20260810-1"></script>
+    <script src="./src/SecretController.js?v=20260810-1"></script>
     <script src="./src/FritzConfigDocument.js?v=20260808-3"></script>
     <script src="./src/FritzSipAccounts.js?v=20260808-2"></script>
     <script src="./src/FritzWireGuardConnections.js?v=20260808-2"></script>
@@ -795,7 +796,6 @@
                 this.dragDepth = 0;
                 this.activeView = 'overview';
                 this.currentFileName = '';
-                this.revealedSecrets = new Set();
                 this.passwordChangeRunning = false;
                 this.masterKeyRotationRunning = false;
                 this.originalExportPassword = null;
@@ -818,6 +818,9 @@
                 this.wireGuardKeys = window.FritzWireGuardKeys;
                 this.mutationFlow = window.FritzMutationFlow;
                 this.state = new window.FritzConfigState.ConfigState(this.parser);
+                this.secretController = new window.FritzSecretController.SecretController({
+                    commitMutation: (mutation, options) => this.commitMutation(mutation, options)
+                });
                 this.editorController = new window.FritzEditorController.EditorController({
                     state: this.state,
                     editor: this.editor,
@@ -1129,7 +1132,7 @@
                     this.closeMasterKeyRotationPanel();
                     this.masterKeyRotationResult.classList.add('hidden');
                     this.masterKeyRotationResult.textContent = '';
-                    this.revealedSecrets.clear();
+                    this.secretController.clearRevealed();
                     this.cancelAutoValidation();
                     this.hideReencryptSummary();
                     this.editor.value = text;
@@ -1378,7 +1381,7 @@
                 this.editor.readOnly = true;
                 this.editorController.clearModel();
                 this.applyEditorTheme();
-                this.revealedSecrets.clear();
+                this.secretController.clearRevealed();
                 this.cancelAutoValidation();
                 this.hideReencryptSummary();
                 this.updateCharCount();
@@ -1691,18 +1694,6 @@
                 lucide.createIcons();
             }
 
-            getSecretDisplayStatus(secret) {
-                if (secret.status === 'decrypted' &&
-                    (secret.validatedChange || secret.editedPlaintext !== secret.plaintext)) return 'changed';
-                return secret.status;
-            }
-
-            getSecretStatusLabel(secret) {
-                if (secret.status === 'decrypted' && secret.editedPlaintext !== secret.plaintext) return 'Geändert';
-                if (secret.validatedChange) return 'Geändert · validiert';
-                return null;
-            }
-
             syncSecretEditorRow(secret) {
                 const row = [...this.secretEditorList.querySelectorAll('[data-secret-id]')]
                     .find(candidate => candidate.dataset.secretId === secret.id);
@@ -1716,14 +1707,14 @@
                     changed: ['Geändert', 'bg-amber-50 text-amber-700 border-amber-200'],
                     failed: ['Fehlgeschlagen', 'bg-red-50 text-red-700 border-red-200']
                 };
-                const displayStatus = this.getSecretDisplayStatus(secret);
+                const displayStatus = this.secretController.getDisplayStatus(secret);
                 if (input && document.activeElement !== input) {
                     input.value = secret.status === 'decrypted' ? (secret.editedPlaintext ?? '') : '';
-                    input.type = this.revealedSecrets.has(secret.stableKey) ? 'text' : 'password';
+                    input.type = this.secretController.isRevealed(secret) ? 'text' : 'password';
                 }
                 if (statusBadge) {
                     statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[displayStatus][1]}`;
-                    statusBadge.textContent = this.getSecretStatusLabel(secret) || statusStyles[displayStatus][0];
+                    statusBadge.textContent = this.secretController.getStatusLabel(secret) || statusStyles[displayStatus][0];
                 }
                 resetButton?.classList.toggle('hidden', displayStatus !== 'changed');
             }
@@ -2153,7 +2144,7 @@
                 const inputRow = document.createElement('div');
                 inputRow.className = 'flex items-center gap-2';
                 const value = document.createElement('input');
-                value.type = this.revealedSecrets.has(secret.stableKey) ? 'text' : 'password';
+                value.type = this.secretController.isRevealed(secret) ? 'text' : 'password';
                 value.value = secret.status === 'decrypted' ? (secret.editedPlaintext ?? '') : '';
                 value.placeholder = secret.status === 'failed' ? 'Fehlgeschlagen' : 'Noch verschlüsselt';
                 value.readOnly = true;
@@ -2163,13 +2154,11 @@
                 const editable = secret.status === 'decrypted' && (secret.type === 4 || secret.type === 5) && !this.isExportMasterKey(secret);
                 const toggle = this.createCredentialAction(
                     '',
-                    this.revealedSecrets.has(secret.stableKey) ? 'eye-off' : 'eye',
+                    this.secretController.isRevealed(secret) ? 'eye-off' : 'eye',
                     () => {
-                        const revealed = this.revealedSecrets.has(secret.stableKey);
-                        if (revealed) this.revealedSecrets.delete(secret.stableKey);
-                        else this.revealedSecrets.add(secret.stableKey);
-                        value.type = revealed ? 'password' : 'text';
-                        toggle.innerHTML = `<i data-lucide="${revealed ? 'eye' : 'eye-off'}" class="w-3.5 h-3.5"></i><span></span>`;
+                        const revealed = this.secretController.toggleReveal(secret);
+                        value.type = revealed ? 'text' : 'password';
+                        toggle.innerHTML = `<i data-lucide="${revealed ? 'eye-off' : 'eye'}" class="w-3.5 h-3.5"></i><span></span>`;
                         this.syncSecretEditorRow(secret);
                         lucide.createIcons();
                     },
@@ -2181,7 +2170,7 @@
 
                 const edit = this.createCredentialAction('', 'pencil', () => {
                     if (!this.confirmWireGuardPrivateKeyEdit(secret)) return;
-                    this.revealedSecrets.add(secret.stableKey);
+                    this.secretController.reveal(secret);
                     value.type = 'text';
                     value.readOnly = false;
                     value.focus();
@@ -2194,8 +2183,8 @@
                 edit.title = editable ? 'Direkt bearbeiten' : 'Dieser Wert kann nicht neu verschlüsselt werden';
 
                 const reset = this.createCredentialAction('', 'undo-2', () => {
-                    this.commitMutation(
-                        { kind: 'secret', secretId: secret.id, plaintext: secret.plaintext },
+                    this.secretController.reset(
+                        secret,
                         { render: () => {
                             value.value = secret.plaintext ?? '';
                             value.readOnly = true;
@@ -2218,16 +2207,17 @@
 
                 const status = document.createElement('p');
                 const updateCardStatus = () => {
-                    const changed = this.getSecretDisplayStatus(secret) === 'changed';
+                    const changed = this.secretController.getDisplayStatus(secret) === 'changed';
                     reset.classList.toggle('hidden', !changed);
                     actionRow.classList.toggle('hidden', editInInputRow && !changed);
                     status.className = `${changed ? '' : 'hidden '}text-[11px] font-semibold ${secret.validatedChange && secret.editedPlaintext === secret.plaintext ? 'text-emerald-700' : 'text-amber-700'}`;
-                    status.textContent = this.getSecretStatusLabel(secret) || 'Geändert';
+                    status.textContent = this.secretController.getStatusLabel(secret) || 'Geändert';
                 };
 
                 value.addEventListener('input', () => {
-                    this.commitMutation(
-                        { kind: 'secret', secretId: secret.id, plaintext: value.value },
+                    this.secretController.edit(
+                        secret,
+                        value.value,
                         { render: () => {
                             updateCardStatus();
                             this.syncSecretEditorRow(secret);
@@ -3289,13 +3279,7 @@
             }
 
             toggleAllSecrets() {
-                const decryptedSecrets = this.state.secrets.filter(secret => secret.status === 'decrypted');
-                const allRevealed = decryptedSecrets.length > 0 &&
-                    decryptedSecrets.every(secret => this.revealedSecrets.has(secret.stableKey));
-                decryptedSecrets.forEach(secret => {
-                    if (allRevealed) this.revealedSecrets.delete(secret.stableKey);
-                    else this.revealedSecrets.add(secret.stableKey);
-                });
+                this.secretController.toggleAll(this.state.secrets);
                 this.renderSecretEditor();
             }
 
@@ -3309,11 +3293,12 @@
                 const query = (this.secretSearch?.value || '').trim().toLocaleLowerCase('de');
                 const category = this.secretCategoryFilter?.value || 'all';
                 const status = this.secretStatusFilter?.value || 'all';
-                const visibleSecrets = regularSecrets.filter(secret =>
-                    (!query || this.getSecretSearchText(secret).includes(query)) &&
-                    (category === 'all' || secret.category === category) &&
-                    (status === 'all' || this.getSecretDisplayStatus(secret) === status)
-                );
+                const visibleSecrets = this.secretController.filter(regularSecrets, {
+                    query,
+                    category,
+                    status,
+                    getSearchText: secret => this.getSecretSearchText(secret)
+                });
 
                 this.exportMasterKeySection.classList.toggle('hidden', !exportMasterKey);
                 this.secretEditorSection.classList.toggle('hidden', regularSecrets.length === 0);
@@ -3321,7 +3306,7 @@
                 this.secretResultsSummary.textContent = `${visibleSecrets.length} von ${regularSecrets.length} Fundstellen angezeigt`;
                 const decryptedSecrets = allSecrets.filter(secret => secret.status === 'decrypted');
                 const allRevealed = decryptedSecrets.length > 0 &&
-                    decryptedSecrets.every(secret => this.revealedSecrets.has(secret.stableKey));
+                    decryptedSecrets.every(secret => this.secretController.isRevealed(secret));
                 this.btnToggleAllSecrets.disabled = decryptedSecrets.length === 0;
                 this.btnToggleAllSecrets.innerHTML = allRevealed
                     ? '<i data-lucide="eye-off" class="w-4 h-4"></i> Alle verbergen'
@@ -3374,7 +3359,7 @@
                     const decrypted = secret.status === 'decrypted';
                     const supported = decrypted && (secret.type === 4 || secret.type === 5);
                     const editable = supported && !this.isExportMasterKey(secret);
-                    const displayStatus = this.getSecretDisplayStatus(secret);
+                    const displayStatus = this.secretController.getDisplayStatus(secret);
                     const row = document.createElement('article');
                     row.className = 'p-5 grid grid-cols-1 xl:grid-cols-[minmax(210px,0.8fr)_minmax(300px,1.2fr)] gap-4 items-start';
                     row.dataset.secretId = secret.id;
@@ -3391,7 +3376,7 @@
                     const statusBadge = document.createElement('span');
                     statusBadge.dataset.secretStatus = '';
                     statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[displayStatus][1]}`;
-                    statusBadge.textContent = this.getSecretStatusLabel(secret) || statusStyles[displayStatus][0];
+                    statusBadge.textContent = this.secretController.getStatusLabel(secret) || statusStyles[displayStatus][0];
                     headingLine.append(title, categoryBadge, statusBadge);
 
                     const location = this.createSecretLocationLink(secret, 'mt-1.5');
@@ -3417,7 +3402,7 @@
 
                     const valueArea = document.createElement('div');
                     const input = document.createElement('input');
-                    input.type = this.revealedSecrets.has(secret.stableKey) ? 'text' : 'password';
+                    input.type = this.secretController.isRevealed(secret) ? 'text' : 'password';
                     input.value = decrypted ? (secret.editedPlaintext ?? '') : '';
                     input.placeholder = displayStatus === 'failed' ? 'Entschlüsselung fehlgeschlagen' : 'Noch nicht entschlüsselt';
                     input.readOnly = true;
@@ -3429,11 +3414,10 @@
                     const actions = document.createElement('div');
                     actions.className = 'flex items-center gap-2 flex-wrap mt-2';
                     const revealButton = makeAction(
-                        this.revealedSecrets.has(secret.stableKey) ? 'Verbergen' : 'Anzeigen',
-                        this.revealedSecrets.has(secret.stableKey) ? 'eye-off' : 'eye',
+                        this.secretController.isRevealed(secret) ? 'Verbergen' : 'Anzeigen',
+                        this.secretController.isRevealed(secret) ? 'eye-off' : 'eye',
                         () => {
-                            if (this.revealedSecrets.has(secret.stableKey)) this.revealedSecrets.delete(secret.stableKey);
-                            else this.revealedSecrets.add(secret.stableKey);
+                            this.secretController.toggleReveal(secret);
                             this.renderSecretEditor();
                         },
                         !decrypted
@@ -3441,7 +3425,7 @@
                     const copyButton = makeAction('Kopieren', 'copy', () => this.copySecretPlaintext(secret), !decrypted);
                     const editButton = makeAction('Bearbeiten', 'pencil', () => {
                         if (!this.confirmWireGuardPrivateKeyEdit(secret)) return;
-                        this.revealedSecrets.add(secret.stableKey);
+                        this.secretController.reveal(secret);
                         input.type = 'text';
                         input.readOnly = false;
                         input.focus();
@@ -3449,8 +3433,8 @@
                     }, !editable);
                     let resetButton;
                     resetButton = makeAction('Zurücksetzen', 'undo-2', () => {
-                        this.commitMutation(
-                            { kind: 'secret', secretId: secret.id, plaintext: secret.plaintext },
+                        this.secretController.reset(
+                            secret,
                             { render: () => this.renderSecretEditor() }
                         );
                     }, false);
@@ -3459,12 +3443,13 @@
                     actions.append(revealButton, copyButton, editButton, resetButton);
 
                     input.addEventListener('input', () => {
-                        this.commitMutation(
-                            { kind: 'secret', secretId: secret.id, plaintext: input.value },
+                        this.secretController.edit(
+                            secret,
+                            input.value,
                             { render: () => {
-                                const currentStatus = this.getSecretDisplayStatus(secret);
+                                const currentStatus = this.secretController.getDisplayStatus(secret);
                                 statusBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusStyles[currentStatus][1]}`;
-                                statusBadge.textContent = this.getSecretStatusLabel(secret) || statusStyles[currentStatus][0];
+                                statusBadge.textContent = this.secretController.getStatusLabel(secret) || statusStyles[currentStatus][0];
                                 resetButton.classList.toggle('hidden', currentStatus !== 'changed');
                                 this.renderChangeState();
                                 this.renderCredentialCards();
@@ -3544,7 +3529,7 @@
                 this.closeMasterKeyRotationPanel();
                 this.masterKeyRotationResult.classList.add('hidden');
                 this.masterKeyRotationResult.textContent = '';
-                this.revealedSecrets.clear();
+                this.secretController.clearRevealed();
                 if (this.secretSearch) this.secretSearch.value = '';
                 if (this.secretCategoryFilter) this.secretCategoryFilter.value = 'all';
                 if (this.secretStatusFilter) this.secretStatusFilter.value = 'all';
@@ -3937,6 +3922,10 @@
             if (window.FritzEditorController?.API_VERSION !== '1' ||
                 typeof window.FritzEditorController?.EditorController !== 'function') {
                 missingCapabilities.unshift('EditorController API v1');
+            }
+            if (window.FritzSecretController?.API_VERSION !== '1' ||
+                typeof window.FritzSecretController?.SecretController !== 'function') {
+                missingCapabilities.unshift('SecretController API v1');
             }
             if (window.FritzConfigDocument?.API_VERSION !== '1' ||
                 typeof window.FritzConfigDocument?.parse !== 'function' ||
