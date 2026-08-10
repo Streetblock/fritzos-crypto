@@ -6,6 +6,7 @@ const cryptoSource = fs.readFileSync(require.resolve('../lib/FritzOSCrypto.js'),
 const editorControllerSource = fs.readFileSync(require.resolve('../src/EditorController.js'), 'utf8');
 const secretControllerSource = fs.readFileSync(require.resolve('../src/SecretController.js'), 'utf8');
 const filesControllerSource = fs.readFileSync(require.resolve('../src/FilesController.js'), 'utf8');
+const telephonyControllerSource = fs.readFileSync(require.resolve('../src/TelephonyController.js'), 'utf8');
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
 
@@ -244,6 +245,13 @@ assert.equal(html.includes('FilesController API v1'), true, 'files controller co
 assert.match(html, /this\.filesController\.load\(text\)/, 'loaded exports must enter the file controller');
 assert.match(filesControllerSource, /getPhoneContacts\(\)/, 'the file controller must provide a telephony-safe contact projection');
 assert.equal(html.includes('this.phonebookData'), false, 'phonebook state must not remain on the app controller');
+assert.match(html, /src\/TelephonyController\.js\?v=\d{8}-\d+/, 'telephony controller needs a deployment cache key');
+assert.equal(html.includes('TelephonyController API v1'), true, 'telephony controller compatibility guard is missing');
+assert.match(telephonyControllerSource, /async toggleConnection\(account\)/, 'telephony connection actions belong in the controller');
+assert.match(telephonyControllerSource, /findContact\(contacts, number\)/, 'telephony caller matching belongs in the controller');
+for (const legacyState of ['this.compatibleSipAccounts', 'this.sipPhoneState', 'this.selectedSipContact']) {
+  assert.equal(html.includes(legacyState), false, `${legacyState} must not remain on the app controller`);
+}
 assert.match(secretControllerSource, /edit\(secret, plaintext, options\)[\s\S]*this\.commitMutation/, 'secret edits must delegate to the shared mutation flow');
 const configMutation = html.match(/commitMutation\(mutation, options = \{\}\)\s*\{[\s\S]*?(?=\n\s*switchView\()/)?.[0] || '';
 assert.match(configMutation, /this\.mutationFlow\.commitMutation\(this\.state, mutation\)/, 'all app mutations must delegate state changes to the shared mutation service');

@@ -26,6 +26,7 @@
     <script src="./src/EditorController.js?v=20260810-1"></script>
     <script src="./src/SecretController.js?v=20260810-1"></script>
     <script src="./src/FilesController.js?v=20260810-1"></script>
+    <script src="./src/TelephonyController.js?v=20260810-1"></script>
     <script src="./src/FritzConfigDocument.js?v=20260808-3"></script>
     <script src="./src/FritzSipAccounts.js?v=20260808-2"></script>
     <script src="./src/FritzWireGuardConnections.js?v=20260808-2"></script>
@@ -800,9 +801,6 @@
                 this.passwordChangeRunning = false;
                 this.masterKeyRotationRunning = false;
                 this.originalExportPassword = null;
-                this.compatibleSipAccounts = [];
-                this.sipPhoneState = 'idle';
-                this.selectedSipContact = null;
                 this.sipSettingsPreviousFocus = null;
                 this.editorTheme = 'console';
                 this.library = window.FritzOSCrypto;
@@ -851,6 +849,10 @@
                     remoteAudio: this.sipRemoteAudio,
                     onState: event => this.handleSipPhoneState(event),
                     onIncoming: (_session, caller) => this.handleIncomingSipCall(caller)
+                });
+                this.telephonyController = new window.FritzTelephonyController.TelephonyController({
+                    phone: this.sipPhone,
+                    mediaDevices: navigator.mediaDevices
                 });
 
                 this.bindEvents();
@@ -903,12 +905,12 @@
                 this.sipPhoneAccount?.addEventListener('change', () => this.updateSipPhoneAccountPreview());
                 this.btnSipConnect?.addEventListener('click', () => this.toggleSipPhoneConnection());
                 this.btnSipCall?.addEventListener('click', () => this.startSipCall());
-                this.btnSipHangup?.addEventListener('click', () => this.sipPhone.hangup());
+                this.btnSipHangup?.addEventListener('click', () => this.telephonyController.hangup());
                 this.btnSipAnswer?.addEventListener('click', () => this.answerSipCall());
                 this.btnSipDecline?.addEventListener('click', () => this.declineSipCall());
                 this.sipContactSearch?.addEventListener('input', () => this.renderSipPhoneContacts());
                 this.sipDialTarget?.addEventListener('input', () => {
-                    this.selectedSipContact = null;
+                    this.telephonyController.clearSelectedContact();
                     this.sipSelectedContact.textContent = '';
                 });
 
@@ -1127,7 +1129,7 @@
 
                 reader.onload = (loadEvent) => {
                     const text = String(loadEvent.target?.result || '');
-                    void this.sipPhone.disconnect();
+                    void this.telephonyController.disconnect();
                     this.state.load(text);
                     this.filesController.load(text);
                     this.originalExportPassword = null;
@@ -1374,7 +1376,7 @@
                 if ((this.state.hasUnsavedChanges() || losesResults) &&
                     !window.confirm('Originaldatei wiederherstellen? Alle Änderungen und Entschlüsselungsergebnisse werden verworfen.')) return;
                 const original = this.state.restoreOriginal();
-                void this.sipPhone.disconnect();
+                void this.telephonyController.disconnect();
                 if (this.originalExportPassword !== null) this.passwordInput.value = this.originalExportPassword;
                 this.closePasswordChangePanel();
                 this.closeMasterKeyRotationPanel();
@@ -2622,31 +2624,31 @@
 
             renderSipPhoneAccounts(sipSecrets) {
                 const selectedId = this.sipPhoneAccount.value;
-                this.compatibleSipAccounts = this.getSipAccountGroups(sipSecrets)
+                const compatibleAccounts = this.telephonyController.setAccounts(this.getSipAccountGroups(sipSecrets)
                     .map(group => this.createCompatibleSipAccount(group))
-                    .filter(Boolean);
-                this.sipPhoneNavCount.textContent = this.compatibleSipAccounts.length;
+                    .filter(Boolean));
+                this.sipPhoneNavCount.textContent = compatibleAccounts.length;
                 this.sipPhoneAccount.innerHTML = '';
-                if (this.compatibleSipAccounts.length === 0) {
+                if (compatibleAccounts.length === 0) {
                     const option = document.createElement('option');
                     option.value = '';
                     option.textContent = 'Kein kompatibles entschlüsseltes Konto';
                     this.sipPhoneAccount.appendChild(option);
                 } else {
-                    this.compatibleSipAccounts.forEach(account => {
+                    compatibleAccounts.forEach(account => {
                         const option = document.createElement('option');
                         option.value = account.id;
                         option.textContent = `${account.providerName} · ${account.username}@${account.registrar}`;
                         this.sipPhoneAccount.appendChild(option);
                     });
-                    if (this.compatibleSipAccounts.some(account => account.id === selectedId)) this.sipPhoneAccount.value = selectedId;
+                    if (compatibleAccounts.some(account => account.id === selectedId)) this.sipPhoneAccount.value = selectedId;
                 }
 
                 const hasSipgateAccount = this.getSipAccountGroups(sipSecrets).some(group => {
                     const registrar = group.account.registrar || this.getSipAccountValue(group, /^registrar$/) || '';
                     return this.sipWebPhoneApi.resolveProvider(registrar)?.id === 'sipgate';
                 });
-                this.sipPhoneNotice.textContent = this.compatibleSipAccounts.length > 0
+                this.sipPhoneNotice.textContent = compatibleAccounts.length > 0
                     ? 'Sipgate ist für SIP over WSS freigegeben. Die Verbindung startet erst nach deinem Klick.'
                     : hasSipgateAccount
                         ? 'Ein Sipgate-Konto wurde erkannt. Entschlüssele Benutzername und Passwort, um das Webphone zu verwenden.'
@@ -2656,30 +2658,31 @@
             }
 
             getSelectedSipAccount() {
-                return this.compatibleSipAccounts.find(account => account.id === this.sipPhoneAccount.value) || null;
+                return this.telephonyController.getAccount(this.sipPhoneAccount.value);
             }
 
             updateSipPhoneAccountPreview() {
                 const account = this.getSelectedSipAccount();
                 this.sipPhoneWebsocket.textContent = account?.websocket || '—';
-                this.btnSipConnect.disabled = !account || ['connecting', 'calling', 'active'].includes(this.sipPhoneState);
+                this.btnSipConnect.disabled = !account || this.telephonyController.isBusy();
             }
 
             prepareSipPhoneAccount(accountId) {
                 this.switchView('telephony');
-                if (this.compatibleSipAccounts.some(account => account.id === accountId)) this.sipPhoneAccount.value = accountId;
+                if (this.telephonyController.getAccount(accountId)) this.sipPhoneAccount.value = accountId;
                 this.updateSipPhoneAccountPreview();
                 this.sipDialTarget.focus();
             }
 
             handleSipPhoneState(event) {
-                this.sipPhoneState = event.state;
+                this.telephonyController.setPhoneState(event.state);
                 if (event.state !== 'calling') this.sipIncomingCall.classList.add('hidden');
                 if (event.detail) this.sipCallMessage.textContent = event.detail;
                 this.renderSipPhoneState();
             }
 
             renderSipPhoneState() {
+                const phoneState = this.telephonyController.getPhoneState();
                 const states = {
                     idle: ['Nicht verbunden', 'bg-slate-400', 'text-slate-600'],
                     connecting: ['Verbindung wird aufgebaut…', 'bg-amber-500', 'text-amber-700'],
@@ -2688,24 +2691,24 @@
                     active: ['Gespräch aktiv', 'bg-emerald-500', 'text-emerald-700'],
                     failed: ['Verbindung fehlgeschlagen', 'bg-red-500', 'text-red-700']
                 };
-                const [label, dotClass, textClass] = states[this.sipPhoneState] || states.idle;
+                const [label, dotClass, textClass] = states[phoneState] || states.idle;
                 this.sipPhoneStatus.className = `inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold ${textClass}`;
                 this.sipPhoneStatus.innerHTML = `<span class="w-2 h-2 rounded-full ${dotClass}"></span> ${label}`;
-                const registered = ['registered', 'calling', 'active'].includes(this.sipPhoneState);
-                const busy = ['connecting', 'calling', 'active'].includes(this.sipPhoneState);
+                const registered = this.telephonyController.isRegistered();
+                const busy = this.telephonyController.isBusy();
                 this.btnSipConnect.disabled = (!this.getSelectedSipAccount() && !registered) || busy;
                 this.btnSipConnect.innerHTML = registered
                     ? '<i data-lucide="unplug" class="w-4 h-4"></i> Verbindung trennen'
                     : '<i data-lucide="plug" class="w-4 h-4"></i> Mit Sipgate verbinden';
-                this.sipPhoneAccount.disabled = this.sipPhoneState !== 'idle' && this.sipPhoneState !== 'failed';
-                this.btnSipCall.disabled = this.sipPhoneState !== 'registered';
-                this.btnSipHangup.disabled = !['calling', 'active'].includes(this.sipPhoneState);
+                this.sipPhoneAccount.disabled = phoneState !== 'idle' && phoneState !== 'failed';
+                this.btnSipCall.disabled = phoneState !== 'registered';
+                this.btnSipHangup.disabled = !['calling', 'active'].includes(phoneState);
                 lucide.createIcons();
             }
 
             async toggleSipPhoneConnection() {
-                if (['registered', 'calling', 'active'].includes(this.sipPhoneState)) {
-                    await this.sipPhone.disconnect();
+                if (this.telephonyController.isRegistered()) {
+                    await this.telephonyController.toggleConnection(this.getSelectedSipAccount());
                     this.sipCallMessage.textContent = 'Verbindung getrennt.';
                     return;
                 }
@@ -2713,24 +2716,17 @@
                 if (!account) return;
                 this.sipCallMessage.textContent = 'Sichere WebSocket-Verbindung wird aufgebaut…';
                 try {
-                    await this.sipPhone.connect(account);
+                    await this.telephonyController.toggleConnection(account);
                     this.sipCallMessage.textContent = `${account.providerName}-Konto ist registriert.`;
                 } catch (error) {
                     this.sipCallMessage.textContent = `Verbindung fehlgeschlagen: ${error.message || error}`;
                 }
             }
 
-            async requestSipMicrophone() {
-                if (!navigator.mediaDevices?.getUserMedia) throw new Error('Mikrofonzugriff wird von diesem Browser nicht unterstützt.');
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                stream.getTracks().forEach(track => track.stop());
-            }
-
             async startSipCall() {
                 try {
-                    await this.requestSipMicrophone();
                     this.sipCallMessage.textContent = 'Anruf wird aufgebaut…';
-                    await this.sipPhone.call(this.sipDialTarget.value);
+                    await this.telephonyController.call(this.sipDialTarget.value);
                 } catch (error) {
                     this.sipCallMessage.textContent = `Anruf nicht gestartet: ${error.message || error}`;
                 }
@@ -2738,8 +2734,7 @@
 
             async answerSipCall() {
                 try {
-                    await this.requestSipMicrophone();
-                    await this.sipPhone.answer();
+                    await this.telephonyController.answer();
                     this.sipIncomingCall.classList.add('hidden');
                 } catch (error) {
                     this.sipCallMessage.textContent = `Anruf konnte nicht angenommen werden: ${error.message || error}`;
@@ -2747,34 +2742,21 @@
             }
 
             async declineSipCall() {
-                await this.sipPhone.hangup();
+                await this.telephonyController.hangup();
                 this.sipIncomingCall.classList.add('hidden');
             }
 
             handleIncomingSipCall(caller) {
-                const contact = this.findSipContact(caller);
-                this.sipPhoneState = 'calling';
+                const contact = this.telephonyController.findContact(this.getSipPhoneContacts(), caller);
+                this.telephonyController.setPhoneState('calling');
                 this.renderSipPhoneState();
                 this.sipIncomingCaller.textContent = contact ? `${contact.name} · ${caller}` : caller;
                 this.sipIncomingCall.classList.remove('hidden');
                 this.switchView('telephony');
             }
 
-            normalizePhoneNumber(value) {
-                return String(value || '').replace(/[^0-9+]/g, '').replace(/^00/, '+');
-            }
-
             getSipPhoneContacts() {
                 return this.filesController.getPhoneContacts();
-            }
-
-            findSipContact(number) {
-                const target = this.normalizePhoneNumber(number);
-                if (!target) return null;
-                return this.getSipPhoneContacts().find(contact => {
-                    const candidate = this.normalizePhoneNumber(contact.number);
-                    return candidate === target || (candidate.length >= 7 && target.endsWith(candidate.slice(-7))) || (target.length >= 7 && candidate.endsWith(target.slice(-7)));
-                }) || null;
             }
 
             renderSipPhoneContacts() {
@@ -2808,7 +2790,7 @@
                     number.textContent = contact.number;
                     button.append(identity, number);
                     button.addEventListener('click', () => {
-                        this.selectedSipContact = contact;
+                        this.telephonyController.selectContact(contact);
                         this.sipDialTarget.value = contact.number;
                         this.sipSelectedContact.textContent = `${contact.name} · ${contact.book}`;
                         this.sipDialTarget.focus();
@@ -3499,7 +3481,7 @@
             clearAll() {
                 this.closeSipSettingsDrawer();
                 this.cancelAutoValidation();
-                void this.sipPhone.disconnect();
+                void this.telephonyController.disconnect();
                 this.editor.value = '';
                 this.editor.readOnly = true;
                 this.editorController.clearModel();
@@ -3512,8 +3494,7 @@
                 if (this.phonebookSearch) this.phonebookSearch.value = '';
                 if (this.sipContactSearch) this.sipContactSearch.value = '';
                 if (this.sipDialTarget) this.sipDialTarget.value = '';
-                this.compatibleSipAccounts = [];
-                this.selectedSipContact = null;
+                this.telephonyController.reset();
                 this.renderPhonebookViewer();
                 this.renderState();
                 this.applyEditorTheme();
@@ -3926,6 +3907,10 @@
             if (window.FritzFilesController?.API_VERSION !== '1' ||
                 typeof window.FritzFilesController?.FilesController !== 'function') {
                 missingCapabilities.unshift('FilesController API v1');
+            }
+            if (window.FritzTelephonyController?.API_VERSION !== '1' ||
+                typeof window.FritzTelephonyController?.TelephonyController !== 'function') {
+                missingCapabilities.unshift('TelephonyController API v1');
             }
             if (window.FritzConfigDocument?.API_VERSION !== '1' ||
                 typeof window.FritzConfigDocument?.parse !== 'function' ||
