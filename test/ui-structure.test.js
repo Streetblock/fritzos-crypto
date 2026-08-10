@@ -7,6 +7,7 @@ const editorControllerSource = fs.readFileSync(require.resolve('../src/EditorCon
 const secretControllerSource = fs.readFileSync(require.resolve('../src/SecretController.js'), 'utf8');
 const filesControllerSource = fs.readFileSync(require.resolve('../src/FilesController.js'), 'utf8');
 const telephonyControllerSource = fs.readFileSync(require.resolve('../src/TelephonyController.js'), 'utf8');
+const telephonyViewSource = fs.readFileSync(require.resolve('../src/TelephonyView.js'), 'utf8');
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
 
@@ -255,6 +256,10 @@ for (const legacyState of ['this.compatibleSipAccounts', 'this.sipPhoneState', '
 const sipPhoneRenderer = html.match(/renderSipPhoneAccounts\(sipSecrets,[\s\S]*?(?=\n\s*getSelectedSipAccount\()/)?.[0] || '';
 assert.equal(sipPhoneRenderer.includes('setAccounts('), false, 'the SIP phone renderer must not mutate telephony state');
 assert.match(html, /refreshSipPhoneAccounts\(sipSecrets\)[\s\S]*telephonyController\.setAccounts/, 'telephony projection must be synchronized before rendering');
+assert.match(html, /src\/TelephonyView\.js\?v=\d{8}-\d+/, 'telephony view needs a deployment cache key');
+assert.equal(html.includes('TelephonyView API v1'), true, 'telephony view compatibility guard is missing');
+assert.match(telephonyViewSource, /renderAccounts\(accounts, notice\)/, 'SIP account DOM rendering belongs in the telephony view');
+assert.match(telephonyViewSource, /renderState\(model\)/, 'SIP state DOM rendering belongs in the telephony view');
 assert.match(secretControllerSource, /edit\(secret, plaintext, options\)[\s\S]*this\.commitMutation/, 'secret edits must delegate to the shared mutation flow');
 const configMutation = html.match(/commitMutation\(mutation, options = \{\}\)\s*\{[\s\S]*?(?=\n\s*switchView\()/)?.[0] || '';
 assert.match(configMutation, /this\.mutationFlow\.commitMutation\(this\.state, mutation\)/, 'all app mutations must delegate state changes to the shared mutation service');
@@ -316,8 +321,8 @@ assert.equal(html.includes('Im Webphone verwenden'), true, 'compatible SIP cards
 assert.match(html, /this\.sipWebPhoneApi\.createCompatibleAccount/, 'UI must delegate WSS provider matching to the webphone service');
 assert.match(html, /this\.refreshSipPhoneAccounts\(sipSecrets\)/, 'decrypted SIP accounts must refresh the webphone');
 assert.match(html, /this\.renderSipPhoneContacts\(\)/, 'embedded phonebooks must feed the phone contact picker');
-assert.match(html, /this\.sipDialTarget\.value = contact\.number/, 'contact selection must only prepare the dial target');
-assert.equal(/button\.addEventListener\('click',[\s\S]{0,200}sipPhone\.call\(contact/.test(html), false, 'selecting a contact must never place a call immediately');
+assert.match(telephonyViewSource, /this\.elements\.dialTarget\.value = contact\.number/, 'contact selection must only prepare the dial target');
+assert.equal(/button\.addEventListener\('click',[\s\S]{0,200}sipPhone\.call\(contact/.test(html + telephonyViewSource), false, 'selecting a contact must never place a call immediately');
 assert.match(html, /typeof window\.FritzEmbeddedFiles\?\.createFilePreview/, 'partial deployments must reject a missing generic preview service');
 assert.match(html, /this\.embeddedFiles\.extractPhonebooks\(text\)/, 'loaded exports must be scanned for embedded phonebooks');
 assert.match(html, /this\.jumpToEditorLine\(entry\.book\.sourceLine\)/, 'phonebooks must link back to their source block');
