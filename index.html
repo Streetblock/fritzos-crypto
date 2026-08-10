@@ -23,6 +23,7 @@
     <script src="./src/MutationFlow.js?v=20260810-1"></script>
     <script src="./src/ValidationCoordinator.js?v=20260810-2"></script>
     <script src="./src/DecryptedEditor.js?v=20260808-2"></script>
+    <script src="./src/EditorController.js?v=20260810-1"></script>
     <script src="./src/FritzConfigDocument.js?v=20260808-3"></script>
     <script src="./src/FritzSipAccounts.js?v=20260808-2"></script>
     <script src="./src/FritzWireGuardConnections.js?v=20260808-2"></script>
@@ -804,7 +805,6 @@
                 this.selectedSipContact = null;
                 this.sipSettingsPreviousFocus = null;
                 this.editorTheme = 'console';
-                this.decryptedEditorModel = null;
                 this.library = window.FritzOSCrypto;
                 this.parser = FritzBoxParser;
                 this.crypto = AVMCrypto;
@@ -818,6 +818,15 @@
                 this.wireGuardKeys = window.FritzWireGuardKeys;
                 this.mutationFlow = window.FritzMutationFlow;
                 this.state = new window.FritzConfigState.ConfigState(this.parser);
+                this.editorController = new window.FritzEditorController.EditorController({
+                    state: this.state,
+                    editor: this.editor,
+                    decryptedEditor: window.FritzDecryptedEditor,
+                    commitMutation: (mutation, options) => this.commitMutation(mutation, options),
+                    replaceSecret: (text, secret, plaintext) => this.replaceSecretAt(text, secret, plaintext),
+                    onStatus: (message, tone) => this.showStatus(message, tone),
+                    onTextRendered: () => this.updateCharCount()
+                });
                 this.autoValidation = new window.FritzValidationCoordinator.ValidationCoordinator({
                     delay: 15000,
                     getSnapshot: () => this.getValidationSnapshot(),
@@ -871,7 +880,7 @@
                 [this.masterKeyModeRandom, this.masterKeyModeManual].forEach(input => input?.addEventListener('change', () => this.renderMasterKeyMode()));
                 this.btnClearLog?.addEventListener('click', () => this.clearLog());
                 this.fileInput?.addEventListener('change', (event) => this.handleFileInput(event));
-                this.editor?.addEventListener('input', () => this.handleEditorInput());
+                this.editor?.addEventListener('input', () => this.editorController.handleInput());
                 this.editor?.addEventListener('scroll', () => this.syncEditorScroll());
                 this.navButtons.forEach(button => button.addEventListener('click', () => this.switchView(button.dataset.view)));
                 this.passwordInput?.addEventListener('keydown', event => {
@@ -919,32 +928,6 @@
                     this.editorDropZone.addEventListener('dragleave', (event) => this.handleDragLeave(event));
                     this.editorDropZone.addEventListener('drop', (event) => this.handleDrop(event));
                 }
-            }
-
-            handleEditorInput() {
-                if (this.state.viewMode === 'preview') {
-                    const selection = this.editor.selectionStart;
-                    let edit;
-                    try {
-                        edit = window.FritzDecryptedEditor.applyEdit(
-                            this.decryptedEditorModel,
-                            this.editor.value,
-                            this.state.workingText
-                        );
-                    } catch (error) {
-                        this.showStatus(`Änderung nicht übernommen: ${error.message}`, 'warning');
-                        this.renderPreviewText(selection);
-                        return;
-                    }
-                    if (edit.kind === 'conflict') {
-                        this.showStatus(`${edit.message} Bitte Secret und Struktur nacheinander bearbeiten.`, 'warning');
-                        this.renderPreviewText(selection);
-                        return;
-                    }
-                    this.commitMutation(edit, { selection });
-                    return;
-                }
-                this.commitMutation({ kind: 'structure', workingText: this.editor.value });
             }
 
             commitMutation(mutation, options = {}) {
@@ -1151,7 +1134,7 @@
                     this.hideReencryptSummary();
                     this.editor.value = text;
                     this.editor.readOnly = true;
-                    this.decryptedEditorModel = null;
+                    this.editorController.clearModel();
                     this.applyEditorTheme();
                     this.updateCharCount();
                     this.renderState();
@@ -1393,7 +1376,7 @@
                 this.masterKeyRotationResult.textContent = '';
                 this.editor.value = original;
                 this.editor.readOnly = true;
-                this.decryptedEditorModel = null;
+                this.editorController.clearModel();
                 this.applyEditorTheme();
                 this.revealedSecrets.clear();
                 this.cancelAutoValidation();
@@ -3538,7 +3521,7 @@
                 void this.sipPhone.disconnect();
                 this.editor.value = '';
                 this.editor.readOnly = true;
-                this.decryptedEditorModel = null;
+                this.editorController.clearModel();
                 this.currentFileName = '';
                 this.fileNameLabel.textContent = 'Keine Datei geladen';
                 this.dashboardSection.classList.add('hidden');
@@ -3575,11 +3558,7 @@
             }
 
             renderPreviewText(selection = null) {
-                this.state.createPreview((text, secret, plaintext) => this.replaceSecretAt(text, secret, plaintext));
-                this.decryptedEditorModel = window.FritzDecryptedEditor.buildDocument(this.state.workingText, this.state.secrets);
-                this.editor.value = this.decryptedEditorModel.text;
-                this.updateCharCount();
-                if (selection !== null) this.editor.setSelectionRange(selection, selection);
+                return this.editorController.renderPreviewText(selection);
             }
 
             showDecryptedPreview() {
@@ -3592,7 +3571,7 @@
 
             showWorkingCopy() {
                 this.state.showWorkingCopy();
-                this.decryptedEditorModel = null;
+                this.editorController.clearModel();
                 this.editor.value = this.state.originalText;
                 this.editor.readOnly = true;
                 this.applyEditorTheme();
@@ -3954,6 +3933,10 @@
             if (typeof window.FritzDecryptedEditor?.buildDocument !== 'function' ||
                 typeof window.FritzDecryptedEditor?.applyEdit !== 'function') {
                 missingCapabilities.unshift('FritzDecryptedEditor');
+            }
+            if (window.FritzEditorController?.API_VERSION !== '1' ||
+                typeof window.FritzEditorController?.EditorController !== 'function') {
+                missingCapabilities.unshift('EditorController API v1');
             }
             if (window.FritzConfigDocument?.API_VERSION !== '1' ||
                 typeof window.FritzConfigDocument?.parse !== 'function' ||

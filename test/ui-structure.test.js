@@ -3,6 +3,7 @@ const fs = require('node:fs');
 
 const html = fs.readFileSync(require.resolve('../index.html'), 'utf8');
 const cryptoSource = fs.readFileSync(require.resolve('../lib/FritzOSCrypto.js'), 'utf8');
+const editorControllerSource = fs.readFileSync(require.resolve('../src/EditorController.js'), 'utf8');
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
 
@@ -141,8 +142,8 @@ assert.match(html, /this\.editorLineNumbers\.scrollTop\s*=\s*this\.editor\.scrol
 assert.match(html, /CFGFILE\|\(\?:CRYPTED\)\?BINFILE\|\(\?:CRYPTED\)\?B64FILE/, 'editor section navigation must recognize export file markers');
 assert.match(html, /button\.addEventListener\('click', \(\) => this\.jumpToEditorLine\(section\.line\)\)/, 'section markers must navigate to their source line');
 assert.match(html, /createSecretLocationLink\(secret/, 'secret locations must use the shared editor navigation link');
-assert.match(html, /FritzDecryptedEditor\.applyEdit/, 'decrypted expert edits must pass through the plaintext mapping layer');
-assert.match(html, /FritzDecryptedEditor\.buildDocument/, 'decrypted expert view must be derived from encrypted state');
+assert.match(editorControllerSource, /this\.decryptedEditor\.applyEdit/, 'decrypted expert edits must pass through the plaintext mapping layer');
+assert.match(editorControllerSource, /this\.decryptedEditor\.buildDocument/, 'decrypted expert view must be derived from encrypted state');
 assert.match(html, /Original · schreibgeschützt/, 'the immutable loaded original needs an explicit view state');
 assert.match(html, /this\.editorTheme === 'console'/, 'the expert editor needs an independent console/light theme toggle');
 assert.match(html, /this\.validateWorkingCopy\(generation\)/, 'structural edits need automatic roundtrip and checksum validation');
@@ -220,17 +221,20 @@ assert.match(html, /credential\.querySelector\('\[data-credential-actions\]'\)\?
 assert.match(cardEditor, /this\.commitMutation\([\s\S]*kind: 'secret'[\s\S]*secretId: secret\.id/, 'card edits must use the shared mutation flow');
 assert.equal(cardEditor.includes('this.scheduleAutoValidation()'), false, 'card handlers must not schedule validation outside the mutation flow');
 assert.match(cardEditor, /this\.syncSecretEditorRow\(secret\)/, 'card edits must keep the detailed secret row synchronized');
-const expertEditorInput = html.match(/handleEditorInput\(\)\s*\{[\s\S]*?(?=\n\s*switchView\()/)?.[0] || '';
+const expertEditorInput = editorControllerSource.match(/handleInput\(\)\s*\{[\s\S]*?(?=\n\s*renderPreviewText\()/)?.[0] || '';
 assert.equal(
   (expertEditorInput.match(/this\.commitMutation\(/g) || []).length,
   2,
   'both decrypted and structural expert-editor changes must use the shared mutation pipeline'
 );
 assert.equal(
-  expertEditorInput.includes('this.cancelAutoValidation()'),
+  /(?:schedule|cancel)AutoValidation/.test(expertEditorInput),
   false,
-  'expert-editor input must not cancel its own pending validation'
+  'the editor controller must not control validation timers'
 );
+assert.match(html, /this\.editor\?\.addEventListener\('input', \(\) => this\.editorController\.handleInput\(\)\)/, 'editor input must delegate to the editor controller');
+assert.match(html, /src\/EditorController\.js\?v=\d{8}-\d+/, 'editor controller needs a deployment cache key');
+assert.equal(html.includes('EditorController API v1'), true, 'editor controller compatibility guard is missing');
 const configMutation = html.match(/commitMutation\(mutation, options = \{\}\)\s*\{[\s\S]*?(?=\n\s*switchView\()/)?.[0] || '';
 assert.match(configMutation, /this\.mutationFlow\.commitMutation\(this\.state, mutation\)/, 'all app mutations must delegate state changes to the shared mutation service');
 assert.match(configMutation, /result\.keepPreviewVisible[\s\S]*this\.renderPreviewText/, 'structural edits must preserve the decrypted editor view');
