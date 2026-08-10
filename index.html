@@ -26,6 +26,7 @@
     <script src="./src/EditorController.js?v=20260810-1"></script>
     <script src="./src/SecretController.js?v=20260810-1"></script>
     <script src="./src/FilesController.js?v=20260810-1"></script>
+    <script src="./src/FilesView.js?v=20260810-1"></script>
     <script src="./src/TelephonyController.js?v=20260810-1"></script>
     <script src="./src/TelephonyView.js?v=20260810-1"></script>
     <script src="./src/FritzConfigDocument.js?v=20260808-3"></script>
@@ -823,6 +824,27 @@
                 this.filesController = new window.FritzFilesController.FilesController({
                     extractPhonebooks: text => this.embeddedFiles.extractPhonebooks(text)
                 });
+                this.filesView = new window.FritzFilesView.FilesView({
+                    document,
+                    createFilePreview: file => this.embeddedFiles.createFilePreview(file),
+                    humanizeField: field => this.parser.humanizeField(field),
+                    onJumpToLine: line => this.jumpToEditorLine(line),
+                    createIcons: () => lucide.createIcons(),
+                    elements: {
+                        navCount: this.fileNavCount,
+                        overviewCard: this.phonebookOverviewCard,
+                        overviewSummary: this.phonebookOverviewSummary,
+                        phonebookSection: this.phonebookViewerSection,
+                        phonebookSummary: this.phonebookViewerSummary,
+                        errors: this.phonebookViewerErrors,
+                        phonebooks: this.phonebookViewer,
+                        xml: this.phonebookXmlViewer,
+                        embeddedSection: this.embeddedFileViewerSection,
+                        embeddedSummary: this.embeddedFileViewerSummary,
+                        embedded: this.embeddedFileViewer,
+                        emptyState: this.filesEmptyState
+                    }
+                });
                 this.editorController = new window.FritzEditorController.EditorController({
                     state: this.state,
                     editor: this.editor,
@@ -1420,267 +1442,12 @@
             }
 
             getPhoneNumberTypeLabel(type) {
-                const labels = {
-                    home: 'Privat',
-                    mobile: 'Mobil',
-                    work: 'Arbeit',
-                    intern: 'Intern',
-                    memo: 'Memo',
-                    fax: 'Fax',
-                    fax_home: 'Fax privat',
-                    fax_work: 'Fax Arbeit',
-                    other: 'Weitere'
-                };
-                return labels[String(type || '').toLowerCase()] || this.parser.humanizeField(type || 'Weitere');
-            }
-
-            formatByteSize(bytes) {
-                const value = Number(bytes) || 0;
-                if (value < 1024) return `${value} Bytes`;
-                if (value < 1024 * 1024) return `${(value / 1024).toLocaleString('de-DE', { maximumFractionDigits: 1 })} KB`;
-                return `${(value / (1024 * 1024)).toLocaleString('de-DE', { maximumFractionDigits: 1 })} MB`;
-            }
-
-            renderEmbeddedFiles() {
-                const data = this.filesController.getData();
-                const plainFiles = data.files.filter(file => file.type === 'B64FILE');
-                const additionalFiles = plainFiles.filter(file => file.name.toLowerCase() !== 'phonebook');
-                this.fileNavCount.textContent = plainFiles.length;
-                this.embeddedFileViewerSection.classList.toggle('hidden', additionalFiles.length === 0);
-                this.embeddedFileViewerSummary.textContent = `${additionalFiles.length} ${additionalFiles.length === 1 ? 'Datei' : 'Dateien'} · Base64 dekodiert · Nur ansehen`;
-                this.embeddedFileViewer.innerHTML = '';
-
-                additionalFiles.forEach(file => {
-                    const preview = this.embeddedFiles.createFilePreview(file);
-                    const details = document.createElement('details');
-                    details.className = 'group rounded-xl border border-slate-200 overflow-hidden';
-                    const summary = document.createElement('summary');
-                    summary.className = 'cursor-pointer list-none bg-slate-50 px-4 py-3 flex items-center justify-between gap-4 hover:bg-slate-100';
-                    const identity = document.createElement('div');
-                    identity.className = 'min-w-0 flex items-center gap-3';
-                    const icon = document.createElement('span');
-                    icon.className = 'w-9 h-9 shrink-0 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center';
-                    icon.innerHTML = '<i data-lucide="file" class="w-4 h-4"></i>';
-                    const text = document.createElement('div');
-                    text.className = 'min-w-0';
-                    const title = document.createElement('h4');
-                    title.className = 'font-semibold text-slate-900 truncate';
-                    title.textContent = file.name;
-                    const meta = document.createElement('p');
-                    meta.className = 'text-xs text-slate-500 mt-0.5';
-                    meta.textContent = `${this.formatByteSize(file.bytes.length)} · ${preview.kind === 'text' ? 'Text' : 'Binärdaten'}`;
-                    text.append(title, meta);
-                    identity.append(icon, text);
-
-                    const actions = document.createElement('div');
-                    actions.className = 'flex items-center gap-3 shrink-0';
-                    const sourceLink = document.createElement('button');
-                    sourceLink.type = 'button';
-                    sourceLink.className = 'text-xs font-medium text-slate-500 hover:text-blue-700 hover:underline';
-                    sourceLink.textContent = `Zeile ${file.line}`;
-                    sourceLink.addEventListener('click', event => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        this.jumpToEditorLine(file.line);
-                    });
-                    const chevron = document.createElement('i');
-                    chevron.setAttribute('data-lucide', 'chevron-down');
-                    chevron.className = 'w-4 h-4 text-slate-400 transition-transform group-open:rotate-180';
-                    actions.append(sourceLink, chevron);
-                    summary.append(identity, actions);
-                    details.appendChild(summary);
-
-                    const content = document.createElement('div');
-                    content.className = 'border-t border-slate-200 bg-slate-950';
-                    if (preview.kind === 'binary') {
-                        const note = document.createElement('p');
-                        note.className = 'px-4 pt-3 text-xs text-amber-300';
-                        note.textContent = 'Binärdatei · Hex-Vorschau der Base64-dekodierten Bytes';
-                        content.appendChild(note);
-                    }
-                    const pre = document.createElement('pre');
-                    pre.className = 'm-0 max-h-[32rem] overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-xs leading-5 text-slate-200';
-                    pre.textContent = preview.content || '(Datei ist leer)';
-                    content.appendChild(pre);
-                    if (preview.truncated) {
-                        const truncated = document.createElement('p');
-                        truncated.className = 'border-t border-slate-800 px-4 py-2 text-xs text-amber-300';
-                        truncated.textContent = 'Vorschau gekürzt.';
-                        content.appendChild(truncated);
-                    }
-                    details.appendChild(content);
-                    this.embeddedFileViewer.appendChild(details);
-                });
+                return this.filesView.getPhoneNumberTypeLabel(type);
             }
 
             renderPhonebookViewer() {
-                const data = this.filesController.getData();
-                const query = (this.phonebookSearch?.value || '').trim().toLocaleLowerCase('de');
-                const totalContacts = data.books.reduce((sum, book) => sum + book.contacts.length, 0);
-                const visibleBooks = data.books.map(book => ({
-                    book,
-                    contacts: book.contacts.filter(contact => {
-                        if (!query) return true;
-                        const searchText = [
-                            contact.name,
-                            contact.category,
-                            ...contact.numbers.flatMap(number => [number.value, number.type, this.getPhoneNumberTypeLabel(number.type)])
-                        ].filter(Boolean).join(' ').toLocaleLowerCase('de');
-                        return searchText.includes(query);
-                    })
-                })).filter(entry => entry.contacts.length > 0 || (!query && entry.book.contacts.length === 0));
-                const visibleContacts = visibleBooks.reduce((sum, entry) => sum + entry.contacts.length, 0);
-
-                const hasPhonebookFile = data.phonebookFiles.length > 0;
-                this.phonebookOverviewCard.classList.toggle('hidden', !hasPhonebookFile);
-                this.phonebookOverviewSummary.textContent = `${data.books.length} ${data.books.length === 1 ? 'Telefonbuch' : 'Telefonbücher'} · ${totalContacts} ${totalContacts === 1 ? 'Kontakt' : 'Kontakte'}`;
-                this.phonebookViewerSection.classList.toggle('hidden', !hasPhonebookFile);
-                this.renderEmbeddedFiles();
-                const hasSupportedFile = data.files.some(file => file.type === 'B64FILE');
-                this.filesEmptyState.classList.toggle('hidden', hasSupportedFile);
-                this.phonebookViewerSummary.textContent = query
-                    ? `${visibleContacts} von ${totalContacts} Kontakten in ${data.books.length} Telefonbüchern`
-                    : `${data.books.length} Telefonbücher · ${totalContacts} Kontakte`;
-
-                this.phonebookViewerErrors.classList.toggle('hidden', data.errors.length === 0);
-                this.phonebookViewerErrors.textContent = data.errors.length
-                    ? `${data.errors.length} Telefonbuchdatei konnte nicht gelesen werden.`
-                    : '';
-                this.phonebookViewer.innerHTML = '';
-                this.phonebookXmlViewer.innerHTML = '';
-                this.phonebookXmlViewer.classList.toggle('hidden', data.phonebookFiles.length === 0);
-
-                if (visibleBooks.length === 0 && hasPhonebookFile) {
-                    const empty = document.createElement('div');
-                    empty.className = 'rounded-xl border border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500';
-                    empty.textContent = query ? 'Kein Kontakt passt zur Suche.' : 'Die Telefonbuchdatei enthält keine lesbaren Kontakte.';
-                    this.phonebookViewer.appendChild(empty);
-                }
-
-                visibleBooks.forEach((entry, bookIndex) => {
-                    const details = document.createElement('details');
-                    details.className = 'group rounded-2xl border border-slate-200 overflow-hidden';
-                    details.open = Boolean(query) || bookIndex === 0;
-                    const summary = document.createElement('summary');
-                    summary.className = 'cursor-pointer list-none bg-slate-50 px-4 py-3 flex items-center justify-between gap-4';
-                    const heading = document.createElement('div');
-                    heading.className = 'min-w-0';
-                    const title = document.createElement('h4');
-                    title.className = 'font-bold text-slate-900 truncate';
-                    title.textContent = entry.book.name;
-                    const meta = document.createElement('p');
-                    meta.className = 'text-xs text-slate-500 mt-0.5';
-                    meta.textContent = `${entry.contacts.length}${query ? ` von ${entry.book.contacts.length}` : ''} Kontakte${entry.book.owner === '255' ? ' · FRITZ!Box-interne Ziele' : ''}`;
-                    heading.append(title, meta);
-                    const summaryActions = document.createElement('div');
-                    summaryActions.className = 'flex items-center gap-3 shrink-0';
-                    if (entry.book.sourceLine) {
-                        const sourceLink = document.createElement('button');
-                        sourceLink.type = 'button';
-                        sourceLink.className = 'text-xs font-medium text-slate-500 hover:text-blue-700 hover:underline';
-                        sourceLink.textContent = `${entry.book.sourceName} · Zeile ${entry.book.sourceLine}`;
-                        sourceLink.addEventListener('click', event => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            this.jumpToEditorLine(entry.book.sourceLine);
-                        });
-                        summaryActions.appendChild(sourceLink);
-                    }
-                    const chevron = document.createElement('i');
-                    chevron.setAttribute('data-lucide', 'chevron-down');
-                    chevron.className = 'w-4 h-4 text-slate-400 transition-transform group-open:rotate-180';
-                    summaryActions.appendChild(chevron);
-                    summary.append(heading, summaryActions);
-                    details.appendChild(summary);
-
-                    const contacts = document.createElement('div');
-                    contacts.className = 'grid grid-cols-1 xl:grid-cols-2 gap-3 p-4 bg-white';
-                    entry.contacts.forEach(contact => {
-                        const card = document.createElement('article');
-                        card.className = 'rounded-xl border border-slate-200 p-4 min-w-0';
-                        const header = document.createElement('div');
-                        header.className = 'flex items-center gap-3';
-                        const avatar = document.createElement('span');
-                        avatar.className = 'w-9 h-9 shrink-0 rounded-full bg-cyan-50 text-cyan-700 flex items-center justify-center text-sm font-bold';
-                        avatar.textContent = contact.name.trim().slice(0, 1).toLocaleUpperCase('de') || '?';
-                        const identity = document.createElement('div');
-                        identity.className = 'min-w-0';
-                        const name = document.createElement('h5');
-                        name.className = 'font-semibold text-slate-900 truncate';
-                        name.textContent = contact.name;
-                        identity.appendChild(name);
-                        if (contact.category) {
-                            const category = document.createElement('p');
-                            category.className = 'text-[11px] text-slate-500 mt-0.5';
-                            category.textContent = contact.category;
-                            identity.appendChild(category);
-                        }
-                        header.append(avatar, identity);
-                        card.appendChild(header);
-
-                        const numbers = document.createElement('div');
-                        numbers.className = 'mt-3 space-y-2';
-                        if (contact.numbers.length === 0) {
-                            const noNumber = document.createElement('p');
-                            noNumber.className = 'text-xs text-slate-400';
-                            noNumber.textContent = 'Keine Rufnummer hinterlegt';
-                            numbers.appendChild(noNumber);
-                        }
-                        contact.numbers.forEach(number => {
-                            const row = document.createElement('div');
-                            row.className = 'flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2';
-                            const value = document.createElement('span');
-                            value.className = 'font-mono text-sm text-slate-800 break-all';
-                            value.textContent = number.value || '—';
-                            const type = document.createElement('span');
-                            type.className = 'shrink-0 rounded-full bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-500';
-                            type.textContent = this.getPhoneNumberTypeLabel(number.type);
-                            row.append(value, type);
-                            numbers.appendChild(row);
-                        });
-                        card.appendChild(numbers);
-                        contacts.appendChild(card);
-                    });
-                    details.appendChild(contacts);
-                    this.phonebookViewer.appendChild(details);
-                });
-
-                data.phonebookFiles.forEach(file => {
-                    const preview = this.embeddedFiles.createFilePreview(file);
-                    const details = document.createElement('details');
-                    details.className = 'group rounded-xl border border-slate-200 overflow-hidden';
-                    const summary = document.createElement('summary');
-                    summary.className = 'cursor-pointer list-none bg-slate-50 px-4 py-3 flex items-center justify-between gap-4 hover:bg-slate-100';
-                    const label = document.createElement('span');
-                    label.className = 'flex items-center gap-2 text-sm font-semibold text-slate-700';
-                    label.innerHTML = '<i data-lucide="braces" class="w-4 h-4 text-cyan-600"></i>';
-                    const labelText = document.createElement('span');
-                    labelText.textContent = `Dekodierte XML-Quelldatei anzeigen · ${this.formatByteSize(file.bytes.length)}`;
-                    label.appendChild(labelText);
-                    const actions = document.createElement('span');
-                    actions.className = 'flex items-center gap-3 shrink-0';
-                    const sourceLink = document.createElement('button');
-                    sourceLink.type = 'button';
-                    sourceLink.className = 'text-xs font-medium text-slate-500 hover:text-blue-700 hover:underline';
-                    sourceLink.textContent = `Zeile ${file.line}`;
-                    sourceLink.addEventListener('click', event => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        this.jumpToEditorLine(file.line);
-                    });
-                    const chevron = document.createElement('i');
-                    chevron.setAttribute('data-lucide', 'chevron-down');
-                    chevron.className = 'w-4 h-4 text-slate-400 transition-transform group-open:rotate-180';
-                    actions.append(sourceLink, chevron);
-                    summary.append(label, actions);
-                    const xml = document.createElement('pre');
-                    xml.className = 'm-0 max-h-[32rem] overflow-auto whitespace-pre-wrap break-words bg-slate-950 p-4 font-mono text-xs leading-5 text-slate-200';
-                    xml.textContent = preview.content || '(Datei ist leer)';
-                    details.append(summary, xml);
-                    this.phonebookXmlViewer.appendChild(details);
-                });
+                this.filesView.render(this.filesController.getData(), this.phonebookSearch?.value || '');
                 this.renderSipPhoneContacts();
-                lucide.createIcons();
             }
 
             renderState() {
@@ -3896,6 +3663,10 @@
             if (window.FritzFilesController?.API_VERSION !== '1' ||
                 typeof window.FritzFilesController?.FilesController !== 'function') {
                 missingCapabilities.unshift('FilesController API v1');
+            }
+            if (window.FritzFilesView?.API_VERSION !== '1' ||
+                typeof window.FritzFilesView?.FilesView !== 'function') {
+                missingCapabilities.unshift('FilesView API v1');
             }
             if (window.FritzTelephonyController?.API_VERSION !== '1' ||
                 typeof window.FritzTelephonyController?.TelephonyController !== 'function') {
