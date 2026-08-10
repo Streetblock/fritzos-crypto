@@ -5,6 +5,7 @@ const html = fs.readFileSync(require.resolve('../index.html'), 'utf8');
 const cryptoSource = fs.readFileSync(require.resolve('../lib/FritzOSCrypto.js'), 'utf8');
 const editorControllerSource = fs.readFileSync(require.resolve('../src/EditorController.js'), 'utf8');
 const secretControllerSource = fs.readFileSync(require.resolve('../src/SecretController.js'), 'utf8');
+const filesControllerSource = fs.readFileSync(require.resolve('../src/FilesController.js'), 'utf8');
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
 
@@ -238,6 +239,11 @@ assert.match(html, /src\/EditorController\.js\?v=\d{8}-\d+/, 'editor controller 
 assert.equal(html.includes('EditorController API v1'), true, 'editor controller compatibility guard is missing');
 assert.match(html, /src\/SecretController\.js\?v=\d{8}-\d+/, 'secret controller needs a deployment cache key');
 assert.equal(html.includes('SecretController API v1'), true, 'secret controller compatibility guard is missing');
+assert.match(html, /src\/FilesController\.js\?v=\d{8}-\d+/, 'files controller needs a deployment cache key');
+assert.equal(html.includes('FilesController API v1'), true, 'files controller compatibility guard is missing');
+assert.match(html, /this\.filesController\.load\(text\)/, 'loaded exports must enter the file controller');
+assert.match(filesControllerSource, /getPhoneContacts\(\)/, 'the file controller must provide a telephony-safe contact projection');
+assert.equal(html.includes('this.phonebookData'), false, 'phonebook state must not remain on the app controller');
 assert.match(secretControllerSource, /edit\(secret, plaintext, options\)[\s\S]*this\.commitMutation/, 'secret edits must delegate to the shared mutation flow');
 const configMutation = html.match(/commitMutation\(mutation, options = \{\}\)\s*\{[\s\S]*?(?=\n\s*switchView\()/)?.[0] || '';
 assert.match(configMutation, /this\.mutationFlow\.commitMutation\(this\.state, mutation\)/, 'all app mutations must delegate state changes to the shared mutation service');

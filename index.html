@@ -25,6 +25,7 @@
     <script src="./src/DecryptedEditor.js?v=20260808-2"></script>
     <script src="./src/EditorController.js?v=20260810-1"></script>
     <script src="./src/SecretController.js?v=20260810-1"></script>
+    <script src="./src/FilesController.js?v=20260810-1"></script>
     <script src="./src/FritzConfigDocument.js?v=20260808-3"></script>
     <script src="./src/FritzSipAccounts.js?v=20260808-2"></script>
     <script src="./src/FritzWireGuardConnections.js?v=20260808-2"></script>
@@ -799,7 +800,6 @@
                 this.passwordChangeRunning = false;
                 this.masterKeyRotationRunning = false;
                 this.originalExportPassword = null;
-                this.phonebookData = { files: [], phonebookFiles: [], books: [], errors: [] };
                 this.compatibleSipAccounts = [];
                 this.sipPhoneState = 'idle';
                 this.selectedSipContact = null;
@@ -820,6 +820,9 @@
                 this.state = new window.FritzConfigState.ConfigState(this.parser);
                 this.secretController = new window.FritzSecretController.SecretController({
                     commitMutation: (mutation, options) => this.commitMutation(mutation, options)
+                });
+                this.filesController = new window.FritzFilesController.FilesController({
+                    extractPhonebooks: text => this.embeddedFiles.extractPhonebooks(text)
                 });
                 this.editorController = new window.FritzEditorController.EditorController({
                     state: this.state,
@@ -1126,7 +1129,7 @@
                     const text = String(loadEvent.target?.result || '');
                     void this.sipPhone.disconnect();
                     this.state.load(text);
-                    this.phonebookData = this.embeddedFiles.extractPhonebooks(text);
+                    this.filesController.load(text);
                     this.originalExportPassword = null;
                     this.closePasswordChangePanel();
                     this.closeMasterKeyRotationPanel();
@@ -1387,7 +1390,7 @@
                 this.updateCharCount();
                 this.updateDashboard(original);
                 this.inspectChecksum(original);
-                this.phonebookData = this.embeddedFiles.extractPhonebooks(original);
+                this.filesController.load(original);
                 this.renderPhonebookViewer();
                 this.renderState();
                 this.showStatus('Die unveränderte Originaldatei wurde wiederhergestellt.', 'success');
@@ -1417,7 +1420,7 @@
             }
 
             renderEmbeddedFiles() {
-                const data = this.phonebookData || { files: [] };
+                const data = this.filesController.getData();
                 const plainFiles = data.files.filter(file => file.type === 'B64FILE');
                 const additionalFiles = plainFiles.filter(file => file.name.toLowerCase() !== 'phonebook');
                 this.fileNavCount.textContent = plainFiles.length;
@@ -1489,7 +1492,7 @@
             }
 
             renderPhonebookViewer() {
-                const data = this.phonebookData || { phonebookFiles: [], books: [], errors: [] };
+                const data = this.filesController.getData();
                 const query = (this.phonebookSearch?.value || '').trim().toLocaleLowerCase('de');
                 const totalContacts = data.books.reduce((sum, book) => sum + book.contacts.length, 0);
                 const visibleBooks = data.books.map(book => ({
@@ -2762,14 +2765,7 @@
             }
 
             getSipPhoneContacts() {
-                return (this.phonebookData?.books || []).flatMap(book => book.contacts.flatMap(contact =>
-                    contact.numbers.filter(number => number.value).map(number => ({
-                        name: contact.name,
-                        number: number.value,
-                        type: number.type,
-                        book: book.name
-                    }))
-                ));
+                return this.filesController.getPhoneContacts();
             }
 
             findSipContact(number) {
@@ -3512,7 +3508,7 @@
                 this.dashboardSection.classList.add('hidden');
                 this.metaList.innerHTML = '';
                 this.state.reset();
-                this.phonebookData = { files: [], phonebookFiles: [], books: [], errors: [] };
+                this.filesController.reset();
                 if (this.phonebookSearch) this.phonebookSearch.value = '';
                 if (this.sipContactSearch) this.sipContactSearch.value = '';
                 if (this.sipDialTarget) this.sipDialTarget.value = '';
@@ -3926,6 +3922,10 @@
             if (window.FritzSecretController?.API_VERSION !== '1' ||
                 typeof window.FritzSecretController?.SecretController !== 'function') {
                 missingCapabilities.unshift('SecretController API v1');
+            }
+            if (window.FritzFilesController?.API_VERSION !== '1' ||
+                typeof window.FritzFilesController?.FilesController !== 'function') {
+                missingCapabilities.unshift('FilesController API v1');
             }
             if (window.FritzConfigDocument?.API_VERSION !== '1' ||
                 typeof window.FritzConfigDocument?.parse !== 'function' ||
